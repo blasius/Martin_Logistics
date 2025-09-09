@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Role;
+use App\Models\User;
 
 class RolesSeeder extends Seeder
 {
@@ -22,6 +23,19 @@ class RolesSeeder extends Seeder
 
         foreach ($roles as $role) {
             Role::firstOrCreate(['name' => $role]);
+        }
+
+        // Ensure there is always at least one Super Admin user
+        $user = User::firstOrCreate(
+            ['email' => 'admin@example.com'],
+            [
+                'name' => 'Default Super Admin',
+                'password' => bcrypt('password123'), // Change after first login
+            ]
+        );
+
+        if (! $user->hasRole('Super Admin')) {
+            $user->assignRole('Super Admin');
         }
     }
 }
