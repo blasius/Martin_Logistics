@@ -1,5 +1,7 @@
 <?php
 
+use App\Filament\Pages\TwoFactorChallenge;
+use Filament\Facades\Filament;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -15,3 +17,7 @@ Route::get('/test-2fa', function () {
 
     return '2FA enabled for ' . $user->email;
 })->middleware('auth');
+
+Route::get('/admin/2fa-challenge', TwoFactorChallenge::class)
+    ->middleware(['auth'])
+    ->name('filament.2fa.challenge');

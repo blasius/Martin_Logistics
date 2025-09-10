@@ -4,6 +4,7 @@ namespace App\Providers\Filament;
 
 use App\Http\Middleware\EnsureUserHasFilamentRole;
 use App\Http\Middleware\LogRedirects;
+use App\Http\Middleware\TwoFactorMiddleware;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -54,6 +55,7 @@ class AdminPanelProvider extends PanelProvider
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
                 EnsureUserHasFilamentRole::class,
+                '2fa' => TwoFactorMiddleware::class,
             ])
             ->authMiddleware([
                 Authenticate::class,
