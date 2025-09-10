@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Http\Middleware\EnsureUserHasFilamentRole;
+use App\Http\Middleware\LogRedirects;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -42,6 +43,7 @@ class AdminPanelProvider extends PanelProvider
                 AccountWidget::class,
             ])
             ->middleware([
+                LogRedirects::class,
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
                 StartSession::class,

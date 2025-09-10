@@ -14,7 +14,7 @@ class RolesSeeder extends Seeder
     public function run(): void
     {
         $roles = [
-            'Super Admin',
+            'super_admin',
             'Admin',
             'Operator',
             'Driver',
@@ -34,8 +34,8 @@ class RolesSeeder extends Seeder
             ]
         );
 
-        if (! $user->hasRole('Super Admin')) {
-            $user->assignRole('Super Admin');
+        if (! $user->hasRole('super_admin')) {
+            $user->assignRole('super_admin');
         }
     }
 }

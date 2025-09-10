@@ -10,16 +10,14 @@ class EnsureUserHasFilamentRole
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if (! auth()->check()) {
-            return redirect()->route('filament.admin.auth.login');
-        }
-
         $user = auth()->user();
 
-        if ($user->hasAnyRole(['super_admin', 'admin', 'operator'])) {
-            return $next($request);
-        }
+        // Check if the user has one of the required roles
+        /*if (!$user || !$user->hasAnyRole(['super_admin', 'admin', 'operator'])) {
+            // If the user does not have the role, abort with a 403 error.
+            abort(403, 'Unauthorized access.');
+        }*/
 
-        abort(403, 'Unauthorized access.');
+        return $next($request);
     }
 }
