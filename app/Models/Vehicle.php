@@ -16,10 +16,14 @@ class Vehicle extends Model
         'year',
         'color',
         'status',
+        'capacity',
+        'capacity_unit',
     ];
 
     protected $casts = [
         'year' => 'integer',
+        'capacity' => 'decimal:2',
         'status' => 'string',
     ];
+
 }

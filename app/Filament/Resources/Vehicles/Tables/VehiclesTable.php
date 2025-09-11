@@ -19,6 +19,10 @@ class VehiclesTable
             TextColumn::make('model')->searchable(),
             TextColumn::make('year')->sortable(),
             TextColumn::make('color'),
+            TextColumn::make('capacity')
+                ->label('Capacity')
+                ->formatStateUsing(fn ($state, $record) => $state . ' ' . $record->capacity_unit)
+                ->sortable(),
             BadgeColumn::make('status')
                 ->colors([
                     'success' => 'active',
