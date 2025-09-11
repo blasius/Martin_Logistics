@@ -4,6 +4,7 @@ namespace App\Filament\Resources\DriverVehicleAssignments\Schemas;
 
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Rules\UniqueActiveAssignment;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Schemas\Schema;
@@ -21,7 +22,10 @@ class DriverVehicleAssignmentForm
                     return User::role('Driver')->pluck('name', 'id');
                 })
                 ->searchable()
-                ->required(),
+                ->required()
+                ->rules([
+                    new UniqueActiveAssignment('driver', request()->route('record')),
+                ]),
 
             Select::make('vehicle_id')
                 ->label('Vehicle')
@@ -29,7 +33,10 @@ class DriverVehicleAssignmentForm
                     return Vehicle::orderBy('plate_number')->pluck('plate_number', 'id');
                 })
                 ->searchable()
-                ->required(),
+                ->required()
+                ->rules([
+                    new UniqueActiveAssignment('vehicle', request()->route('record')),
+                ]),
 
             DateTimePicker::make('start_date')
                 ->label('Start date')
