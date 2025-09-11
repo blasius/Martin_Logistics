@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Widgets\DashboardNumbers;
 use App\Http\Middleware\EnsureUserHasFilamentRole;
 use App\Http\Middleware\LogRedirects;
 use App\Http\Middleware\TwoFactorMiddleware;
@@ -41,7 +42,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
-                AccountWidget::class,
+                DashboardNumbers::class,
             ])
             ->middleware([
                 LogRedirects::class,
