@@ -21,6 +21,7 @@ class DriverVehicleAssignmentResource extends Resource
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedAdjustmentsHorizontal;
 
     protected static ?string $recordTitleAttribute = 'Assign';
+    protected static string|null|\UnitEnum $navigationGroup = 'Fleet';
 
     public static function form(Schema $schema): Schema
     {
@@ -46,5 +47,15 @@ class DriverVehicleAssignmentResource extends Resource
             'create' => CreateDriverVehicleAssignment::route('/create'),
             'edit' => EditDriverVehicleAssignment::route('/{record}/edit'),
         ];
+    }
+
+    public static function getModelLabel(): string
+    {
+        return 'Assignment';  // shown in forms
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return 'Assignments'; // shown in sidebar/menu
     }
 }
