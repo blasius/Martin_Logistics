@@ -26,4 +26,15 @@ class Vehicle extends Model
         'status' => 'string',
     ];
 
+    public function inspections()
+    {
+        return $this->hasMany(VehicleInspection::class);
+    }
+
+    public function latestInspection()
+    {
+        return $this->hasOne(VehicleInspection::class)->latestOfMany();
+    }
+
+
 }
