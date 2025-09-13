@@ -17,23 +17,31 @@ class OrdersTable
     {
         return $table
             ->columns([
-                TextColumn::make('reference')->sortable()->searchable(),
-                TextColumn::make('client.name')->label('Client'),
-                TextColumn::make('origin'),
-                TextColumn::make('destination'),
-                TextColumn::make('status')->badge(),
-                TextColumn::make('pickup_date')->date(),
-                TextColumn::make('price')->money('usd'),
+                TextColumn::make('reference')
+                    ->label('Reference')
+                    ->sortable()
+                    ->searchable(),
+
+                TextColumn::make('client.name')
+                    ->label('Client')
+                    ->sortable()
+                    ->searchable(),
+
+                TextColumn::make('origin')->sortable()->searchable(),
+                TextColumn::make('destination')->sortable()->searchable(),
+
+                TextColumn::make('pickup_date')
+                    ->label('Pickup Date')
+                    ->date()
+                    ->sortable(),
+
+                TextColumn::make('status')->sortable(),
+                TextColumn::make('price')
+                    ->money('usd', true)
+                    ->sortable(),
             ])
             ->filters([
-                SelectFilter::make('status')
-                    ->options([
-                        'draft' => 'Draft',
-                        'confirmed' => 'Confirmed',
-                        'in_transit' => 'In Transit',
-                        'delivered' => 'Delivered',
-                        'cancelled' => 'Cancelled',
-                    ]),
+                // e.g., status filter later
             ])
             ->actions([
                 ViewAction::make(),
