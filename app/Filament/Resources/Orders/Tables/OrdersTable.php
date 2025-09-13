@@ -45,15 +45,17 @@ class OrdersTable
                 SelectFilter::make('year')
                     ->label('Year')
                     ->options(function () {
-                        return DB::table('orders')
+                        $years = DB::table('orders')
                             ->selectRaw('YEAR(created_at) as year')
                             ->distinct()
                             ->orderByDesc('year')
                             ->pluck('year', 'year')
                             ->toArray();
+
+                        return ['all' => 'All Years'] + $years;
                     })
                     ->query(function ($query, $value) {
-                        if ($value) {
+                        if ($value && $value !== 'all') {
                             $query->whereYear('created_at', $value);
                         }
                     }),
