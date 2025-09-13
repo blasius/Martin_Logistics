@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Orders\Tables;
 
+use DB;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -41,7 +42,21 @@ class OrdersTable
                     ->sortable(),
             ])
             ->filters([
-                // e.g., status filter later
+                SelectFilter::make('year')
+                    ->label('Year')
+                    ->options(function () {
+                        return DB::table('orders')
+                            ->selectRaw('YEAR(created_at) as year')
+                            ->distinct()
+                            ->orderByDesc('year')
+                            ->pluck('year', 'year')
+                            ->toArray();
+                    })
+                    ->query(function ($query, $value) {
+                        if ($value) {
+                            $query->whereYear('created_at', $value);
+                        }
+                    }),
             ])
             ->actions([
                 ViewAction::make(),
