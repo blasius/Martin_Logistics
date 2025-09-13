@@ -22,4 +22,15 @@ class Trailer extends Model
     {
         return $query->where('status', 'active');
     }
+
+    public function assignments()
+    {
+        return $this->hasMany(TrailerAssignment::class);
+    }
+
+    public function currentVehicle()
+    {
+        return $this->assignments()->whereNull('unassigned_at')->latest('assigned_at')->first();
+    }
+
 }

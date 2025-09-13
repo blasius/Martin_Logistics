@@ -36,5 +36,15 @@ class Vehicle extends Model
         return $this->hasOne(VehicleInspection::class)->latestOfMany();
     }
 
+    public function trailerAssignments()
+    {
+        return $this->hasMany(TrailerAssignment::class);
+    }
+
+
+    public function currentTrailer()
+    {
+        return $this->trailerAssignments()->whereNull('unassigned_at')->latest('assigned_at')->first();
+    }
 
 }

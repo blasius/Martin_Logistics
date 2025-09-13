@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Vehicles;
 use App\Filament\Resources\Vehicles\Pages\CreateVehicle;
 use App\Filament\Resources\Vehicles\Pages\EditVehicle;
 use App\Filament\Resources\Vehicles\Pages\ListVehicles;
+use App\Filament\Resources\Vehicles\RelationManagers\TrailerAssignmentsRelationManager;
 use App\Filament\Resources\Vehicles\Schemas\VehicleForm;
 use App\Filament\Resources\Vehicles\Tables\VehiclesTable;
 use App\Models\Vehicle;
@@ -33,19 +34,19 @@ class VehicleResource extends Resource
         return VehiclesTable::configure($table);
     }
 
-    public static function getRelations(): array
-    {
-        return [
-            //
-        ];
-    }
-
     public static function getPages(): array
     {
         return [
             'index' => ListVehicles::route('/'),
             'create' => CreateVehicle::route('/create'),
             'edit' => EditVehicle::route('/{record}/edit'),
+        ];
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+           TrailerAssignmentsRelationManager::class,
         ];
     }
 }
