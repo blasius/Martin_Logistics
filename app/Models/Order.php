@@ -28,11 +28,23 @@ class Order extends Model
     {
         static::creating(function ($order) {
             if (empty($order->reference)) {
-                // Get the last order ID and increment
-                $lastId = static::max('id') ?? 0;
-                $nextNumber = str_pad($lastId + 1, 5, '0', STR_PAD_LEFT);
+                $year = now()->year;
 
-                $order->reference = 'ORD-' . $nextNumber;
+                // Get the last reference for the current year
+                $lastReference = static::where('reference', 'like', "ORD-{$year}-%")
+                    ->orderByDesc('id')
+                    ->value('reference');
+
+                if ($lastReference) {
+                    // Extract the numeric part
+                    $lastNumber = intval(substr($lastReference, -5));
+                } else {
+                    $lastNumber = 0;
+                }
+
+                $nextNumber = str_pad($lastNumber + 1, 5, '0', STR_PAD_LEFT);
+
+                $order->reference = "ORD-{$year}-{$nextNumber}";
             }
         });
     }
