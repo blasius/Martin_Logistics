@@ -59,6 +59,16 @@ class OrdersTable
                             $query->whereYear('created_at', $value);
                         }
                     }),
+
+                SelectFilter::make('status')
+                    ->label('Status')
+                    ->options([
+                        'draft' => 'Draft',
+                        'confirmed' => 'Confirmed',
+                        'in-progress' => 'In Progress',
+                        'completed' => 'Completed',
+                        'cancelled' => 'Cancelled',
+                    ]),
             ])
             ->actions([
                 ViewAction::make(),
