@@ -21,8 +21,9 @@ class OrderForm
                 ->searchable(),
 
             TextInput::make('reference')
-                ->default(fn () => 'ORD-' . strtoupper(Str::random(6)))
-                ->readOnly(),
+                ->label('Reference')
+                ->readOnly()
+                ->dehydrated(),
 
             TextInput::make('origin')->required(),
             TextInput::make('destination')->required(),

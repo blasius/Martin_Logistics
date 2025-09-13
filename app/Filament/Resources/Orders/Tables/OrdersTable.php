@@ -24,7 +24,6 @@ class OrdersTable
                 TextColumn::make('status')->badge(),
                 TextColumn::make('pickup_date')->date(),
                 TextColumn::make('price')->money('usd'),
-                TextColumn::make('created_at')->dateTime()->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 SelectFilter::make('status')
@@ -38,8 +37,6 @@ class OrdersTable
             ])
             ->actions([
                 ViewAction::make(),
-                EditAction::make(),
-                DeleteAction::make(),
             ]);
     }
 }
