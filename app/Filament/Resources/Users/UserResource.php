@@ -20,7 +20,7 @@ class UserResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedUsers;
 
-    protected static ?string $recordTitleAttribute = 'Users';
+    protected static ?string $recordTitleAttribute = 'name';
     protected static string|null|\UnitEnum $navigationGroup = null; // top-level menu
     protected static ?int $navigationSort = 2; // ensures it’s the second item in the sidebar
 

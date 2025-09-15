@@ -21,8 +21,6 @@ class VehicleInspectionResource extends Resource
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedWrenchScrewdriver;
     protected static string|null|\UnitEnum $navigationGroup = 'Fleet';
 
-    protected static ?string $recordTitleAttribute = 'Inspections';
-
     public static function form(Schema $schema): Schema
     {
         return VehicleInspectionForm::configure($schema);
