@@ -18,7 +18,7 @@ class TrailerResource extends Resource
 {
     protected static ?string $model = Trailer::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedLink;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCube;
 
     protected static ?string $recordTitleAttribute = 'Trailer';
     protected static string|null|\UnitEnum $navigationGroup = 'Fleet';

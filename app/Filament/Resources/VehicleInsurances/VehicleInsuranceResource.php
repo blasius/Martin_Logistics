@@ -18,7 +18,7 @@ class VehicleInsuranceResource extends Resource
 {
     protected static ?string $model = VehicleInsurance::class;
 
-    protected static string|null|BackedEnum $navigationIcon = 'heroicon-o-shield-check';
+    protected static string|null|BackedEnum $navigationIcon = Heroicon::OutlinedShieldCheck;
     protected static string|null|\UnitEnum $navigationGroup = 'Fleet';
     protected static ?int $navigationSort = 3;
     protected static ?string $label = 'Insurance';

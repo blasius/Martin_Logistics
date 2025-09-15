@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Vehicle extends Model
 {
@@ -41,10 +42,31 @@ class Vehicle extends Model
         return $this->hasMany(TrailerAssignment::class);
     }
 
-
     public function currentTrailer()
     {
-        return $this->trailerAssignments()->whereNull('unassigned_at')->latest('assigned_at')->first();
+        return $this->hasOne(TrailerAssignment::class)
+            ->latestOfMany('assigned_at')
+            ->with('trailer');
+    }
+    public function trailers()
+    {
+        return $this->belongsToMany(Trailer::class, 'trailer_assignments')
+            ->withTimestamps()
+            ->withPivot('assigned_at', 'unassigned_at');
     }
 
+    public function latestTrailer()
+    {
+        return $this->belongsToMany(Trailer::class, 'trailer_assignments')
+            ->withPivot('assigned_at', 'unassigned_at')
+            ->whereNull('unassigned_at') // only currently attached
+            ->latest('assigned_at');
+    }
+
+    public function drivers()
+    {
+        return $this->belongsToMany(Driver::class, 'driver_vehicle_assignments')
+            ->withPivot('assigned_at', 'unassigned_at')
+            ->withTimestamps();
+    }
 }

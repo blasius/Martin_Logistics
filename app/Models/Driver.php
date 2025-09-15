@@ -24,4 +24,16 @@ class Driver extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function getNameAttribute()
+    {
+        return $this->user?->name; // convenience accessor
+    }
+
+    public function vehicles()
+    {
+        return $this->belongsToMany(Vehicle::class, 'driver_vehicle_assignments')
+            ->withPivot('assigned_at', 'unassigned_at')
+            ->withTimestamps();
+    }
 }
