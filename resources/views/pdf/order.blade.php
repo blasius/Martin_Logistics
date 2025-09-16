@@ -62,12 +62,12 @@
 <header>
 
     <div class="logo" style="width: 95%;">
-        <img src="{{ public_path('storage/images/header_martin.png') }}" alt="Logo" style="max-width: 100%; height: 60px;">
+        <img src="{{ public_path('images/header_martin.png') }}" alt="Logo" style="max-width: 100%; height: 60px;">
     </div>
 </header>
 
 <footer>
-    <img src="{{ public_path('storage/images/footer_banner.png') }}"
+    <img src="{{ public_path('images/footer_banner.png') }}"
          style="width: 100%; height: auto;" alt="Footer Banner">
     <div style="margin-top: 5px; font-size: 11px;">
         This document was generated on {{ now()->format('d M Y H:i') }}.<br>
