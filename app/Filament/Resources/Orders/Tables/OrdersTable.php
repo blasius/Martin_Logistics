@@ -2,7 +2,9 @@
 
 namespace App\Filament\Resources\Orders\Tables;
 
+use Barryvdh\DomPDF\Facade\Pdf;
 use DB;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -72,6 +74,24 @@ class OrdersTable
             ])
             ->actions([
                 ViewAction::make(),
+                Action::make('print')
+                    ->label('Print')
+                    ->icon('heroicon-o-printer')
+                    ->url(fn ($record) => route('orders.print', $record))
+                    ->openUrlInNewTab(),
+            ])
+            ->headerActions([
+                Action::make('downloadPdf')
+                    ->label('Download PDF')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->action(function () {
+                        $orders = \App\Models\Order::with('client')->get();
+                        $pdf = Pdf::loadView('pdf.order-report', compact('orders'));
+                        return response()->streamDownload(
+                            fn () => print($pdf->output()),
+                            'orders-report.pdf'
+                        );
+                    }),
             ]);
     }
 }
