@@ -30,9 +30,6 @@ class OrdersTable
                     ->sortable()
                     ->searchable(),
 
-                TextColumn::make('origin')->sortable()->searchable(),
-                TextColumn::make('destination')->sortable()->searchable(),
-
                 TextColumn::make('pickup_date')
                     ->label('Pickup Date')
                     ->date()
@@ -88,7 +85,7 @@ class OrdersTable
             ])
             ->headerActions([
                 Action::make('downloadPdf')
-                    ->label('Download PDF')
+                    ->label('Full report')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->action(function () {
                         $orders = \App\Models\Order::with('client')->get();
