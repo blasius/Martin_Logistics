@@ -77,8 +77,14 @@ class OrdersTable
                 Action::make('print')
                     ->label('Print')
                     ->icon('heroicon-o-printer')
-                    ->url(fn ($record) => route('orders.print', $record))
-                    ->openUrlInNewTab(),
+                    ->action(function ($record) {
+                        $order = $record->load('client');
+                        $pdf = Pdf::loadView('pdf.order-single', compact('order'));
+                        return response()->streamDownload(
+                            fn () => print($pdf->output()),
+                            "order-{$order->reference}.pdf"
+                        );
+                    }),
             ])
             ->headerActions([
                 Action::make('downloadPdf')
