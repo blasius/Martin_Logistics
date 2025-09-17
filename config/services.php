@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'wialon' => [
+        'url' => env('WIALON_API_URL'),
+        'token' => env('WIALON_API_TOKEN'),
+    ],
+
 ];
