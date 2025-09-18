@@ -69,4 +69,11 @@ class Vehicle extends Model
             ->withPivot('assigned_at', 'unassigned_at')
             ->withTimestamps();
     }
+
+    public function wialonUnit()
+    {
+        return $this->hasOne(WialonUnit::class);
+    }
+
+
 }
