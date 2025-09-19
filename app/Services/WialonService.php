@@ -2,7 +2,10 @@
 
 namespace App\Services;
 
+use Carbon\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class WialonService
 {
@@ -10,10 +13,11 @@ class WialonService
     protected string $token;
     protected ?string $sid = null;
 
-    public function __construct()
+    public function __construct(RegionLocatorService $regionLocator)
     {
         $this->url = config('services.wialon.url', env('WIALON_API_URL'));
         $this->token = env('WIALON_API_TOKEN');
+        $this->regionLocator = $regionLocator;
     }
 
     /**
@@ -85,6 +89,53 @@ class WialonService
             $json = $response->json();
         }
         return $json;
+    }
+
+    public function getUnitsWithPosition(): Collection
+    {
+        $params = [
+            'spec' => [
+                'itemsType' => 'avl_unit',
+                'propName' => 'sys_name',
+                'propValueMask' => '*',
+                'sortType' => 'sys_name',
+            ],
+            'force' => 1,
+            'flags' => 1025, // basic+pos
+            'from'  => 0,
+            'to'    => 0,
+        ];
+
+        $result = $this->call('core/search_items', $params);
+
+        if (isset($result['error'])) {
+            throw new \Exception("Wialon error: " . json_encode($result));
+        }
+
+        $items = $result['items'] ?? [];
+
+        return collect($items)->map(function ($unit) {
+            $pos = $unit['pos'] ?? null;
+
+            $lat = $pos['x'] ?? null;
+            $lon = $pos['y'] ?? null;
+
+            $region = $lat && $lon
+                ? $this->regionLocator->getRegionForPoint($lon, $lat)
+                : 'Unknown Region';
+
+            return [
+                'id'        => $unit['id'],
+                'name'      => $unit['nm'] ?? '',
+                'latitude'  => $lat,
+                'longitude' => $lon,
+                'altitude'  => $pos['z'] ?? null,
+                'speed'     => $pos['s'] ?? null,
+                'course'    => $pos['c'] ?? null,
+                'last_seen' => isset($pos['t']) ? date('d-m-Y H:i:s', $pos['t']) : null,
+                'region'    => $region,
+            ];
+        })->filter(fn($u) => $u['latitude'] && $u['longitude'])->values();
     }
 
 }
