@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\WialonUnit;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
@@ -91,7 +92,7 @@ class WialonService
         return $json;
     }
 
-    public function getUnitsWithPosition(): Collection
+    public function getUnitsOnly()
     {
         $params = [
             'spec' => [
@@ -106,36 +107,91 @@ class WialonService
             'to'    => 0,
         ];
 
-        $result = $this->call('core/search_items', $params);
+        $results = $this->call('core/search_items', $params);
 
-        if (isset($result['error'])) {
-            throw new \Exception("Wialon error: " . json_encode($result));
+        if (is_array($results) && isset($results['items'])) {
+            // Filter the items array to keep only those with a numeric 'id' key.
+            $validItems = array_filter($results['items'], function($item) {
+                // The check for the 'id' key is sufficient. If 'id' is missing,
+                // it's highly likely the other keys are as well.
+                return isset($item['id']) && is_numeric($item['id']);
+            });
+
+            // Return the cleaned array.
+            return $validItems;
         }
 
-        $items = $result['items'] ?? [];
+        // Return an empty array if the expected data structure is not found.
+        return [];
+    }
 
-        return collect($items)->map(function ($unit) {
-            $pos = $unit['pos'] ?? null;
+    public function getUnitsWithPosition(): Collection
+    {
+        // Get the data from the local database
+        $vehicles = WialonUnit::all();
+        Log::info('The vehicles: ' . $vehicles->count());
+        Log::info('The vehicles: ' . json_encode($vehicles));
 
-            $lat = $pos['x'] ?? null;
-            $lon = $pos['y'] ?? null;
+        return $vehicles->map(function ($unit) {
+            $lat = $unit->last_lat;
+            $lon = $unit->last_lon;
 
             $region = $lat && $lon
-                ? $this->regionLocator->getRegionForPoint($lon, $lat)
+                ? $this->regionLocator->getRegionForPoint($lat, $lon)
                 : 'Unknown Region';
+            Log::info('Region: ' . $region);
 
             return [
-                'id'        => $unit['id'],
-                'name'      => $unit['nm'] ?? '',
+                'id'        => $unit->wialon_id,
+                'name'      => $unit->name,
                 'latitude'  => $lat,
                 'longitude' => $lon,
-                'altitude'  => $pos['z'] ?? null,
-                'speed'     => $pos['s'] ?? null,
-                'course'    => $pos['c'] ?? null,
-                'last_seen' => isset($pos['t']) ? date('d-m-Y H:i:s', $pos['t']) : null,
+                'speed'     => $unit->speed,
+                'last_seen' => $unit->last_update,
                 'region'    => $region,
             ];
         })->filter(fn($u) => $u['latitude'] && $u['longitude'])->values();
     }
 
+    public function syncUnits(): void
+    {
+        Log::info('Passage');
+        $units = $this->getUnitsOnly();
+
+        foreach ($units as $unit) {
+            Log::info("Unit: " . json_encode($unit));
+            $pos = $unit['pos'] ?? null;
+            $lmsg = $unit['lmsg'] ?? null;
+            $power = $lmsg['p'] ?? null;
+
+            // Correcting the variable assignment for latitude and longitude
+            $lat = $pos['y'] ?? null;
+            $lon = $pos['x'] ?? null;
+
+            // Safely retrieve the last update time
+            $last_update = isset($pos['t']) ? date('Y-m-d H:i:s', $pos['t']) : null;
+
+            WialonUnit::updateOrCreate(
+                ['wialon_id' => $unit['id']],
+                [
+                    'vehicle_id'      => null,
+                    'name'            => $unit['nm'] ?? 'Unknown',
+                    'uid'             => null,
+                    'device_type'     => null,
+                    'last_lat'        => $lat,
+                    'last_lon'        => $lon,
+                    // CORRECTED: Access speed from the 'pos' array
+                    'speed'           => $pos['s'] ?? null,
+                    // CORRECTED: Safely access ignition status
+                    'ignition'        => $power['io_1'] ?? null,
+                    // CORRECTED: Safely access GPS voltage
+                    'gps_voltage'     => $power['io_25'] ?? null,
+                    // CORRECTED: Safely access vehicle voltage
+                    'vehicle_voltage' => $power['pwr_ext'] ?? null,
+                    'last_update'     => $last_update,
+                    'is_linked'       => 0,
+                ]
+            );
+        }
+    }
 }

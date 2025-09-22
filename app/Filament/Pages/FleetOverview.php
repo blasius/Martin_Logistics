@@ -2,9 +2,9 @@
 
 namespace App\Filament\Pages;
 
+use App\Models\WialonUnit;
 use Filament\Pages\Page;
 use App\Services\WialonService;
-use Log;
 
 class FleetOverview extends Page
 {
@@ -15,12 +15,13 @@ class FleetOverview extends Page
 
     public $vehicles = [];
 
+    // This method is correctly fetching and preparing the data.
     public function mount(WialonService $wialonService): void
     {
-        // Fetch vehicles from your service
-        $this->vehicles = $wialonService->getUnitsWithPosition();
+        $this->vehicles = collect($wialonService->getUnitsWithPosition());
     }
 
+    // This method passes the data to the view.
     protected function getViewData(): array
     {
         return [

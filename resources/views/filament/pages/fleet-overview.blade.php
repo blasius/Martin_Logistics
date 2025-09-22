@@ -1,7 +1,6 @@
 <x-filament-panels::page>
     <div x-data="{ tab: 'table', filterText: '' }" class="space-y-4">
 
-        <!-- Tabs -->
         <div class="flex border-b">
             <button class="px-4 py-2 text-sm font-medium"
                     :class="tab==='table'?'border-b-2 border-primary-600 text-primary-700':'text-gray-500'"
@@ -11,13 +10,11 @@
                     @click="tab='map'">Map View</button>
         </div>
 
-        <!-- Filter -->
         <div>
             <input type="text" placeholder="Filter by region/vehicle..." x-model="filterText"
                    class="border rounded px-3 py-1 w-full md:w-1/2"/>
         </div>
 
-        <!-- Table -->
         <div x-show="tab==='table'" class="space-y-6">
             @php $grouped = $vehicles->groupBy('region'); @endphp
             @foreach($grouped as $region => $group)
@@ -28,23 +25,22 @@
                         <span class="text-gray-500">▼</span>
                     </button>
                     <div class="hidden">
-                        <table class="w-full border-t">
-                            <thead class="bg-gray-50">
+                        <table class="w-full border-collapse">
+                            <thead class="bg-gray-100 border-b-2 border-gray-200">
                             <tr>
-                                <th class="px-3 py-2 text-left">Name</th>
-                                <th class="px-3 py-2 text-left">Last Seen</th>
-                                <th class="px-3 py-2 text-left">Speed</th>
+                                <th class="px-3 py-2 text-left border border-gray-300">Name</th>
+                                <th class="px-3 py-2 text-left border border-gray-300">Last Seen</th>
+                                <th class="px-3 py-2 text-left border border-gray-300">Speed</th>
                             </tr>
                             </thead>
                             <tbody>
                             @foreach($group as $vehicle)
                                 <tr x-show="!filterText
-                                    || '{{ strtolower($region) }}'.includes(filterText.toLowerCase())
-                                    || '{{ strtolower($vehicle['name']) }}'.includes(filterText.toLowerCase())"
-                                    class="border-t">
-                                    <td class="px-3 py-2">{{ $vehicle['name'] }}</td>
-                                    <td class="px-3 py-2">{{ $vehicle['last_seen'] }}</td>
-                                    <td class="px-3 py-2">{{ $vehicle['speed'] }} km/h</td>
+                    || '{{ strtolower($region) }}'.includes(filterText.toLowerCase())
+                    || '{{ strtolower($vehicle['name']) }}'.includes(filterText.toLowerCase())">
+                                    <td class="px-3 py-2 border border-gray-300">{{ $vehicle['name'] }}</td>
+                                    <td class="px-3 py-2 border border-gray-300">{{ \Carbon\Carbon::parse($vehicle['last_seen'])->diffForHumans() }}</td>
+                                    <td class="px-3 py-2 border border-gray-300">{{ $vehicle['speed'] }} km/h</td>
                                 </tr>
                             @endforeach
                             </tbody>
@@ -54,14 +50,11 @@
             @endforeach
         </div>
 
-        <!-- Map -->
         <div x-show="tab==='map'" class="p-4 h-[600px]">
             <div id="fleet-map" class="w-full h-full rounded-xl border"></div>
         </div>
-
     </div>
 
-    <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script>
