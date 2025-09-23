@@ -22,17 +22,13 @@ class ExchangeRateForm
                 ->searchable()
                 ->required(),
 
+            DateTimePicker::make('valid_from')
+                ->required()
+                ->label('Valid From'),
+
             TextInput::make('rate')
                 ->numeric()
-                ->required()
-                ->step('0.000001'),
-
-            DateTimePicker::make('valid_from')
                 ->required(),
-
-            DateTimePicker::make('valid_to')
-                ->label('Valid To')
-                ->nullable(),
 
         ]);
     }

@@ -37,6 +37,25 @@ class ExchangeRate extends Model
             ->orderByDesc('valid_from');
     }
 
+    protected static function booted()
+    {
+        static::creating(function (ExchangeRate $rate) {
+            // Find the latest existing rate for the same currency pair
+            $previous = ExchangeRate::where('base_currency_id', $rate->base_currency_id)
+                ->where('target_currency_id', $rate->target_currency_id)
+                ->whereNull('valid_to')
+                ->latest('valid_from')
+                ->first();
+
+            if ($previous) {
+                // Close the old rate validity to the minute before new rate starts
+                $previous->update([
+                    'valid_to' => $rate->valid_from->copy()->subMinute(),
+                ]);
+            }
+        });
+    }
+
     public function baseCurrency()
     {
         return $this->belongsTo(Currency::class, 'base_currency_id');
