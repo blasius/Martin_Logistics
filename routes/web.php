@@ -1,6 +1,8 @@
 <?php
 
+use App\Filament\Pages\FleetOverview;
 use App\Filament\Pages\TwoFactorChallenge;
+use App\Http\Controllers\DummyController;
 use App\Http\Controllers\OrderPrintController;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\Route;
@@ -25,3 +27,9 @@ Route::get('/admin/2fa-challenge', TwoFactorChallenge::class)
 
 Route::get('/orders/{order}/print', OrderPrintController::class)
     ->name('orders.print');
+
+Route::get('dummy', function() {
+        return view('dummy.index');
+});
+
+Route::view('/trip-expenses', 'dummy.trip-expenses');
