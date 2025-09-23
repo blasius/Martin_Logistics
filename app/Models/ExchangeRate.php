@@ -36,4 +36,14 @@ class ExchangeRate extends Model
             })
             ->orderByDesc('valid_from');
     }
+
+    public function baseCurrency()
+    {
+        return $this->belongsTo(Currency::class, 'base_currency_id');
+    }
+
+    public function targetCurrency()
+    {
+        return $this->belongsTo(Currency::class, 'target_currency_id');
+    }
 }

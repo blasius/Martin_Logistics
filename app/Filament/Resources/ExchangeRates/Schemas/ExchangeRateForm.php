@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\ExchangeRates\Schemas;
 
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
 
@@ -11,17 +12,15 @@ class ExchangeRateForm
     public static function configure(Schema $schema): Schema
     {
         return $schema->schema([
-            TextInput::make('base_currency')
-                ->label('Base Currency (ISO)')
-                ->required()
-                ->maxLength(3)
-                ->default('RWF')
-                ->disabled(fn ($record) => $record !== null),
+            Select::make('base_currency_id')
+                ->relationship('baseCurrency', 'code')
+                ->searchable()
+                ->required(),
 
-            TextInput::make('target_currency')
-                ->label('Target Currency (ISO)')
-                ->required()
-                ->maxLength(3),
+            Select::make('target_currency_id')
+                ->relationship('targetCurrency', 'code')
+                ->searchable()
+                ->required(),
 
             TextInput::make('rate')
                 ->numeric()
