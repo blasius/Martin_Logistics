@@ -41,8 +41,6 @@ class RequisitionResource extends Resource
     {
         return [
             'index' => ListRequisitions::route('/'),
-            'create' => CreateRequisition::route('/create'),
-            'edit' => EditRequisition::route('/{record}/edit'),
         ];
     }
 }

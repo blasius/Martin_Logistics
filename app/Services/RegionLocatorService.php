@@ -37,6 +37,8 @@ class RegionLocatorService
             $geometry = $feature['geometry'];
             $props = $feature['properties'];
             $regionName = $props['NAM_1'] ?? $props['NAM_0'] ?? 'Unknown';
+            $countryName = $props['NAM_0'] ?? $props['NAM_1'] ?? 'Unknown';
+            $regionName = $regionName.', '.$countryName;
 
             if ($geometry['type'] === 'Polygon') {
                 foreach ($geometry['coordinates'] as $ring) {
