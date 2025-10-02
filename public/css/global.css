@@ -1,0 +1,57 @@
+/* Sidebar adjustments */
+aside {
+    min-height: 100vh;
+    overflow-y: auto;
+}
+
+/* Metrics cards styling */
+.metrics-card {
+    background-color: white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    min-height: 120px;
+}
+
+.metrics-card h3 {
+    font-size: 0.875rem;
+    color: #6b7280; /* gray-500 */
+    margin-bottom: 0.5rem;
+}
+
+.metrics-card p {
+    font-size: 1.875rem; /* 3xl */
+    font-weight: bold;
+    word-break: break-word;
+}
+
+/* Charts containers */
+.chart-container {
+    background-color: white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    height: 20rem;
+    margin-bottom: 1rem;
+    position: relative;
+}
+
+/* Make charts responsive */
+canvas {
+    max-width: 100% !important;
+    height: auto !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+    .grid-cols-4 {
+        grid-template-columns: repeat(1, minmax(0, 1fr));
+    }
+    .grid-cols-2 {
+        grid-template-columns: repeat(1, minmax(0, 1fr));
+    }
+}

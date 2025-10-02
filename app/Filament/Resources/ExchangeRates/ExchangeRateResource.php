@@ -19,7 +19,7 @@ class ExchangeRateResource extends Resource
 {
     protected static ?string $model = ExchangeRate::class;
     protected static string|null|BackedEnum $navigationIcon = 'heroicon-o-currency-dollar';
-    protected static string|null|\UnitEnum $navigationGroup = 'Finance';
+    //protected static string|null|\UnitEnum $navigationGroup = 'Finance';
     protected static ?string $navigationLabel = 'Exchange Rates';
 
     public static function form(Schema $schema): Schema

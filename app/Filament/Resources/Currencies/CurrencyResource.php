@@ -19,7 +19,7 @@ class CurrencyResource extends Resource
 {
     protected static ?string $model = Currency::class;
     protected static string|null|BackedEnum $navigationIcon = 'heroicon-o-banknotes';
-    protected static string|null|\UnitEnum $navigationGroup = 'Finance';
+    //protected static string|null|\UnitEnum $navigationGroup = 'Finance';
     protected static ?string $navigationLabel = 'Currencies';
 
     public static function form(Schema $schema): Schema

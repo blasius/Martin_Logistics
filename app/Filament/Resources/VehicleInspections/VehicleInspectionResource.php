@@ -19,7 +19,7 @@ class VehicleInspectionResource extends Resource
     protected static ?string $model = VehicleInspection::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedWrenchScrewdriver;
-    protected static string|null|\UnitEnum $navigationGroup = 'Fleet';
+    //protected static string|null|\UnitEnum $navigationGroup = 'Fleet';
 
     public static function form(Schema $schema): Schema
     {

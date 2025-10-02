@@ -19,7 +19,7 @@ class ExpenseTypeResource extends Resource
     protected static ?string $model = ExpenseType::class;
 
     protected static string|null|BackedEnum $navigationIcon = 'heroicon-o-rectangle-stack';
-    protected static string|null|\UnitEnum $navigationGroup = 'Finance';
+    //protected static string|null|\UnitEnum $navigationGroup = 'Finance';
     protected static ?string $navigationLabel = 'Expense Types';
 
     public static function form(Schema $schema): Schema

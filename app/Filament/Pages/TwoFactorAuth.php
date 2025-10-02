@@ -10,7 +10,7 @@ class TwoFactorAuth extends Page
 {
     protected static string|null|\BackedEnum $navigationIcon = 'heroicon-o-shield-check';
     protected string $view = 'filament.pages.two-factor-auth';
-    protected static string|null|\UnitEnum $navigationGroup = 'Account Settings';
+    //protected static string|null|\UnitEnum $navigationGroup = 'Account Settings';
 
     protected static ?int $navigationSort = 4; // ensures it’s the second item in the sidebar
 

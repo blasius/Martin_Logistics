@@ -18,7 +18,7 @@ class RequisitionResource extends Resource
 {
     protected static ?string $model = Requisition::class;
     protected static string|null|BackedEnum $navigationIcon = 'heroicon-o-document-text';
-    protected static string|null|\UnitEnum $navigationGroup = 'Finance';
+    //protected static string|null|\UnitEnum $navigationGroup = 'Finance';
     protected static ?string $navigationLabel = 'Requisitions';
     public static function form(Schema $schema): Schema
     {

@@ -2,16 +2,13 @@
 
 namespace App\Filament\Pages;
 
-use App\Models\WialonUnit;
-use Filament\Pages\Page;
 use App\Services\WialonService;
+use Filament\Pages\Page;
 
-class FleetOverview extends Page
+class FleetOversight extends Page
 {
-    protected static string|null|\BackedEnum $navigationIcon = 'heroicon-o-truck';
-    protected string $view = 'filament.pages.fleet-overview';
-    protected static ?string $navigationLabel = 'Fleet Overview';
-    protected static ?string $title = 'Fleet Overview';
+    protected string $view = 'custom.fleet-oversight';
+    protected static string|null|\BackedEnum $navigationIcon = 'heroicon-o-presentation-chart-line';
 
     public $vehicles = [];
 

@@ -20,7 +20,7 @@ class DriverResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedIdentification;
 
-    protected static string|null|\UnitEnum $navigationGroup = 'Fleet';
+    //protected static string|null|\UnitEnum $navigationGroup = 'Fleet';
 
     public static function form(Schema $schema): Schema
     {

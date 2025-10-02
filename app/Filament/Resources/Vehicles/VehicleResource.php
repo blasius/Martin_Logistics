@@ -22,7 +22,7 @@ class VehicleResource extends Resource
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedTruck;
 
     protected static ?string $recordTitleAttribute = 'plate_number';
-    protected static string|null|\UnitEnum $navigationGroup = 'Fleet';
+    //protected static string|null|\UnitEnum $navigationGroup = 'Fleet';
 
     public static function form(Schema $schema): Schema
     {

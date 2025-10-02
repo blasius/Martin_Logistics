@@ -19,7 +19,7 @@ class DriverVehicleAssignmentResource extends Resource
     protected static ?string $model = DriverVehicleAssignment::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentCheck;
-    protected static string|null|\UnitEnum $navigationGroup = 'Fleet';
+    //protected static string|null|\UnitEnum $navigationGroup = 'Fleet';
 
     public static function form(Schema $schema): Schema
     {
