@@ -2,12 +2,7 @@
 
 use App\Filament\Pages\TwoFactorChallenge;
 use App\Http\Controllers\OrderPrintController;
-use Filament\Facades\Filament;
 use Illuminate\Support\Facades\Route;
-
-Route::get('/', function () {
-    return view('welcome');
-});
 
 Route::get('/test-2fa', function () {
     $user = auth()->user();
@@ -25,3 +20,24 @@ Route::get('/admin/2fa-challenge', TwoFactorChallenge::class)
 
 Route::get('/orders/{order}/print', OrderPrintController::class)
     ->name('orders.print');
+
+
+Route::get('/', function () {
+    return view('pages.home-alt');
+});
+
+Route::get('/about', function () {
+    return view('pages.about');
+});
+
+Route::get('/contact', function () {
+    return view('pages.contact');
+});
+
+Route::get('/services', function () {
+    return view('pages.services');
+});
+
+Route::get('/tracking', function () {
+    return view('pages.tracking');
+});
