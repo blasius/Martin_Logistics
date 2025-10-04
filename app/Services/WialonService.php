@@ -13,11 +13,12 @@ class WialonService
     protected string $url;
     protected string $token;
     protected ?string $sid = null;
+    protected RegionLocatorService $regionLocator;
 
     public function __construct(RegionLocatorService $regionLocator)
     {
-        $this->url = config('services.wialon.url', env('WIALON_API_URL'));
-        $this->token = env('WIALON_API_TOKEN');
+        $this->url = config('services.wialon.url');
+        $this->token = config('services.wialon.token');
         $this->regionLocator = $regionLocator;
     }
 

@@ -38,6 +38,7 @@ return [
     'wialon' => [
         'url' => env('WIALON_API_URL'),
         'token' => env('WIALON_API_TOKEN'),
+        'token_fleet_2' => env('WIALON_API_TOKEN_FLEET2'),
     ],
 
 ];
