@@ -16,6 +16,7 @@ class FleetOversight extends Page
     public function mount(WialonService $wialonService): void
     {
         $this->vehicles = collect($wialonService->getUnitsWithPosition());
+        Log:info("Vehicles: ".json_encode($this->vehicles));
     }
 
     // This method passes the data to the view.
@@ -23,6 +24,7 @@ class FleetOversight extends Page
     {
         return [
             'vehicles' => $this->vehicles,
+            'utilization' => json_encode($this->vehicles),
         ];
     }
 }

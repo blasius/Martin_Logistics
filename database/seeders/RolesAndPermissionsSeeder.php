@@ -10,22 +10,35 @@ class RolesAndPermissionsSeeder extends Seeder
 {
     public function run(): void
     {
-        // Clear old permissions and roles
+        // Reset cached roles and permissions
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
-        // Create the roles
-        $superAdminRole = Role::create(['name' => 'super_admin']);
-        $adminRole      = Role::create(['name' => 'admin']);
-        $operatorRole   = Role::create(['name' => 'operator']);
-        $driverRole     = Role::create(['name' => 'driver']);
-        $customerRole   = Role::create(['name' => 'customer']);
+        // Create permissions
+        $permissions = [
+            'manage_users', 'manage_orders', 'manage_trips', 'manage_vehicles',
+            'view_reports', 'approve_trip', 'view_own_trips', 'view_own_orders'
+        ];
 
-        // Define a permission, for example, to view the dashboard
-        Permission::create(['name' => 'view dashboard']);
+        foreach ($permissions as $perm) {
+            Permission::firstOrCreate(['name' => $perm]);
+        }
 
-        // Assign the permission to the roles that need it
-        $superAdminRole->givePermissionTo('view dashboard');
-        $adminRole->givePermissionTo('view dashboard');
-        $operatorRole->givePermissionTo('view dashboard');
+        // Create roles and assign permissions
+        $roles = [
+            'Super Admin' => Permission::all(),
+            'Admin' => ['manage_users', 'manage_orders', 'manage_trips', 'manage_vehicles', 'view_reports'],
+            'Operator' => ['manage_orders', 'manage_trips'],
+            'Driver' => ['view_own_trips'],
+            'Customer' => ['view_own_orders'],
+        ];
+
+        foreach ($roles as $role => $perms) {
+            $r = Role::firstOrCreate(['name' => $role]);
+            if ($perms instanceof \Illuminate\Support\Collection) {
+                $r->syncPermissions($perms);
+            } else {
+                $r->syncPermissions($perms);
+            }
+        }
     }
 }

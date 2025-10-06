@@ -130,8 +130,8 @@ class WialonService
     {
         // Get the data from the local database
         $vehicles = WialonUnit::all();
-        Log::info('The vehicles: ' . $vehicles->count());
-        Log::info('The vehicles: ' . json_encode($vehicles));
+        //Log::info('The vehicles: ' . $vehicles->count());
+        //Log::info('The vehicles: ' . json_encode($vehicles));
 
         return $vehicles->map(function ($unit) {
             $lat = $unit->last_lat;
