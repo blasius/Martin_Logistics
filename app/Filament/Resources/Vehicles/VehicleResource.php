@@ -49,4 +49,11 @@ class VehicleResource extends Resource
            TrailerAssignmentsRelationManager::class,
         ];
     }
+
+    public static function canViewAny(): bool
+    {
+        $user = auth()->user();
+        return $user->can('manage vehicles') || $user->hasRole('Super Admin');
+    }
+
 }

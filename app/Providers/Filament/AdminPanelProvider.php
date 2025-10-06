@@ -27,7 +27,6 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
-            ->login()
             ->colors([
                 'primary' => Color::Teal,
             ])
@@ -55,6 +54,10 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
-            ]);
+            ])->login()
+            ->authorize(function ($user) {
+                // Allow only specific roles to access the Filament admin
+                return $user->hasAnyRole(['super_admin', 'Admin', 'Operator']);
+            });
     }
 }
