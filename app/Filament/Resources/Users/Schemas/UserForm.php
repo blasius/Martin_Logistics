@@ -7,6 +7,11 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
 
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\Models\Permission;
+use Filament\Forms\Components\CheckboxList;
+
+
 class UserForm
 {
     public static function configure(Schema $schema): Schema
@@ -23,14 +28,25 @@ class UserForm
                     ->required(),
 
                 DateTimePicker::make('email_verified_at'),
-                TextInput::make('password')
-                    ->password()
-                    ->required(),
 
                 Select::make('roles')
+                    ->label('Roles')
                     ->multiple()
-                    ->relationship('roles', 'name')
-                    ->preload(),
+                    ->options(Role::all()->pluck('name', 'name'))
+                    ->preload()
+                    ->searchable()
+                    ->reactive()
+                    ->afterStateUpdated(fn ($state, callable $set) =>
+                    $set('permissions', Role::whereIn('name', $state)
+                        ->with('permissions')
+                        ->get()
+                        ->pluck('permissions.*.name')
+                        ->flatten()
+                        ->unique()
+                        ->values()
+                        ->toArray()
+                    )
+                    ),
             ]);
     }
 }

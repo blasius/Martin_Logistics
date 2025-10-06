@@ -13,6 +13,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 
 class UserResource extends Resource
 {
@@ -49,4 +50,23 @@ class UserResource extends Resource
             'edit' => EditUser::route('/{record}/edit'),
         ];
     }
+
+    public static function mutateFormDataBeforeSave(array $data): array
+    {
+        // Remove non-user table fields
+        unset($data['roles'], $data['permissions']);
+        return $data;
+    }
+
+    public static function afterSave(Model $record, array $data): void
+    {
+        if (isset($data['roles'])) {
+            $record->syncRoles($data['roles']);
+        }
+
+        if (isset($data['permissions'])) {
+            $record->syncPermissions($data['permissions']);
+        }
+    }
+
 }
