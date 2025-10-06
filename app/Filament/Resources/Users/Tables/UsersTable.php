@@ -19,10 +19,13 @@ class UsersTable
                 TextColumn::make('email')
                     ->label('Email address')
                     ->searchable(),
+                // 👇 NEW: show role names directly
                 TextColumn::make('roles.name')
+                    ->label('Roles')
                     ->badge()
+                    ->separator(',')
                     ->sortable()
-                    ->searchable(),
+                    ->toggleable(),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -43,5 +46,9 @@ class UsersTable
                     DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+    public static function getRelations(): array
+    {
+        return [];
     }
 }
