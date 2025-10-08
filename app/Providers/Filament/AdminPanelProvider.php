@@ -5,6 +5,7 @@ namespace App\Providers\Filament;
 use App\Http\Middleware\EnsureUserHasFilamentRole;
 use App\Http\Middleware\LogRedirects;
 use App\Http\Middleware\TwoFactorMiddleware;
+use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -38,6 +39,7 @@ class AdminPanelProvider extends PanelProvider
             ->widgets([
 
             ])
+            ->plugin(FilamentShieldPlugin::make())
             ->middleware([
                 LogRedirects::class,
                 EncryptCookies::class,
