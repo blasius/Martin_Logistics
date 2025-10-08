@@ -10,13 +10,11 @@ class EnsureUserHasFilamentRole
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $user = auth()->user();
+        $user = $request->user();
 
-        // Check if the user has one of the required roles
-        /*if (!$user || !$user->hasAnyRole(['super_admin', 'admin', 'operator'])) {
-            // If the user does not have the role, abort with a 403 error.
-            abort(403, 'Unauthorized access.');
-        }*/
+        if (! $user || ! $user->hasAnyRole(['super_admin', 'Admin', 'Operator'])) {
+            abort(403, 'You are not authorized to access the admin panel.');
+        }
 
         return $next($request);
     }
