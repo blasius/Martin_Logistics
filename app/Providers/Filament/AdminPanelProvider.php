@@ -49,15 +49,12 @@ class AdminPanelProvider extends PanelProvider
                 SubstituteBindings::class,
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
-                EnsureUserHasFilamentRole::class,
                 '2fa' => TwoFactorMiddleware::class,
             ])
             ->authMiddleware([
                 Authenticate::class,
+                EnsureUserHasFilamentRole::class,
             ])->login()
-            ->authorize(function ($user) {
-                // Allow only specific roles to access the Filament admin
-                return $user->hasAnyRole(['super_admin', 'Admin', 'Operator']);
-            });
+            ;
     }
 }
