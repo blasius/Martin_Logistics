@@ -15,8 +15,9 @@ class RolePermissionAuditResource extends Resource
 {
     protected static ?string $model = RolePermissionAudit::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::LockClosed;
-    protected static ?string $navigationLabel = 'Permissions Audit';
+    protected static string|null|BackedEnum $navigationIcon = 'heroicon-o-clipboard-document-list';
+    protected static string|null|\UnitEnum $navigationGroup = 'System Logs';
+    protected static ?string $navigationLabel = 'Role & Permission Audits';
 
     public static function form(Schema $schema): Schema
     {
@@ -38,6 +39,7 @@ class RolePermissionAuditResource extends Resource
     public static function getPages(): array
     {
         return [
+            'index' => Pages\ListRolePermissionAudits::route('/'),
         ];
     }
 }
