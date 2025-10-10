@@ -13,6 +13,7 @@ class PermissionsTable
 {
     public static function configure(Table $table): Table
     {
+
         return $table
             ->columns([
                 TextColumn::make('id')->sortable(),
@@ -27,7 +28,6 @@ class PermissionsTable
                 DeleteBulkAction::make(),
             ]);
     }
-
     public static function getRelations(): array
     {
         return [];

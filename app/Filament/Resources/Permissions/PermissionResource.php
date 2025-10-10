@@ -18,8 +18,7 @@ class PermissionResource extends Resource
 {
     protected static ?string $model = Permission::class;
 
-    protected static string|null|BackedEnum $navigationIcon = 'heroicon-o-key';
-    protected static string|null|\UnitEnum $navigationGroup = 'Access Control';
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
     public static function form(Schema $schema): Schema
     {
