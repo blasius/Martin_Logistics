@@ -18,4 +18,11 @@ class ListVehicleInsurances extends ListRecords
             VehicleInsurancesCalendarWidget::class,
         ];
     }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            CreateAction::make(),
+        ];
+    }
 }

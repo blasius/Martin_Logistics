@@ -5,6 +5,7 @@ namespace App\Filament\Resources\VehicleInspections\Pages;
 use App\Filament\Resources\VehicleInspections\VehicleInspectionResource;
 use App\Filament\Widgets\VehicleInspectionCalendar;
 use App\Livewire\InspectionsCalendarWidget;
+use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 
 class ListVehicleInspections extends ListRecords
@@ -15,6 +16,13 @@ class ListVehicleInspections extends ListRecords
     {
         return [
             InspectionsCalendarWidget::class,
+        ];
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            CreateAction::make(),
         ];
     }
 }
