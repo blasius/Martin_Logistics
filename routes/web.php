@@ -3,6 +3,7 @@
 use App\Filament\Pages\TwoFactorChallenge;
 use App\Http\Controllers\OrderPrintController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\PortalController;
 
 Route::get('/test-2fa', function () {
     $user = auth()->user();
@@ -41,3 +42,8 @@ Route::get('/services', function () {
 Route::get('/tracking', function () {
     return view('pages.tracking');
 });
+
+//Portal
+Route::get('/portal/{any?}', [PortalController::class, 'index'])
+    ->where('any', '.*')
+    ->name('portal');
