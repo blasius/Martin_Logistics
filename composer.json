@@ -13,6 +13,7 @@
         "guava/calendar": "^2.0",
         "laravel/fortify": "^1.30",
         "laravel/framework": "^12.0",
+        "laravel/sanctum": "^4.2",
         "laravel/tinker": "^2.10.1",
         "mjaschen/phpgeo": "^6.0",
         "pragmarx/google2fa": "^8.0",
