@@ -45,6 +45,4 @@ Route::get('/tracking', function () {
 });
 
 //Portal
-Route::get('/portal/{any?}', [PortalController::class, 'index'])
-    ->where('any', '.*')
-    ->name('portal');
+Route::view('/portal/{any?}', 'portal')->where('any', '.*');
