@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Martin Logistics Portal</title>
-    @vite(['resources/js/app.js', 'resources/css/app.css'])
+    <title>Portal</title>
+    @vite(['resources/js/portal/main.js'])
 </head>
-<body class="bg-gray-100">
-<div id="app"></div>
+<body class="antialiased">
+<div id="portal-app"></div>
 </body>
 </html>
