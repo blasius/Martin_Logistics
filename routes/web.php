@@ -1,6 +1,7 @@
 <?php
 
 use App\Filament\Pages\TwoFactorChallenge;
+use App\Http\Controllers\ContactVerificationController;
 use App\Http\Controllers\OrderPrintController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PortalController;
