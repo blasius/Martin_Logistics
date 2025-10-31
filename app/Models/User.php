@@ -76,4 +76,14 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
         return $this->hasMany(Contact::class);
     }
 
+    public function verifiedContacts()
+    {
+        return $this->contacts()->whereNotNull('verified_at');
+    }
+
+    public function hasVerifiedContact(): bool
+    {
+        return $this->verifiedContacts()->exists();
+    }
+
 }
