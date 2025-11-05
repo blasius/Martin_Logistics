@@ -50,5 +50,9 @@ export default defineConfig({
             key: fs.readFileSync(KEY_FILE),
             cert: fs.readFileSync(CERT_FILE),
         },
+        hmr: {
+            host: 'martin_logistics.test', // Your main domain
+            protocol: 'wss' // Use secure WebSocket protocol
+        },
     },
 });
