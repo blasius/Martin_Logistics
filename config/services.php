@@ -41,4 +41,11 @@ return [
         'token_fleet_2' => env('WIALON_API_TOKEN_FLEET2'),
     ],
 
+    'twilio' => [
+        'sid' => env('TWILIO_ACCOUNT_SID'),
+        'token' => env('TWILIO_AUTH_TOKEN'),
+        'whatsapp_from' => env('TWILIO_WHATSAPP_FROM'),
+    ],
+
+
 ];

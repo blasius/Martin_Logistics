@@ -1,17 +1,20 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\ContactVerificationController;
+use App\Http\Controllers\Api\ContactController;
+use App\Http\Controllers\Api\VerificationController;
+use App\Http\Controllers\Api\WhatsAppVerificationController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\ContactController;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
 
 Route::middleware('auth:sanctum')->group(function () {
-    // contacts
-    Route::get('/contacts', [ContactVerificationController::class, 'index']);
-    Route::post('/contacts', [ContactVerificationController::class, 'store']);
-    Route::post('/contacts/{contact}/resend', [ContactVerificationController::class, 'resend']);
-    Route::post('/contacts/{contact}/verify', [ContactVerificationController::class, 'verify']);
+    Route::get('/contacts', [ContactController::class, 'index']);
+    Route::post('/contacts', [ContactController::class, 'store']);
+    Route::post('/contacts/{contact}/send-code', [VerificationController::class, 'sendCode']);
+    Route::post('/contacts/{contact}/verify', [VerificationController::class, 'verify']);
+    Route::post('/contacts/{contact}/send-whatsapp', [WhatsAppVerificationController::class,'send']);
+    Route::post('/contacts/{contact}/verify-whatsapp', [WhatsAppVerificationController::class,'verify']);
+
 });
