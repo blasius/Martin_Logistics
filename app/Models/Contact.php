@@ -20,6 +20,8 @@ class Contact extends Model
         'is_primary' => 'boolean',
     ];
 
+    protected $dates = ['verified_at', 'code_expires_at'];
+
     public function user()
     {
         return $this->belongsTo(User::class);

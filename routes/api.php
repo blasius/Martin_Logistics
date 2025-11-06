@@ -15,7 +15,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/contacts', [ContactController::class, 'store']);
     Route::post('/contacts/{contact}/send-code', [VerificationController::class, 'sendCode']);
     Route::post('/contacts/{contact}/verify', [VerificationController::class, 'verify']);
-    Route::post('/contacts/{contact}/send-whatsapp', [WhatsAppVerificationController::class,'send']);
-    Route::post('/contacts/{contact}/verify-whatsapp', [WhatsAppVerificationController::class,'verify']);
-    Route::post('/contacts/{contact}/verify-firebase', [FirebaseVerificationController::class,  'verify']);
+    Route::post('/contacts/{contact}/send-whatsapp', [WhatsAppVerificationController::class, 'send']);
+    Route::post('/contacts/{contact}/verify-whatsapp', [WhatsAppVerificationController::class, 'verify']);
+    Route::post('/contacts/{contact}/verify-firebase', [FirebaseVerificationController::class, 'verify']);
 });
