@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
@@ -6,34 +7,48 @@ use App\Models\Contact;
 use Illuminate\Http\Request;
 use Kreait\Firebase\Auth as FirebaseAuth;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class FirebaseVerificationController extends Controller
 {
     protected FirebaseAuth $auth;
+
     public function __construct(FirebaseAuth $auth)
     {
         $this->auth = $auth;
     }
 
+    /**
+     * Verify a phone contact using Firebase ID token.
+     * The client must first complete Firebase phone auth and send us the idToken.
+     */
     public function verify(Contact $contact, Request $request)
     {
         abort_unless($contact->user_id === Auth::id(), 403);
         $request->validate(['idToken' => 'required|string']);
 
         try {
-            $verified = $this->auth->verifyIdToken($request->idToken);
-            // $verified->claims() contains phone_number etc.
-            $phone = $verified->claims()->get('phone_number') ?? null;
-            // Ensure the phone_number from token matches contact.value
-            if ($phone !== $contact->value) {
-                return response()->json(['message'=>'Phone mismatch'], 422);
+            $verifiedToken = $this->auth->verifyIdToken($request->idToken);
+            $phoneNumber   = $verifiedToken->claims()->get('phone_number');
+
+            if (! $phoneNumber) {
+                return response()->json(['message' => 'Token does not contain a phone number'], 422);
             }
 
-            $contact->update(['verified_at' => now()]);
+            if ($phoneNumber !== $contact->value) {
+                return response()->json(['message' => 'Phone number mismatch'], 422);
+            }
 
-            return response()->json(['message'=>'Phone verified via Firebase']);
+            $contact->update([
+                'verified_at' => now(),
+                'verification_code' => null,
+                'code_expires_at'   => null,
+            ]);
+
+            return response()->json(['message' => 'Phone verified successfully via Firebase']);
         } catch (\Throwable $e) {
-            return response()->json(['message' => 'Invalid Firebase token'], 422);
+            Log::warning('Firebase verify failed: '.$e->getMessage());
+            return response()->json(['message' => 'Invalid or expired Firebase token'], 422);
         }
     }
 }

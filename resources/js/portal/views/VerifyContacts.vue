@@ -1,161 +1,83 @@
 <template>
-    <div class="max-w-3xl mx-auto mt-10 bg-white p-6 rounded-xl shadow">
-        <h1 class="text-2xl font-bold mb-4">Verify Your Contacts</h1>
+    <div class="max-w-xl mx-auto py-10">
+        <h2 class="text-2xl font-semibold mb-6">Verify Your Contacts</h2>
 
-        <!-- Progress Bar -->
-        <div class="flex items-center justify-between mb-6">
-            <div v-for="step in steps" :key="step.type" class="flex flex-col items-center">
-                <div
-                    :class="[
-            'w-8 h-8 rounded-full flex items-center justify-center text-white',
-            step.verified ? 'bg-green-500' : 'bg-gray-400'
-          ]"
-                >
-                    <span v-if="step.verified">✔</span>
-                    <span v-else>{{ step.index }}</span>
+        <div v-for="step in steps" :key="step.type" class="mb-6 border p-4 rounded-lg">
+            <h3 class="font-semibold text-lg mb-3 capitalize">{{ step.label }}</h3>
+
+            <div v-if="step.verified" class="text-green-600">
+                ✅ Verified
+            </div>
+
+            <div v-else>
+                <div class="flex space-x-2">
+                    <input v-model="formValues[step.type]" type="text" placeholder="Enter {{ step.label }}" class="border p-2 rounded w-full" />
+                    <button @click="addContact(step.type)" class="bg-blue-600 text-white px-3 py-1 rounded">Add</button>
                 </div>
-                <span class="text-sm mt-1">{{ step.label }}</span>
+
+                <div v-if="contactFor(step.type)">
+                    <button @click="sendCode(contactFor(step.type).id, step.type)" class="mt-2 bg-yellow-500 text-white px-3 py-1 rounded">Send Code</button>
+
+                    <div class="mt-2 flex space-x-2">
+                        <input v-model="verificationCode" type="text" placeholder="Enter code" class="border p-2 rounded w-full" />
+                        <button @click="verify(contactFor(step.type).id)" class="bg-green-600 text-white px-3 py-1 rounded">Verify</button>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Contact List -->
-        <div v-for="contact in contacts" :key="contact.id" class="border-b py-3">
-            <p class="font-semibold">{{ contact.type }}: {{ contact.value }}</p>
-            <p class="text-sm text-gray-500">
-                Status: <span :class="contact.verified_at ? 'text-green-600' : 'text-red-600'">
-          {{ contact.verified_at ? 'Verified' : 'Unverified' }}
-        </span>
-            </p>
-
-            <div v-if="!contact.verified_at" class="mt-2 flex gap-2">
-                <button
-                    @click="sendCode(contact.id)"
-                    class="bg-blue-500 text-white px-3 py-1 rounded"
-                >Send Code</button>
-
-                <input
-                    v-model="verificationCode"
-                    placeholder="Enter code"
-                    class="border p-1 rounded"
-                />
-
-                <button
-                    @click="verify(contact.id)"
-                    class="bg-green-500 text-white px-3 py-1 rounded"
-                >Verify</button>
-            </div>
-        </div>
-
-        <!-- Add new contact -->
-        <div class="mt-6">
-            <h3 class="text-lg font-semibold mb-2">Add New Contact</h3>
-            <div class="flex gap-2">
-                <select v-model="newType" class="border rounded p-2">
-                    <option disabled value="">Select type</option>
-                    <option value="email">Email</option>
-                    <option value="phone">Phone</option>
-                    <option value="whatsapp">WhatsApp</option>
-                </select>
-                <input
-                    v-model="newValue"
-                    placeholder="Enter contact"
-                    class="border rounded p-2 flex-grow"
-                />
-                <button
-                    @click="addContact"
-                    class="bg-blue-600 text-white px-4 py-2 rounded"
-                >Add</button>
-            </div>
+        <div v-if="isFullyVerified" class="bg-green-100 p-4 rounded-lg text-center font-semibold">
+            🎉 All contacts verified!
         </div>
     </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import { api } from '@/plugins/axios.js' // ✅ your pre-configured axios instance (with auth & baseURL)
-import { useAuthStore } from '../store'
+import { ref, computed, onMounted } from 'vue'
+import { api } from '@/plugins/axios.js'
 
-// reactive state
 const contacts = ref([])
 const verificationCode = ref('')
-const newType = ref('')
-const newValue = ref('')
-const error = ref(null)
+const formValues = ref({ email: '', phone: '', whatsapp: '' })
 
-// Computed breadcrumb-style progress steps
+const fetchContacts = async () => {
+    const res = await api.get('/api/contacts')
+    contacts.value = res.data
+}
+
+const contactFor = type => contacts.value.find(c => c.type === type)
+
 const steps = computed(() =>
-    ['email', 'phone', 'whatsapp'].map((type, i) => {
-        const c = contacts.value.find(ct => ct.type === type)
-        return {
-            type,
-            index: i + 1,
-            label: type.charAt(0).toUpperCase() + type.slice(1),
-            verified: !!c?.verified_at,
-        }
-    })
+    ['email', 'phone', 'whatsapp'].map(type => ({
+        type,
+        label: type,
+        verified: !!contactFor(type)?.verified_at
+    }))
 )
 
-// ✅ Load all user contacts
-async function fetchContacts() {
-    try {
-        const { data } = await api.get('/api/contacts')
-        contacts.value = data
-    } catch (err) {
-        console.error('Fetch contacts failed:', err)
-        error.value = err.response?.data?.message || 'Failed to load contacts'
-    }
+const isFullyVerified = computed(() =>
+    steps.value.every(s => s.verified)
+)
+
+const addContact = async type => {
+    await api.post('/api/contacts', { type, value: formValues.value[type] })
+    await fetchContacts()
 }
 
-// ✅ Add a new contact (email / phone / WhatsApp)
-async function addContact() {
-    if (!newType.value || !newValue.value) {
-        alert('Please fill in both fields.')
-        return
-    }
+const sendCode = async (id, type) => {
+    const endpoint =
+        type === 'whatsapp'
+            ? `/api/contacts/${id}/whatsapp-send`
+            : `/api/contacts/${id}/send-code`
 
-    try {
-        await api.post('/api/contacts', {
-            type: newType.value,
-            value: newValue.value,
-        })
-        newType.value = ''
-        newValue.value = ''
-        await fetchContacts()
-    } catch (err) {
-        console.error('Add contact failed:', err)
-        error.value = err.response?.data?.message || 'Failed to add contact'
-    }
+    await api.post(endpoint)
+    alert(`Verification code sent via ${type}`)
 }
 
-// ✅ Send verification code to selected contact
-async function sendCode(id) {
-    try {
-        await api.post(`/api/contacts/${id}/send-code`)
-        alert('Verification code sent!')
-    } catch (err) {
-        console.error('Send code failed:', err)
-        error.value = err.response?.data?.message || 'Failed to send verification code'
-    }
-}
-
-// ✅ Verify contact using code
-async function verify(id) {
-    if (!verificationCode.value) {
-        alert('Enter your verification code first.')
-        return
-    }
-
-    try {
-        await api.post(`/api/contacts/${id}/verify`, {
-            code: verificationCode.value,
-        })
-        alert('Contact verified successfully!')
-        verificationCode.value = ''
-        await fetchContacts()
-    } catch (err) {
-        console.error('Verify contact failed:', err)
-        error.value = err.response?.data?.message || 'Verification failed'
-    }
+const verify = async id => {
+    await api.post(`/api/contacts/${id}/verify`, { code: verificationCode.value })
+    verificationCode.value = ''
+    await fetchContacts()
 }
 
 onMounted(fetchContacts)
