@@ -21,6 +21,7 @@
     },
     "dependencies": {
         "@tailwindcss/cli": "^4.1.13",
+        "firebase": "^12.5.0",
         "fullcalendar": "^6.1.19",
         "pinia": "^3.0.3",
         "vue": "^3.5.22",
