@@ -25,5 +25,5 @@
 </template>
 
 <script setup>
-import GlobalSearch from "../../components/GlobalSearch.vue";
+import GlobalSearch from "../search/GlobalSearch.vue";
 </script>

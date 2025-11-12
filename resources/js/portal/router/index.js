@@ -1,13 +1,14 @@
 import { createRouter, createWebHistory } from "vue-router";
-import PortalLayout from "../portal/layouts/PortalLayout.vue";
-import Dashboard from "../portal/views/Dashboard.vue";
+import DashboardLayout from "../layouts/DashboardLayout.vue";
+import Dashboard from "../pages/Dashboard.vue";
+import Settings from "../pages/Settings.vue";
 
-export const router = createRouter({
+export const index = createRouter({
     history: createWebHistory("/portal/"),
     routes: [
         {
             path: "/",
-            component: PortalLayout,
+            component: DashboardLayout,
             children: [
                 { path: "dashboard", component: Dashboard },
                 // Add others here: trips, drivers, vehicles...
