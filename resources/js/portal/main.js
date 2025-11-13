@@ -1,6 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import {index} from './router/index.js'
+import {index} from './router'
 import App from './App.vue'
 import '../../css/app.css'
 
@@ -23,5 +23,5 @@ app.config.globalProperties.$axios = api;
     }
 
     app.use(index);
-    app.mount('#portal-app')
+    app.mount('#app')
 })();
