@@ -6,6 +6,6 @@
     @vite(['resources/js/portal/main.js'])
 </head>
 <body class="antialiased">
-<div id="portal-app"></div>
+<div id="app"></div>
 </body>
 </html>
