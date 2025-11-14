@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ContactController;
+use App\Http\Controllers\API\FinesController;
 use App\Http\Controllers\Api\FirebaseVerificationController;
 use App\Http\Controllers\Api\VerificationController;
 use App\Http\Controllers\Api\WhatsAppVerificationController;
@@ -19,3 +20,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/contacts/{contact}/verify-whatsapp', [WhatsAppVerificationController::class, 'verify']);
     Route::post('/contacts/{contact}/verify-firebase', [FirebaseVerificationController::class, 'verify']);
 });
+
+// routes/api.php
+Route::get('/vehicles', [FinesController::class, 'listVehicles']);
+Route::get('/fines/check/{plate}', [FinesController::class, 'check']);

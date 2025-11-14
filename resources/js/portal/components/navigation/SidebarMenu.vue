@@ -9,6 +9,7 @@
 
         <nav class="flex-1 overflow-y-auto px-2 py-4 space-y-2">
             <SidebarItem icon="home" label="Dashboard" to="/dashboard" />
+            <SidebarItem icon="home" label="Fines" to="/fines" />
             <SidebarItem icon="map" label="Trips" to="/trips" />
             <SidebarItem icon="user" label="Drivers" to="/drivers" />
             <SidebarItem icon="car" label="Vehicles" to="/vehicles" />
