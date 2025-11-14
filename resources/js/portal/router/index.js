@@ -3,9 +3,9 @@ import DashboardLayout from "../layouts/DashboardLayout.vue";
 import Dashboard from "../pages/Dashboard.vue";
 import Drivers from "../pages/Drivers/Index.vue";
 import Invoices from "../pages/Invoices/Index.vue";
-import Orders from "../pages/Orders/Index.vue";
 import Routes from "../pages/Routes/Index.vue";
 import Trips from "../pages/Trips/Index.vue";
+import Fines from "../pages/Fines/Index.vue";
 import Settings from "../pages/Settings.vue";
 
 export const index = createRouter({
@@ -24,6 +24,7 @@ export const index = createRouter({
                 { path: "settings", component: Settings },
                 { path: "billing", component: Invoices },
                 { path: "routes", component: Routes },
+                { path: "fines", component: Fines },
                 // Add others here: trips, drivers, vehicles...
             ],
         },
