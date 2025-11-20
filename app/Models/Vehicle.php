@@ -25,6 +25,7 @@ class Vehicle extends Model
         'year' => 'integer',
         'capacity' => 'decimal:2',
         'status' => 'string',
+        'last_fine_check_at' => 'datetime',
     ];
 
     public function inspections()
@@ -73,6 +74,12 @@ class Vehicle extends Model
     public function wialonUnit()
     {
         return $this->hasOne(WialonUnit::class);
+    }
+
+    // in Vehicle.php
+    public function trafficFines()
+    {
+        return $this->morphMany(TrafficFine::class, 'finedable');
     }
 
 

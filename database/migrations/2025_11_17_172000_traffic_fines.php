@@ -1,0 +1,33 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration {
+    public function up(): void
+    {
+        Schema::create('traffic_fines', function (Blueprint $table) {
+            $table->id();
+            // Polymorphic finedable: Vehicle or Trailer
+            $table->nullableMorphs('finedable');
+            $table->string('ticket_number')->nullable()->unique();
+            $table->decimal('ticket_amount', 14, 2)->nullable();
+            $table->decimal('late_fee', 14, 2)->nullable();
+            $table->decimal('paid_amount', 14, 2)->nullable();
+            $table->date('issued_at')->nullable();
+            $table->date('pay_by')->nullable();
+            $table->string('status')->nullable(); // PENDING, PAID, CANCELLED...
+            $table->string('location')->nullable();
+            $table->json('raw')->nullable();
+            $table->timestamps();
+
+            $table->index(['finedable_type', 'finedable_id']);
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('traffic_fines');
+    }
+};

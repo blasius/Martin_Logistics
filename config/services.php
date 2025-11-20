@@ -47,5 +47,14 @@ return [
         'whatsapp_from' => env('TWILIO_WHATSAPP_FROM'),
     ],
 
+    'fines' => [
+        'url' => env('FINES_API_URL'),
+        'tin' => env('FINES_TIN'),
+        'referer' => env('FINES_REFERER'),
+        'rpk' => env('FINES_RPK'),
+        'user_agent' => env('FINES_USER_AGENT'),
+        'newrelic' => env('FINES_NEWRELIC'),
+        'nls' => env('FINES_NLS'),
+    ],
 
 ];

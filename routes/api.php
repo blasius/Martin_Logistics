@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ContactController;
+use App\Http\Controllers\API\FineCheckController;
 use App\Http\Controllers\API\FinesController;
 use App\Http\Controllers\Api\FirebaseVerificationController;
 use App\Http\Controllers\Api\VerificationController;
@@ -24,3 +25,5 @@ Route::middleware('auth:sanctum')->group(function () {
 // routes/api.php
 Route::get('/vehicles', [FinesController::class, 'listVehicles']);
 Route::get('/fines/check/{plate}', [FinesController::class, 'check']);
+Route::get('/fines/check/{plate}', [FineCheckController::class, 'check']);
+Route::get('/fines/recent/{plate}', [FineCheckController::class, 'recent']);
