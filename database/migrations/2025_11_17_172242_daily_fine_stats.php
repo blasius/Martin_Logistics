@@ -10,13 +10,12 @@ return new class extends Migration {
         Schema::create('daily_fine_stats', function (Blueprint $table) {
             $table->id();
             $table->date('date')->index();
-            $table->foreignId('vehicle_id')->nullable()->constrained('vehicles')->nullOnDelete();
-            $table->foreignId('trailer_id')->nullable()->constrained('trailers')->nullOnDelete();
+            $table->nullableMorphs('statable'); // statable_type/statable_id - optional per-vehicle/trailer stats
             $table->integer('ticket_count')->default(0);
             $table->decimal('total_amount', 14, 2)->default(0);
             $table->timestamps();
 
-            $table->unique(['date', 'vehicle_id', 'trailer_id']);
+            $table->unique(['date', 'statable_type', 'statable_id']);
         });
     }
 

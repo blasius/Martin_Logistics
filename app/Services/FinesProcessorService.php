@@ -3,19 +3,11 @@
 namespace App\Services;
 
 use App\Models\TrafficFine;
-use App\Models\TrafficFineViolation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class FinesProcessorService
 {
-    /**
-     * Persist and process normalized API result.
-     *
-     * @param string $plate
-     * @param \Illuminate\Database\Eloquent\Model|null $checkedable Vehicle|Trailer or null
-     * @param array $apiResult normalized result from FinesApiService
-     */
     public function process(string $plate, $checkedable = null, array $apiResult = []): void
     {
         $status = $apiResult['status'] ?? 'error';
@@ -24,11 +16,12 @@ class FinesProcessorService
         $raw = $apiResult['raw'] ?? $apiResult;
 
         DB::transaction(function () use ($plate, $checkedable, $status, $tickets, $total, $raw) {
-            // Insert audit row into fine_checks
-            DB::table('fine_checks')->insert([
+
+            // record fine_check
+            \DB::table('fine_checks')->insert([
                 'plate_number' => $plate,
-                'checkedable_type' => $checkedable ? get_class($checkedable) : null,
-                'checkedable_id' => $checkedable ? $checkedable->id : null,
+                'checked_type' => $checkedable ? get_class($checkedable) : null,
+                'checked_id' => $checkedable ? $checkedable->id : null,
                 'result' => $status,
                 'ticket_count' => count($tickets),
                 'total_amount' => $total,
@@ -47,25 +40,28 @@ class FinesProcessorService
                             'ticket_amount' => floatval($ticket['ticketAmount'] ?? 0),
                             'late_fee' => floatval($ticket['lateFee'] ?? 0),
                             'paid_amount' => floatval($ticket['paidAmount'] ?? 0),
-                            'issued_at' => isset($ticket['issuedAt']) ? $ticket['issuedAt'] : null,
-                            'pay_by' => isset($ticket['payBy']) ? $ticket['payBy'] : null,
-                            'status' => $ticket['status'] ?? null,
+                            'issued_at' => $ticket['issuedAt'] ?? null,
+                            'pay_by' => $ticket['payBy'] ?? null,
+                            'status' => $ticket['status'] ?? 'PENDING',
                             'location' => $ticket['locationName'] ?? null,
+                            'plate_number' => $ticket['plateNo'] ?? $plate,
                             'raw' => $ticket,
                         ]
                     );
 
                     if ($checkedable) {
-                        $fine->finedable()->associate($checkedable);
+                        $fine->fineable()->associate($checkedable);
                         $fine->save();
                     }
 
-                    // Replace violations for this fine
+                    // replace violations
                     $fine->violations()->delete();
                     $violations = $ticket['violations'] ?? [];
                     foreach ($violations as $v) {
                         $fine->violations()->create([
-                            'violation_name' => $v['violationName'] ?? $v['violationNameFrench'] ?? $v['violationNameKinya'] ?? null,
+                            'violation_name' => $v['violationName'] ?? null,
+                            'violation_name_fr' => $v['violationNameFrench'] ?? null,
+                            'violation_name_local' => $v['violationNameKinya'] ?? null,
                             'fine_amount' => floatval($v['fineAmount'] ?? 0),
                             'quantity' => intval($v['quantity'] ?? 0),
                         ]);
@@ -73,13 +69,13 @@ class FinesProcessorService
                 }
             }
 
-            // Update last_fine_check_at on checkedable
+            // update last checked
             if ($checkedable) {
                 $checkedable->last_fine_check_at = now();
                 $checkedable->save();
             }
         });
 
-        Log::info("Fines processed for {$plate}: {$status}, tickets=" . count($tickets));
+        Log::info("Processed fines for {$plate}: {$status}, tickets=" . count($tickets));
     }
 }

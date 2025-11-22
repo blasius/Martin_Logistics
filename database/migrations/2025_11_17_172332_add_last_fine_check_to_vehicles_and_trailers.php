@@ -27,7 +27,6 @@ return new class extends Migration {
                 $table->dropColumn('last_fine_check_at');
             });
         }
-
         if (Schema::hasTable('trailers')) {
             Schema::table('trailers', function (Blueprint $table) {
                 $table->dropColumn('last_fine_check_at');
