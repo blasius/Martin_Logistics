@@ -35,11 +35,14 @@ class Trailer extends Model
         return $this->assignments()->whereNull('unassigned_at')->latest('assigned_at')->first();
     }
 
-    // in Trailer.php
     public function trafficFines()
     {
-        return $this->morphMany(TrafficFine::class, 'finedable');
+        return $this->morphMany(TrafficFine::class, 'fineable');
     }
 
+    public function latestFine()
+    {
+        return $this->morphOne(TrafficFine::class, 'fineable')->latestOfMany();
+    }
 
 }

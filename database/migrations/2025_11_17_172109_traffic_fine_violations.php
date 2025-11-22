@@ -11,6 +11,8 @@ return new class extends Migration {
             $table->id();
             $table->foreignId('traffic_fine_id')->constrained('traffic_fines')->cascadeOnDelete();
             $table->string('violation_name')->nullable();
+            $table->string('violation_name_fr')->nullable();
+            $table->string('violation_name_local')->nullable();
             $table->decimal('fine_amount', 14, 2)->nullable();
             $table->integer('quantity')->default(0);
             $table->timestamps();

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\TrafficFine;
 use App\Services\FinesApiService;
 use App\Services\FinesProcessorService;
 use Illuminate\Http\Request;
@@ -51,5 +52,28 @@ class FineCheckController extends Controller
         $fines = $checkedable->trafficFines()->with('violations')->orderByDesc('created_at')->get();
 
         return response()->json(['status' => 'ok', 'fines' => $fines]);
+    }
+
+    public function index(Request $request) {
+        $query = TrafficFine::with(['vehicle', 'trailer', 'violations'])
+            ->orderBy('created_at', 'desc');
+
+        if ($request->type === 'vehicle') {
+            $query->whereNotNull('vehicle_id');
+        }
+
+        if ($request->type === 'trailer') {
+            $query->whereNotNull('trailer_id');
+        }
+
+        if ($request->search) {
+            $q = $request->search;
+            $query->whereHas('vehicle', fn($v) => $v->where('number_plate', 'like', "%$q%"))
+                ->orWhereHas('trailer', fn($t) => $t->where('number_plate', 'like', "%$q%"));
+        }
+
+        return response()->json(
+            $query->paginate(15)
+        );
     }
 }

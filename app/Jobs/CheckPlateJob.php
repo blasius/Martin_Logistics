@@ -17,30 +17,24 @@ class CheckPlateJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public string $plate;
-    public string $modelType;
+    public string $type; // 'vehicle' or 'trailer'
 
-    /**
-     * @param string $plate
-     * @param string $modelType 'vehicle' or 'trailer'
-     */
-    public function __construct(string $plate, string $modelType = 'vehicle')
+    public function __construct(string $plate, string $type = 'vehicle')
     {
         $this->plate = $plate;
-        $this->modelType = $modelType;
+        $this->type = $type;
     }
 
     public function handle(FinesApiService $api, FinesProcessorService $processor): void
     {
         $checkedable = null;
-
-        if ($this->modelType === 'vehicle') {
+        if ($this->type === 'vehicle') {
             $checkedable = Vehicle::where('plate_number', $this->plate)->first();
         } else {
             $checkedable = Trailer::where('plate_number', $this->plate)->first();
         }
 
         $result = $api->checkByPlate($this->plate);
-
         $processor->process($this->plate, $checkedable, $result);
     }
 }

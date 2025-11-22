@@ -75,12 +75,13 @@ class Vehicle extends Model
     {
         return $this->hasOne(WialonUnit::class);
     }
-
-    // in Vehicle.php
     public function trafficFines()
     {
-        return $this->morphMany(TrafficFine::class, 'finedable');
+        return $this->hasMany(TrafficFine::class);
     }
 
-
+    public function latestFine()
+    {
+        return $this->morphOne(TrafficFine::class, 'fineable')->latestOfMany();
+    }
 }
