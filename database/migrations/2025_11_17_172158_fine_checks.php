@@ -10,7 +10,7 @@ return new class extends Migration {
         Schema::create('fine_checks', function (Blueprint $table) {
             $table->id();
             $table->string('plate_number')->index();
-            $table->nullableMorphs('checked'); // checked_type, checked_id (vehicle/trailer)
+            $table->morphs('checkable'); // checkable_type, checkable_id
             $table->enum('result', ['clear','fined','error'])->default('clear');
             $table->integer('ticket_count')->default(0);
             $table->decimal('total_amount', 14, 2)->default(0);

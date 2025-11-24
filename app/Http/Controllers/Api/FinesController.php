@@ -14,34 +14,31 @@ class FinesController extends Controller
     // GET /api/portal/fines
     public function index(Request $request)
     {
-        $query = TrafficFine::with('violations','fineable')->orderBy('created_at','desc');
+        $query = TrafficFine::with(['violations','fineable'])->orderByDesc('created_at');
 
         if ($request->filled('type')) {
             if ($request->type === 'vehicle') {
-                $query->where('fineable_type', '=', Vehicle::class);
+                $query->where('fineable_type', Vehicle::class);
             } elseif ($request->type === 'trailer') {
-                $query->where('fineable_type', '=', Trailer::class);
+                $query->where('fineable_type', Trailer::class);
             }
         }
 
         if ($request->filled('plate')) {
             $q = $request->plate;
-            $query->where('plate_number', 'like', "%{$q}%");
+            $query->where('plate_number','like',"%{$q}%");
         }
 
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $query->where('status', strtoupper($request->status));
         }
 
-        $perPage = (int) $request->get('per_page', 15);
-        $page = (int) $request->get('page', 1);
+        $perPage = intval($request->get('per_page', 15));
+        $page = intval($request->get('page', 1));
 
-        $paginator = $query->paginate($perPage, ['*'], 'page', $page);
-
-        return response()->json($paginator);
+        return response()->json($query->paginate($perPage, ['*'], 'page', $page));
     }
 
-    // GET /api/portal/fines/recent/{plate}
     public function recent(string $plate)
     {
         $fines = TrafficFine::with('violations')
@@ -52,7 +49,6 @@ class FinesController extends Controller
         return response()->json($fines);
     }
 
-    // POST /api/portal/fines/check  { plate, type }
     public function forceCheck(Request $request)
     {
         $data = $request->validate([
@@ -60,7 +56,6 @@ class FinesController extends Controller
             'type' => 'required|in:vehicle,trailer',
         ]);
 
-        // dispatch immediate job
         CheckPlateJob::dispatch($data['plate'], $data['type']);
 
         return response()->json(['status' => 'queued']);

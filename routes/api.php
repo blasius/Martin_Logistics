@@ -22,6 +22,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/contacts/{contact}/verify-firebase', [FirebaseVerificationController::class, 'verify']);
 });
 
-Route::get('/fines', [FinesController::class, 'index']);          // /api/portal/fines
-Route::get('/fines/recent/{plate}', [FinesController::class, 'recent']);
-Route::post('/fines/check', [FinesController::class, 'forceCheck']);
+Route::get('/portal/fines', [FinesController::class, 'index']);           // GET /api/portal/fines
+Route::get('/portal/fines/recent/{plate}', [FinesController::class, 'recent']);
+Route::post('/portal/fines/check', [FinesController::class, 'forceCheck']);

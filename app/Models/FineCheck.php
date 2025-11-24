@@ -8,16 +8,11 @@ class FineCheck extends Model
 {
     public $timestamps = false;
 
-    protected $fillable = [
-        'plate_number','result','ticket_count','total_amount','response','created_at'
-    ];
+    protected $fillable = ['plate_number','checkable_type','checkable_id','result','ticket_count','total_amount','response','created_at'];
 
-    protected $casts = [
-        'response' => 'array',
-        'created_at' => 'datetime',
-    ];
+    protected $casts = ['response' => 'array', 'created_at' => 'datetime'];
 
-    public function checked()
+    public function checkable()
     {
         return $this->morphTo();
     }
