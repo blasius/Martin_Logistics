@@ -10,8 +10,8 @@ return new class extends Migration {
         Schema::create('traffic_fines', function (Blueprint $table) {
             $table->id();
 
-            // polymorphic owner: Vehicle or Trailer
-            $table->nullableMorphs('fineable'); // fineable_type, fineable_id
+            // polymorphic owner: Vehicle or Trailer (and future types)
+            $table->morphs('fineable'); // fineable_type, fineable_id (and index)
 
             $table->string('ticket_number')->nullable()->index();
             $table->decimal('ticket_amount', 14, 2)->nullable();
@@ -20,18 +20,15 @@ return new class extends Migration {
             $table->date('issued_at')->nullable();
             $table->date('pay_by')->nullable();
 
-            // lifecycle + payments
-            $table->enum('status', ['PENDING','PAID','CANCELLED','DISPUTED'])->default('PENDING');
+            $table->string('status', 20)->default('PENDING'); // PENDING / PAID / CANCELLED / DISPUTED
             $table->timestamp('paid_at')->nullable();
             $table->string('payment_reference')->nullable();
             $table->string('payment_method')->nullable();
             $table->string('payment_status')->nullable();
 
-            // friendly fields
             $table->string('plate_number')->nullable()->index();
             $table->string('location')->nullable();
 
-            // keep raw API payload
             $table->json('raw')->nullable();
 
             $table->timestamps();

@@ -30,14 +30,15 @@ class FinesApiService
 
             $json = $response->json();
 
+            // API returns "status": false and data null when clear
             if (!isset($json['status']) || $json['status'] === false || empty($json['data'])) {
-                return ['status' => 'clear', 'total' => 0, 'tickets' => [], 'raw' => $json];
+                return ['status' => 'clear', 'tickets' => [], 'total' => 0, 'raw' => $json];
             }
 
             $tickets = $json['data']['trafficFines'] ?? [];
             $total = array_sum(array_map(fn($t) => floatval($t['ticketAmount'] ?? 0), $tickets));
 
-            return ['status' => 'fined', 'total' => $total, 'tickets' => $tickets, 'raw' => $json];
+            return ['status' => 'fined', 'tickets' => $tickets, 'total' => $total, 'raw' => $json];
 
         } catch (\Throwable $e) {
             Log::error("FinesApiService exception for {$plate}: " . $e->getMessage());
