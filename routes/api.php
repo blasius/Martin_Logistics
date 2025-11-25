@@ -27,3 +27,6 @@ Route::get('/portal/fines', [FinesController::class, 'index']);           // GET
 Route::get('/portal/fines/recent/{plate}', [FinesController::class, 'recent']);
 Route::post('/portal/fines/check', [FinesController::class, 'forceCheck']);
 Route::get('/portal/fines/analytics', [FinesAnalyticsController::class, 'index']);
+Route::get('/portal/fines/by-day', [FinesAnalyticsController::class, 'byDay']);
+Route::get('/portal/fines/export-day', [FinesAnalyticsController::class, 'exportDay']); // CSV export drill-down
+// Optionally keep the export range path using ?export=csv handled in index()
