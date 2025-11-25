@@ -6,6 +6,7 @@ import Invoices from "../pages/Invoices/Index.vue";
 import Routes from "../pages/Routes/Index.vue";
 import Trips from "../pages/Trips/Index.vue";
 import Fines from "../pages/Fines/Index.vue";
+import Analytics from "../pages/Fines/Analytics.vue";
 import Settings from "../pages/Settings.vue";
 
 export const index = createRouter({
@@ -25,6 +26,7 @@ export const index = createRouter({
                 { path: "billing", component: Invoices },
                 { path: "routes", component: Routes },
                 { path: "fines", component: Fines },
+                { path: "fines/analytics", component: Analytics },
                 // Add others here: trips, drivers, vehicles...
             ],
         },

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\API\FineCheckController;
+use App\Http\Controllers\API\FinesAnalyticsController;
 use App\Http\Controllers\API\FinesController;
 use App\Http\Controllers\Api\FirebaseVerificationController;
 use App\Http\Controllers\Api\VerificationController;
@@ -25,3 +26,4 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::get('/portal/fines', [FinesController::class, 'index']);           // GET /api/portal/fines
 Route::get('/portal/fines/recent/{plate}', [FinesController::class, 'recent']);
 Route::post('/portal/fines/check', [FinesController::class, 'forceCheck']);
+Route::get('/portal/fines/analytics', [FinesAnalyticsController::class, 'index']);
