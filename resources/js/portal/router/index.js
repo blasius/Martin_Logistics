@@ -8,6 +8,7 @@ import Trips from "../pages/Trips/Index.vue";
 import Fines from "../pages/Fines/Index.vue";
 import Analytics from "../pages/Fines/Analytics.vue";
 import Settings from "../pages/Settings.vue";
+import ControlTower from "../pages/ControlTower/Index.vue";
 
 export const index = createRouter({
     history: createWebHistory("/portal/"),
@@ -17,6 +18,7 @@ export const index = createRouter({
             component: DashboardLayout,
             children: [
                 { path: "dashboard", component: Dashboard },
+                { path: "control-tower", component: ControlTower },
                 { path: "drivers", component: Drivers },
                 { path: "trips", component: Trips },
                 { path: "vehicles", component: Dashboard },
