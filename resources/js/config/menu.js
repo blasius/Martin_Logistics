@@ -9,6 +9,7 @@ import {
     FileText,
     Settings,
     HelpCircle,
+    Radar,
 } from "lucide-vue-next";
 
 export default [
@@ -17,7 +18,11 @@ export default [
         icon: Home,
         to: "/dashboard",
     },
-
+    {
+        label: "Control Tower",
+        to: "/control-tower",
+        icon: Radar,
+    },
     {
         label: "Fines",
         icon: Ticket,
