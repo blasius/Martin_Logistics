@@ -1,13 +1,24 @@
 import { createRouter, createWebHistory } from "vue-router";
+
+// Layout
 import DashboardLayout from "../layouts/DashboardLayout.vue";
+
+// Pages
 import Dashboard from "../pages/Dashboard.vue";
 import Drivers from "../pages/Drivers/Index.vue";
-import Invoices from "../pages/Invoices/Index.vue";
-import Routes from "../pages/Routes/Index.vue";
 import Trips from "../pages/Trips/Index.vue";
+import Vehicles from "../pages/Vehicles/Index.vue";
+import RoutesPage from "../pages/Routes/Index.vue";
+import Invoices from "../pages/Invoices/Index.vue";
+import Reports from "../pages/Reports/Index.vue";
+import Support from "../pages/Support/Index.vue";
+import Settings from "../pages/Settings.vue";
+
+// Fines module
 import Fines from "../pages/Fines/Index.vue";
 import Analytics from "../pages/Fines/Analytics.vue";
-import Settings from "../pages/Settings.vue";
+
+// Control Tower (Live Operational Board)
 import ControlTower from "../pages/ControlTower/Index.vue";
 
 export const index = createRouter({
@@ -18,19 +29,31 @@ export const index = createRouter({
             component: DashboardLayout,
             children: [
                 { path: "dashboard", component: Dashboard },
-                { path: "control-tower", component: ControlTower },
+
+                // Core modules
                 { path: "drivers", component: Drivers },
                 { path: "trips", component: Trips },
-                { path: "vehicles", component: Dashboard },
-                { path: "reports", component: Dashboard },
-                { path: "support", component: Dashboard },
-                { path: "settings", component: Settings },
+                { path: "vehicles", component: Vehicles },
+                { path: "routes", component: RoutesPage },
                 { path: "billing", component: Invoices },
-                { path: "routes", component: Routes },
+
+                // Reports & Support
+                { path: "reports", component: Reports },
+                { path: "support", component: Support },
+
+                // Settings
+                { path: "settings", component: Settings },
+
+                // Fines module
                 { path: "fines", component: Fines },
                 { path: "fines/analytics", component: Analytics },
-                // Add others here: trips, drivers, vehicles...
+
+                // Control Tower
+                { path: "control-tower", component: ControlTower },
             ],
         },
+
+        // Redirect unknown paths to dashboard
+        { path: "/:pathMatch(.*)*", redirect: "/dashboard" },
     ],
 });

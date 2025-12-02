@@ -20,7 +20,6 @@
 </template>
 
 <script setup>
-import menu from "../../../config/menu.js";
+import { menu } from "@/config/menu.js";
 import SidebarItem from "./SidebarItem.vue";
-import { Car } from "lucide-vue-next";
 </script>

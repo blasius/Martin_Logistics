@@ -1,48 +1,8 @@
-<template>
-    <div>
-        <!-- Parent item -->
-        <div
-            @click="toggle"
-            class="flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition hover:bg-gray-100"
-            :class="{ 'bg-gray-100 font-semibold': isActiveParent }"
-        >
-            <div class="flex items-center gap-3">
-                <component :is="item.icon" class="w-5 h-5" />
-                <span>{{ item.label }}</span>
-            </div>
-
-            <!-- Arrow shown only if has children -->
-            <svg
-                v-if="item.children"
-                class="w-4 h-4 transition-transform"
-                :class="{ 'rotate-90': open }"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-            >
-                <path d="M9 5l7 7-7 7" />
-            </svg>
-        </div>
-
-        <!-- Children -->
-        <div v-if="item.children && open" class="ml-6 mt-1 space-y-1">
-            <RouterLink
-                v-for="child in item.children"
-                :key="child.to"
-                :to="child.to"
-                class="block px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
-                :class="{ 'bg-indigo-50 text-indigo-600 font-semibold': isActive(child.to) }"
-            >
-                {{ child.label }}
-            </RouterLink>
-        </div>
-    </div>
-</template>
+<!-- resources/js/components/sidebar/SidebarItem.vue -->
 
 <script setup>
-import { ref, computed } from "vue";
-import { useRoute, RouterLink } from "vue-router";
+import { ref } from "vue";
+import { useRoute } from "vue-router";
 
 const props = defineProps({
     item: { type: Object, required: true },
@@ -51,24 +11,50 @@ const props = defineProps({
 const route = useRoute();
 const open = ref(false);
 
-const toggle = () => {
-    if (props.item.children) open.value = !open.value;
-    else if (props.item.to) {
-        open.value = true;
-    }
-};
-
-const isActive = (path) => route.path === path;
-
-// Highlight parent if any child is active
-const isActiveParent = computed(() => {
-    if (!props.item.children) return isActive(props.item.to);
-    return props.item.children.some((child) => isActive(child.to));
-});
+// auto-open if a child route is active
+if (
+    props.item.children &&
+    props.item.children.some(child => route.path.startsWith(child.to))
+) {
+    open.value = true;
+}
 </script>
 
-<style scoped>
-.rotate-90 {
-    transform: rotate(90deg);
-}
-</style>
+<template>
+    <!-- Parent with children -->
+    <div v-if="item.children">
+        <button
+            @click="open = !open"
+            class="flex items-center w-full px-3 py-2 rounded hover:bg-gray-100"
+        >
+            <component :is="item.icon" class="w-5 h-5 mr-3" />
+            <span>{{ item.label }}</span>
+            <span class="ml-auto">
+                {{ open ? "▾" : "▸" }}
+            </span>
+        </button>
+
+        <div v-show="open" class="ml-8 mt-1 space-y-1">
+            <router-link
+                v-for="(child, i) in item.children"
+                :key="i"
+                :to="child.to"
+                class="block px-3 py-2 text-sm rounded hover:bg-gray-100"
+                :class="{ 'bg-gray-200 font-semibold': route.path === child.to }"
+            >
+                {{ child.label }}
+            </router-link>
+        </div>
+    </div>
+
+    <!-- Simple link -->
+    <router-link
+        v-else
+        :to="item.to"
+        class="flex items-center px-3 py-2 rounded hover:bg-gray-100"
+        :class="{ 'bg-gray-200 font-semibold': route.path === item.to }"
+    >
+        <component :is="item.icon" class="w-5 h-5 mr-3" />
+        <span>{{ item.label }}</span>
+    </router-link>
+</template>
