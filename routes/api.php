@@ -9,6 +9,8 @@ use App\Http\Controllers\Api\FirebaseVerificationController;
 use App\Http\Controllers\Api\VerificationController;
 use App\Http\Controllers\Api\WhatsAppVerificationController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\SupportTicketController;
+use App\Http\Controllers\Api\Portal\SupportTicketController as PortalSupportTicketController;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
@@ -30,3 +32,18 @@ Route::get('/portal/fines/analytics', [FinesAnalyticsController::class, 'index']
 Route::get('/portal/fines/by-day', [FinesAnalyticsController::class, 'byDay']);
 Route::get('/portal/fines/export-day', [FinesAnalyticsController::class, 'exportDay']); // CSV export drill-down
 // Optionally keep the export range path using ?export=csv handled in index()
+
+//Support system
+Route::middleware('auth:sanctum')->group(function () {
+
+    // Driver / Client
+    Route::get('/support/tickets', [SupportTicketController::class, 'index']);
+    Route::post('/support/tickets', [SupportTicketController::class, 'store']);
+    Route::get('/support/tickets/{ticket}', [SupportTicketController::class, 'show']);
+
+    // Portal
+    Route::prefix('portal/support')->group(function () {
+        Route::get('/tickets', [PortalSupportTicketController::class, 'index']);
+        Route::patch('/tickets/{ticket}', [PortalSupportTicketController::class, 'update']);
+    });
+});
