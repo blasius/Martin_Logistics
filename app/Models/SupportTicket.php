@@ -104,4 +104,26 @@ class SupportTicket extends Model
             self::STATUS_CLOSED,
         ]);
     }
+
+    protected static function booted()
+    {
+        static::creating(function (SupportTicket $ticket) {
+            $year = now()->year;
+
+            $latest = self::whereYear('created_at', $year)
+                ->lockForUpdate()
+                ->orderByDesc('id')
+                ->first();
+
+            $nextNumber = $latest
+                ? ((int) substr($latest->reference, -6)) + 1
+                : 1;
+
+            $ticket->reference = sprintf(
+                'SUP-%d-%06d',
+                $year,
+                $nextNumber
+            );
+        });
+    }
 }
