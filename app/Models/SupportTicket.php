@@ -124,6 +124,32 @@ class SupportTicket extends Model
                 $year,
                 $nextNumber
             );
+
+            //SLA
+            $sla = config('support.sla.' . $ticket->priority);
+
+            if ($sla) {
+                $now = now();
+
+                $ticket->sla_first_response_due_at =
+                    $now->copy()->addMinutes($sla['first_response_minutes']);
+
+                $ticket->sla_resolution_due_at =
+                    $now->copy()->addMinutes($sla['resolution_minutes']);
+            }
         });
     }
+
+    public function isFirstResponseBreached(): bool
+    {
+        return is_null($this->sla_first_response_at)
+            && now()->greaterThan($this->sla_first_response_due_at);
+    }
+
+    public function isResolutionBreached(): bool
+    {
+        return !in_array($this->status, ['resolved', 'closed'])
+            && now()->greaterThan($this->sla_resolution_due_at);
+    }
+
 }

@@ -6,11 +6,12 @@ use App\Http\Controllers\API\FineCheckController;
 use App\Http\Controllers\API\FinesAnalyticsController;
 use App\Http\Controllers\API\FinesController;
 use App\Http\Controllers\Api\FirebaseVerificationController;
+use App\Http\Controllers\Api\Support\SupportCategoryController;
+use App\Http\Controllers\Api\Support\SupportTicketController;
+use App\Http\Controllers\Api\Support\SupportTicketMessageController;
 use App\Http\Controllers\Api\VerificationController;
 use App\Http\Controllers\Api\WhatsAppVerificationController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\SupportTicketController;
-use App\Http\Controllers\Api\Portal\SupportTicketController as PortalSupportTicketController;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
@@ -34,16 +35,17 @@ Route::get('/portal/fines/export-day', [FinesAnalyticsController::class, 'export
 // Optionally keep the export range path using ?export=csv handled in index()
 
 //Support system
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum'])->prefix('portal/support')->group(function () {
 
-    // Driver / Client
-    Route::get('/support/tickets', [SupportTicketController::class, 'index']);
-    Route::post('/support/tickets', [SupportTicketController::class, 'store']);
-    Route::get('/support/tickets/{ticket}', [SupportTicketController::class, 'show']);
+    Route::get('categories', [SupportCategoryController::class, 'index']);
 
-    // Portal
-    Route::prefix('portal/support')->group(function () {
-        Route::get('/tickets', [PortalSupportTicketController::class, 'index']);
-        Route::patch('/tickets/{ticket}', [PortalSupportTicketController::class, 'update']);
-    });
+    Route::get('tickets', [SupportTicketController::class, 'index']);
+    Route::post('tickets', [SupportTicketController::class, 'store']);
+    Route::get('tickets/{ticket}', [SupportTicketController::class, 'show']);
+
+    Route::patch('tickets/{ticket}/status', [SupportTicketController::class, 'updateStatus']);
+    Route::patch('tickets/{ticket}/assign', [SupportTicketController::class, 'assign']);
+
+    Route::post('tickets/{ticket}/messages', [SupportTicketMessageController::class, 'store']);
 });
+
