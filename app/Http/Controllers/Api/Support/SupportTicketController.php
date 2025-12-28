@@ -10,52 +10,93 @@ class SupportTicketController extends Controller
 {
     public function index(Request $request)
     {
-        return SupportTicket::with(['category', 'assignee'])
-            ->when($request->status, fn ($q) => $q->where('status', $request->status))
-            ->when($request->priority, fn ($q) => $q->where('priority', $request->priority))
-            ->latest()
-            ->paginate(20);
+        $query = SupportTicket::with(['category','assignedTo'])
+            ->latest();
+
+        if (!auth()->user()->isStaff()) {
+            $query->where('user_id', auth()->id());
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('priority')) {
+            $query->where('priority', $request->priority);
+        }
+
+        return $query->paginate(20);
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
-            'category_id' => 'required|exists:support_categories,id',
-            'subject' => 'required|string|max:255',
+            'support_category_id' => 'required|exists:support_categories,id',
+            'title' => 'required|string|max:255',
             'description' => 'required|string',
-            'priority' => 'required|in:low,medium,high,critical',
-            'subject_type' => 'nullable|string',
-            'subject_id' => 'nullable|integer',
+            'priority' => 'nullable|in:low,normal,high,urgent',
         ]);
 
         $ticket = SupportTicket::create([
             ...$data,
-            'created_by_id' => auth()->id(),
-            'status' => 'open',
+            'user_id' => auth()->id(),
+            'reference' => SupportTicket::generateReference(),
         ]);
 
-        return response()->json($ticket->load('category'), 201);
+        $ticket->events()->create([
+            'user_id' => auth()->id(),
+            'type' => 'created',
+        ]);
+
+        return response()->json($ticket, 201);
     }
 
     public function show(SupportTicket $ticket)
     {
+        $this->authorize('view', $ticket);
+
         return $ticket->load([
-            'category',
-            'assignee',
             'messages.user',
-            'events'
+            'events.user',
+            'category',
+            'assignedTo',
         ]);
     }
 
-    public function update(Request $request, SupportTicket $ticket)
+    public function updateStatus(Request $request, SupportTicket $ticket)
     {
-        $data = $request->validate([
-            'status' => 'sometimes|in:open,in_progress,waiting,resolved,closed',
-            'assigned_to_id' => 'nullable|exists:users,id',
+        $this->authorize('update', $ticket);
+
+        $request->validate([
+            'status' => 'required|in:open,in_progress,waiting,resolved,closed',
         ]);
 
-        $ticket->update($data);
+        $old = $ticket->status;
+        $ticket->update(['status' => $request->status]);
 
-        return response()->json($ticket->fresh());
+        $ticket->events()->create([
+            'user_id' => auth()->id(),
+            'type' => 'status_changed',
+            'payload' => ['from' => $old, 'to' => $request->status],
+        ]);
+
+        return $ticket;
+    }
+
+    public function assign(Request $request, SupportTicket $ticket)
+    {
+        $request->validate([
+            'assigned_to' => 'nullable|exists:users,id',
+        ]);
+
+        $ticket->update(['assigned_to' => $request->assigned_to]);
+
+        $ticket->events()->create([
+            'user_id' => auth()->id(),
+            'type' => 'assigned',
+            'payload' => ['assigned_to' => $request->assigned_to],
+        ]);
+
+        return $ticket;
     }
 }
