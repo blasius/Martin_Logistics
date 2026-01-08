@@ -1,325 +1,182 @@
 <template>
-    <div class="p-6 space-y-6">
-        <div class="flex items-center justify-between gap-4">
+    <div class="p-6 space-y-6 bg-gray-50 min-h-screen">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-                <h1 class="text-2xl font-bold">Fines Analytics</h1>
-                <div class="text-sm text-gray-500">Overview & insights</div>
+                <h1 class="text-2xl font-bold text-gray-800">Fines Analytics</h1>
+                <p class="text-sm text-gray-500">Real-time traffic violation insights</p>
             </div>
 
-            <div class="flex items-center gap-2">
-                <select v-model="range" @change="onRangeChange" class="border px-3 py-2 rounded">
+            <div class="flex flex-wrap items-center gap-2">
+                <select v-model="range" @change="onRangeChange" class="border px-3 py-2 rounded-lg bg-white shadow-sm">
                     <option value="7">Last 7 days</option>
                     <option value="30">Last 30 days</option>
                     <option value="90">Last 90 days</option>
-                    <option value="custom">Custom</option>
+                    <option value="custom">Custom Range</option>
                 </select>
 
-                <input v-if="range==='custom'" type="date" v-model="from" class="border px-2 py-2 rounded" />
-                <input v-if="range==='custom'" type="date" v-model="to" class="border px-2 py-2 rounded" />
+                <div v-if="range === 'custom'" class="flex items-center gap-2">
+                    <input type="date" v-model="from" class="border px-2 py-2 rounded-lg shadow-sm" />
+                    <input type="date" v-model="to" class="border px-2 py-2 rounded-lg shadow-sm" />
+                </div>
 
-                <button @click="refresh" class="px-3 py-2 bg-sky-600 text-white rounded">Refresh</button>
-
-                <button @click="exportCsvRange" title="Export CSV for current range" class="px-3 py-2 border rounded">Export CSV</button>
+                <button @click="fetchData" class="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition">Refresh</button>
+                <button @click="exportMainCsv" class="px-4 py-2 border bg-white rounded-lg hover:bg-gray-50 transition">Export CSV</button>
             </div>
         </div>
 
-        <!-- summary cards -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div class="bg-white shadow rounded p-4">
-                <div class="text-sm text-gray-500">Fines (count)</div>
-                <div class="mt-2 text-xl font-semibold">{{ summary.total_count }}</div>
-                <div class="text-sm text-gray-600">From {{ summary.from }} → {{ summary.to }}</div>
-            </div>
-
-            <div class="bg-white shadow rounded p-4">
-                <div class="text-sm text-gray-500">Total amount</div>
-                <div class="mt-2 text-xl font-semibold">{{ formatCurrency(summary.total_amount) }} RWF</div>
-            </div>
-
-            <div class="bg-white shadow rounded p-4">
-                <div class="text-sm text-gray-500">Unpaid</div>
-                <div class="mt-2 text-xl font-semibold">{{ summary.total_unpaid }}</div>
-            </div>
-
-            <div class="bg-white shadow rounded p-4">
-                <div class="text-sm text-gray-500">Paid</div>
-                <div class="mt-2 text-xl font-semibold">{{ summary.total_paid }}</div>
+            <div v-for="(val, label) in summaryCards" :key="label" class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                <div class="text-xs font-bold uppercase text-gray-400 tracking-wider">{{ label }}</div>
+                <div class="mt-2 text-2xl font-bold text-gray-800">{{ val }}</div>
             </div>
         </div>
 
-        <!-- charts -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div class="bg-white p-4 rounded shadow">
-                <div class="flex items-center justify-between">
-                    <h2 class="font-semibold">Fines over time</h2>
-                    <div class="text-sm text-gray-500">Click a bar to drill down</div>
-                </div>
-                <canvas ref="timeseriesCanvas" style="max-height:340px"></canvas>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border">
+                <h2 class="font-bold text-gray-700 mb-4">Fines Over Time (Click bars to drill down)</h2>
+                <canvas ref="timeseriesCanvas" class="w-full" style="max-height: 350px;"></canvas>
             </div>
 
-            <div class="bg-white p-4 rounded shadow">
-                <h2 class="font-semibold mb-2">Top Violations</h2>
-                <ul class="space-y-2 max-h-60 overflow-auto">
-                    <li v-for="v in topViolations" :key="v.violation_name" class="flex justify-between">
-                        <div class="text-sm">{{ v.violation_name }}</div>
-                        <div class="text-sm font-medium">{{ v.occurrences }}</div>
-                    </li>
-                </ul>
-
-                <div class="mt-4">
-                    <h3 class="font-semibold mb-2">Top Vehicles</h3>
-                    <ul class="space-y-2 max-h-40 overflow-auto">
-                        <li v-for="v in topVehicles" :key="v.plate_number" class="flex justify-between">
-                            <div class="font-medium">{{ v.plate_number }}</div>
-                            <div class="text-sm text-gray-600">{{ v.count }} • {{ formatCurrency(v.total_amount) }}</div>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-
-        <!-- Recent fines -->
-        <div class="bg-white p-4 rounded shadow">
-            <div class="flex items-center justify-between mb-2">
-                <h3 class="font-semibold">Recent fines</h3>
-                <div class="text-sm text-gray-500">Latest entries (in range)</div>
-            </div>
-
-            <div class="overflow-auto">
-                <table class="min-w-full divide-y">
-                    <thead><tr class="text-left text-xs text-gray-500">
-                        <th class="px-3 py-2">Plate</th><th class="px-3 py-2">Ticket</th><th class="px-3 py-2">Amount</th><th class="px-3 py-2">Status</th><th class="px-3 py-2">Issued</th>
-                    </tr></thead>
-                    <tbody class="divide-y">
-                    <tr v-for="r in recent" :key="r.id" class="hover:bg-gray-50">
-                        <td class="px-3 py-2">{{ r.plate_number }}</td>
-                        <td class="px-3 py-2">{{ r.ticket_number }}</td>
-                        <td class="px-3 py-2">{{ formatCurrency(r.ticket_amount) }}</td>
-                        <td class="px-3 py-2">{{ r.status }}</td>
-                        <td class="px-3 py-2">{{ r.issued_at }}</td>
-                    </tr>
-                    <tr v-if="recent.length===0"><td colspan="5" class="px-3 py-4 text-gray-500">No recent fines.</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Drill-down modal -->
-        <div v-if="showModal" class="fixed inset-0 z-50 flex items-start justify-center p-6">
-            <div class="absolute inset-0 bg-black opacity-40" @click="closeModal"></div>
-            <div class="bg-white rounded-lg shadow-lg w-full max-w-4xl z-60 p-4 overflow-auto">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="font-semibold">Fines for {{ modalDate }}</h3>
-                    <div class="flex items-center gap-2">
-                        <button @click="exportDayCsv(modalDate)" class="px-3 py-1 border rounded text-sm">Export CSV</button>
-                        <button @click="closeModal" class="px-3 py-1 bg-gray-200 rounded">Close</button>
-                    </div>
-                </div>
-
-                <div v-if="modalLoading" class="text-gray-500">Loading...</div>
-
-                <div v-else>
-                    <div class="overflow-auto max-h-96">
-                        <table class="min-w-full divide-y">
-                            <thead><tr class="text-left text-xs text-gray-500">
-                                <th class="px-3 py-2">Plate</th><th class="px-3 py-2">Ticket</th><th class="px-3 py-2">Amount</th><th class="px-3 py-2">Status</th><th class="px-3 py-2">Violations</th>
-                            </tr></thead>
-                            <tbody class="divide-y">
-                            <tr v-for="f in modalFines.data" :key="f.id">
-                                <td class="px-3 py-2">{{ f.plate_number }}</td>
-                                <td class="px-3 py-2">{{ f.ticket_number }}</td>
-                                <td class="px-3 py-2">{{ formatCurrency(f.ticket_amount) }}</td>
-                                <td class="px-3 py-2">{{ f.status }}</td>
-                                <td class="px-3 py-2">
-                                    <ul class="list-disc ml-4">
-                                        <li v-for="v in f.violations" :key="v.name">{{ v.name }} — {{ formatCurrency(v.amount) }}</li>
-                                    </ul>
-                                </td>
-                            </tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div class="mt-3 flex items-center gap-2">
-                        <button :disabled="!modalFines.prev_page_url" @click="fetchModalPage(modalFines.current_page - 1)" class="px-3 py-1 border rounded">Prev</button>
-                        <div>Page {{ modalFines.current_page }} / {{ modalFines.last_page }}</div>
-                        <button :disabled="!modalFines.next_page_url" @click="fetchModalPage(modalFines.current_page + 1)" class="px-3 py-1 border rounded">Next</button>
+            <div class="bg-white p-6 rounded-xl shadow-sm border">
+                <h2 class="font-bold text-gray-700 mb-4">Top Violations</h2>
+                <div class="space-y-2">
+                    <div v-for="v in topViolations" :key="v.violation_name"
+                         @click="openDrillDown('violation', v.violation_name)"
+                         class="group flex justify-between items-center p-3 rounded-lg border border-transparent hover:border-sky-200 hover:bg-sky-50 cursor-pointer transition">
+                        <span class="text-sm text-sky-700 font-medium underline group-hover:text-sky-900">{{ v.violation_name }}</span>
+                        <span class="text-xs font-bold bg-gray-100 px-2 py-1 rounded text-gray-600">{{ v.occurrences }}</span>
                     </div>
                 </div>
             </div>
         </div>
 
+        <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+                <div class="p-6 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl">
+                    <div>
+                        <h3 class="text-xl font-bold text-gray-800">{{ modalTitle }}</h3>
+                        <p class="text-sm text-gray-500">Displaying results for the current dashboard range</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button @click="exportModalCsv" class="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm">Export Page</button>
+                        <button @click="showModal = false" class="p-2 hover:bg-gray-200 rounded-full">✕</button>
+                    </div>
+                </div>
+
+                <div class="flex-1 overflow-auto p-6">
+                    <div v-if="modalLoading" class="flex justify-center py-20"><div class="animate-spin h-10 w-10 border-4 border-sky-500 border-t-transparent rounded-full"></div></div>
+                    <table v-else class="w-full text-left">
+                        <thead><tr class="text-xs font-bold text-gray-400 uppercase border-b"><th class="pb-3">Plate</th><th class="pb-3">Ticket</th><th class="pb-3">Amount</th><th class="pb-3">Status</th></tr></thead>
+                        <tbody class="divide-y">
+                        <tr v-for="f in modalFines.data" :key="f.id" class="hover:bg-gray-50">
+                            <td class="py-4 font-mono text-sm">{{ f.plate_number }}</td>
+                            <td class="py-4 text-sm text-gray-600">{{ f.ticket_number }}</td>
+                            <td class="py-4 font-bold text-gray-800">{{ formatCurrency(f.ticket_amount) }}</td>
+                            <td class="py-4"><span class="px-2 py-1 rounded-md text-xs font-bold" :class="f.status === 'PAID' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'">{{ f.status }}</span></td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="p-4 border-t flex justify-between items-center bg-gray-50 rounded-b-2xl">
+                    <span class="text-sm text-gray-500">Page {{ modalFines.current_page }} of {{ modalFines.last_page }}</span>
+                    <div class="flex gap-2">
+                        <button :disabled="!modalFines.prev_page_url" @click="fetchModalPage(modalFines.current_page - 1)" class="px-4 py-2 border bg-white rounded-lg disabled:opacity-30">Prev</button>
+                        <button :disabled="!modalFines.next_page_url" @click="fetchModalPage(modalFines.current_page + 1)" class="px-4 py-2 border bg-white rounded-lg disabled:opacity-30">Next</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { api } from '@/plugins/axios.js';
 import Chart from 'chart.js/auto';
-import Echo from 'laravel-echo';
-import Pusher from 'pusher-js';
-
-// Echo init — adjust with your env config
-window.Pusher = Pusher;
-
-window.Echo = new Echo({
-    broadcaster: 'pusher',
-    // Remove the invalid fallback
-    key: import.meta.env.VITE_PUSHER_APP_KEY,
-    cluster: import.meta.env.VITE_PUSHER_CLUSTER || 'mt1',
-    wsHost: import.meta.env.VITE_WS_HOST || window.location.hostname,
-    wsPort: import.meta.env.VITE_WS_PORT || 6001,
-    forceTLS: false,
-    disableStats: true,
-    encrypted: false,
-});
-
-const summary = ref({ total_count:0, total_amount:0, total_unpaid:0, total_paid:0, from:'', to:'' });
-const timeseries = ref([]);
-const topViolations = ref([]);
-const topVehicles = ref([]);
-const topTrailers = ref([]);
-const monthly = ref([]);
-const recent = ref([]);
 
 const range = ref('30');
 const from = ref('');
 const to = ref('');
-
+const summary = ref({});
+const timeseries = ref([]);
+const topViolations = ref([]);
 const timeseriesCanvas = ref(null);
-let timeseriesChart = null;
+let chartInstance = null;
 
 const showModal = ref(false);
-const modalDate = ref('');
+const modalType = ref('');
+const modalValue = ref('');
 const modalLoading = ref(false);
-const modalFines = ref({ data: [], current_page:1, last_page:1, prev_page_url:null, next_page_url:null });
+const modalFines = ref({ data: [] });
 
-onMounted(() => {
-    // default dates when page loads, computed in fetch
-    fetchData();
+const summaryCards = computed(() => ({
+    'Total Fines': summary.value.total_count || 0,
+    'Total Revenue': formatCurrency(summary.value.total_amount) + ' RWF',
+    'Pending Unpaid': summary.value.total_unpaid || 0,
+    'Settled Paid': summary.value.total_paid || 0,
+}));
 
-    // Real-time: listen for new fines and refresh summary + charts
-    window.Echo.channel('traffic-fines').listen('.NewTrafficFine', (e) => {
-        console.log('NewTrafficFine', e);
-        // keep the UI responsive: fetchData could be rate limited if many events occur
-        fetchDataDebounced();
-    });
-});
+const modalTitle = computed(() => modalType.value === 'date' ? `Fines on ${modalValue.value}` : `Violation: ${modalValue.value}`);
 
-let debounceTimer = null;
-const fetchDataDebounced = () => {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(fetchData, 800);
-};
-
-function parseRangeToParams() {
-    if (range.value === 'custom') {
-        return { range: 'custom', from: from.value, to: to.value };
-    }
-    return { range: range.value };
-}
+onMounted(() => fetchData());
 
 async function fetchData() {
-    try {
-        const params = parseRangeToParams();
-        const res = await api.get('/api/portal/fines/analytics', { params });
-        const data = res.data;
-        summary.value = data.summary ?? summary.value;
-        timeseries.value = data.timeseries ?? [];
-        topViolations.value = data.top_violations ?? [];
-        topVehicles.value = data.top_vehicles ?? [];
-        topTrailers.value = data.top_trailers ?? [];
-        monthly.value = data.monthly ?? [];
-        recent.value = data.recent ?? [];
-        renderTimeseries();
-    } catch (err) {
-        console.error('Failed to load analytics', err);
-    }
+    const params = range.value === 'custom' ? { range: 'custom', from: from.value, to: to.value } : { range: range.value };
+    const { data } = await api.get('/api/portal/fines/analytics', { params });
+    summary.value = data.summary;
+    timeseries.value = data.timeseries;
+    topViolations.value = data.top_violations;
+    renderChart();
 }
 
-const refresh = () => fetchData();
-
-const formatCurrency = (n) => (n==null? '0' : Number(n).toLocaleString());
-
-function renderTimeseries() {
-    const labels = timeseries.value.map(x => x.date);
-    const counts = timeseries.value.map(x => x.count);
-    const amounts = timeseries.value.map(x => x.amount);
-
-    if (timeseriesChart) timeseriesChart.destroy();
-
-    const ctx = timeseriesCanvas.value.getContext('2d');
-    timeseriesChart = new Chart(ctx, {
+function renderChart() {
+    if (chartInstance) chartInstance.destroy();
+    chartInstance = new Chart(timeseriesCanvas.value, {
         type: 'bar',
         data: {
-            labels,
-            datasets: [
-                { label: 'Count', data: counts, yAxisID: 'y1', backgroundColor: '#60A5FA' },
-                { label: 'Amount (RWF)', data: amounts, yAxisID: 'y2', type: 'line', borderColor: '#10B981', tension: 0.3 },
-            ]
+            labels: timeseries.value.map(d => d.date),
+            datasets: [{ label: 'Fines', data: timeseries.value.map(d => d.count), backgroundColor: '#0ea5e9', borderRadius: 4 }]
         },
         options: {
-            onClick(evt, elements) {
-                if (!elements.length) return;
-                const idx = elements[0].index;
-                const day = labels[idx];
-                openDrillDown(day);
-            },
-            scales: {
-                y1: { position: 'left', beginAtZero:true },
-                y2: { position: 'right', beginAtZero:true, grid: { drawOnChartArea: false } }
-            },
-            plugins: { legend: { position: 'bottom' } }
+            onClick: (e, el) => { if(el.length) openDrillDown('date', chartInstance.data.labels[el[0].index]); },
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true } }
         }
     });
 }
 
-function openDrillDown(date) {
-    modalDate.value = date;
+function openDrillDown(type, value) {
+    modalType.value = type;
+    modalValue.value = value;
     showModal.value = true;
     fetchModalPage(1);
 }
 
-async function fetchModalPage(page = 1) {
+async function fetchModalPage(page) {
     modalLoading.value = true;
-    try {
-        const res = await api.get('/api/portal/fines/by-day', { params: { date: modalDate.value, page } });
-        modalFines.value = res.data;
-    } catch (e) {
-        console.error('drill down error', e);
-    } finally {
-        modalLoading.value = false;
-    }
+    const endpoint = modalType.value === 'date' ? '/api/portal/fines/by-day' : '/api/portal/fines/by-violation';
+    const params = { page, from: summary.value.from, to: summary.value.to };
+    if (modalType.value === 'date') params.date = modalValue.value;
+    else params.violation_name = modalValue.value;
+
+    const { data } = await api.get(endpoint, { params });
+    modalFines.value = data;
+    modalLoading.value = false;
 }
 
-function closeModal() {
-    showModal.value = false;
-    modalFines.value = { data: [], current_page:1, last_page:1, prev_page_url:null, next_page_url:null };
-}
+const formatCurrency = (n) => Number(n || 0).toLocaleString();
+const onRangeChange = () => { if(range.value !== 'custom') fetchData(); };
 
-function onRangeChange() {
-    if (range.value !== 'custom') {
-        from.value = '';
-        to.value = '';
-        fetchData();
-    }
-}
+const exportMainCsv = () => {
+    const p = range.value === 'custom' ? `range=custom&from=${from.value}&to=${to.value}` : `range=${range.value}`;
+    window.location.href = `/api/portal/fines/analytics?${p}&export=csv`;
+};
 
-// CSV export for current range
-async function exportCsvRange() {
-    const params = parseRangeToParams();
-    params.export = 'csv';
-    // direct link to endpoint to start download: create a full URL with querystring
-    const query = new URLSearchParams(params).toString();
-    window.location.href = `/api/portal/fines/analytics?${query}`;
-}
-
-// export CSV for modal day
-function exportDayCsv(date) {
-    window.location.href = `/api/portal/fines/export-day?date=${date}`;
-}
+const exportModalCsv = () => {
+    const url = modalType.value === 'date'
+        ? `/api/portal/fines/export-day?date=${modalValue.value}`
+        : `/api/portal/fines/export-violation?violation_name=${modalValue.value}&from=${summary.value.from}&to=${summary.value.to}`;
+    window.location.href = url;
+};
 </script>
-
-<style scoped>
-/* rely on Tailwind; small custom tweaks if needed */
-</style>

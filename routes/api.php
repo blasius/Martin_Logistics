@@ -33,6 +33,10 @@ Route::get('/portal/fines/analytics', [FinesAnalyticsController::class, 'index']
 Route::get('/portal/fines/by-day', [FinesAnalyticsController::class, 'byDay']);
 Route::get('/portal/fines/export-day', [FinesAnalyticsController::class, 'exportDay']); // CSV export drill-down
 // Optionally keep the export range path using ?export=csv handled in index()
+Route::get('/portal/fines/by-violation', [FinesAnalyticsController::class, 'byViolation']);
+
+// Targeted CSV Exports
+Route::get('/portal/fines/export-violation', [FinesAnalyticsController::class, 'exportViolationCsv']);
 
 //Support system
 Route::middleware(['auth:sanctum'])->prefix('portal/support')->group(function () {
