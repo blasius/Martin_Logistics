@@ -89,47 +89,150 @@ class FinesAnalyticsController extends Controller
         ]);
     }
 
+    // ... inside FinesAnalyticsController class
+
+    /**
+     * Drill-down: Fines for a specific day with Search, Status filter, and Meta Counts.
+     */
     public function byDay(Request $request)
     {
         $date = Carbon::parse($request->get('date'))->toDateString();
-        return response()->json(
-            TrafficFine::with('violations')
-                ->whereDate('created_at', $date)
-                ->orderByDesc('created_at')
-                ->paginate($request->get('per_page', 20))
-        );
+        $search = $request->get('search');
+        $status = $request->get('status');
+
+        // 1. Initialize Base Query for this date
+        $query = TrafficFine::whereDate('created_at', $date);
+
+        // 2. Apply Search Filter (if provided)
+        // We apply this BEFORE counts so the counts reflect the search results
+        if ($search) {
+            $query->where('plate_number', 'like', "%{$search}%");
+        }
+
+        // 3. Calculate Meta Counts (cloning the query to avoid cross-pollution)
+        $meta_counts = [
+            'all'    => (clone $query)->count(),
+            'paid'   => (clone $query)->whereRaw("UPPER(status) = 'PAID'")->count(),
+            'unpaid' => (clone $query)->whereRaw("UPPER(status) != 'PAID'")->count(),
+        ];
+
+        // 4. Apply Status Filter to the final result set
+        if ($status) {
+            if (strtolower($status) === 'unpaid') {
+                $query->whereRaw("UPPER(status) != 'PAID'");
+            } else {
+                $query->whereRaw("UPPER(status) = 'PAID'");
+            }
+        }
+
+        // 5. Paginate and Return
+        $results = $query->with(['violations', 'fineable'])
+            ->orderByDesc('created_at')
+            ->paginate($request->get('per_page', 20));
+
+        return response()->json([
+            'results'     => $results,
+            'meta_counts' => $meta_counts
+        ]);
     }
 
+    /**
+     * Drill-down: Fines by Violation Type with Search, Status filter, and Meta Counts.
+     */
     public function byViolation(Request $request)
     {
-        $name = $request->get('violation_name');
-        $from = Carbon::parse($request->get('from'))->startOfDay();
-        $to = Carbon::parse($request->get('to'))->endOfDay();
+        $name   = $request->get('violation_name');
+        $from   = Carbon::parse($request->get('from'))->startOfDay();
+        $to     = Carbon::parse($request->get('to'))->endOfDay();
+        $search = $request->get('search');
+        $status = $request->get('status');
 
-        $query = TrafficFine::with('violations')
-            ->whereHas('violations', fn($q) => $q->where('violation_name', $name))
-            ->whereBetween('created_at', [$from, $to])
-            ->orderByDesc('created_at');
+        // 1. Initialize Base Query for this violation and range
+        $query = TrafficFine::whereHas('violations', function($q) use ($name) {
+            $q->where('violation_name', $name);
+        })
+            ->whereBetween('created_at', [$from, $to]);
 
-        return response()->json($query->paginate($request->get('per_page', 20)));
+        // 2. Apply Search Filter
+        if ($search) {
+            $query->where('plate_number', 'like', "%{$search}%");
+        }
+
+        // 3. Calculate Meta Counts
+        $meta_counts = [
+            'all'    => (clone $query)->count(),
+            'paid'   => (clone $query)->whereRaw("UPPER(status) = 'PAID'")->count(),
+            'unpaid' => (clone $query)->whereRaw("UPPER(status) != 'PAID'")->count(),
+        ];
+
+        // 4. Apply Status Filter
+        if ($status) {
+            if (strtolower($status) === 'unpaid') {
+                $query->whereRaw("UPPER(status) != 'PAID'");
+            } else {
+                $query->whereRaw("UPPER(status) = 'PAID'");
+            }
+        }
+
+        // 5. Paginate and Return
+        $results = $query->with(['violations', 'fineable'])
+            ->orderByDesc('created_at')
+            ->paginate($request->get('per_page', 20));
+
+        return response()->json([
+            'results'     => $results,
+            'meta_counts' => $meta_counts
+        ]);
     }
 
+    /**
+     * Export CSV for a specific day, respecting search and status filters.
+     */
     public function exportDay(Request $request)
     {
         $date = Carbon::parse($request->get('date'))->toDateString();
-        return $this->generateCsvStream("fines_$date.csv", TrafficFine::whereDate('created_at', $date));
+        $search = $request->get('search');
+        $status = $request->get('status');
+
+        $query = TrafficFine::whereDate('created_at', $date);
+
+        if ($search) {
+            $query->where('plate_number', 'like', "%{$search}%");
+        }
+
+        if ($status) {
+            if (strtolower($status) === 'unpaid') $query->whereRaw("UPPER(status) != 'PAID'");
+            else $query->whereRaw("UPPER(status) = 'PAID'");
+        }
+
+        return $this->generateCsvStream("fines_export_$date.csv", $query);
     }
 
+    /**
+     * Export CSV for a specific violation, respecting range, search, and status filters.
+     */
     public function exportViolationCsv(Request $request)
     {
         $name = $request->get('violation_name');
         $from = Carbon::parse($request->get('from'))->startOfDay();
         $to = Carbon::parse($request->get('to'))->endOfDay();
+        $search = $request->get('search');
+        $status = $request->get('status');
 
         $query = TrafficFine::whereHas('violations', fn($q) => $q->where('violation_name', $name))
             ->whereBetween('created_at', [$from, $to]);
 
-        return $this->generateCsvStream("violation_export.csv", $query);
+        if ($search) {
+            $query->where('plate_number', 'like', "%{$search}%");
+        }
+
+        if ($status) {
+            if (strtolower($status) === 'unpaid') $query->whereRaw("UPPER(status) != 'PAID'");
+            else $query->whereRaw("UPPER(status) = 'PAID'");
+        }
+
+        $filename = "violation_" . str_replace(' ', '_', $name) . "_export.csv";
+        return $this->generateCsvStream($filename, $query);
     }
 
     protected function generateCsvStream($filename, $query): StreamedResponse
