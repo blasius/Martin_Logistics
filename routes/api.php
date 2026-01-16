@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\Support\SupportCategoryController;
 use App\Http\Controllers\Api\Support\SupportTicketController;
 use App\Http\Controllers\Api\Support\SupportTicketMessageController;
 use App\Http\Controllers\Api\VerificationController;
+use App\Http\Controllers\Api\ControlTowerController;
 use App\Http\Controllers\Api\WhatsAppVerificationController;
 use Illuminate\Support\Facades\Route;
 
@@ -53,3 +54,4 @@ Route::middleware(['auth:sanctum'])->prefix('portal/support')->group(function ()
     Route::post('tickets/{ticket}/messages', [SupportTicketMessageController::class, 'store']);
 });
 
+Route::get('/portal/control-tower/stats', [ControlTowerController::class, 'getStats']);
