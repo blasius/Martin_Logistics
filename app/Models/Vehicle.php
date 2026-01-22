@@ -85,4 +85,12 @@ class Vehicle extends Model
     {
         return $this->morphOne(TrafficFine::class, 'fineable')->latestOfMany();
     }
+
+    public function assignments() {
+        return $this->hasMany(TrailerAssignment::class);
+    }
+
+    public function currentAssignment() {
+        return $this->hasOne(TrailerAssignment::class)->whereNull('unassigned_at');
+    }
 }

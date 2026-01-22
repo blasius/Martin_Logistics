@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\VerificationController;
 use App\Http\Controllers\Api\ControlTowerController;
 use App\Http\Controllers\Api\WhatsAppVerificationController;
 use App\Http\Controllers\Api\DriverController;
+use App\Http\Controllers\Api\VehicleController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -39,6 +40,7 @@ Route::get('/portal/fines/by-violation', [FinesAnalyticsController::class, 'byVi
 Route::get('/portal/fines/by-violation', [FinesAnalyticsController::class, 'byViolation']);
 // Targeted CSV Exports
 Route::get('/portal/drivers', [DriverController::class, 'index']);
+Route::get('/portal/vehicles', [VehicleController::class, 'index']);
 
 //Support system
 Route::middleware(['auth:sanctum'])->prefix('portal/support')->group(function () {
