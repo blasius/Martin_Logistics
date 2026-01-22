@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\TrafficFine;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Carbon\Carbon;
 
 class FinesAnalyticsController extends Controller
@@ -31,76 +30,71 @@ class FinesAnalyticsController extends Controller
             return $this->exportCsvRange($from_date, $to_date);
         }
 
-        // Summary calculations
+        $today = now()->toDateString();
+        $threeDays = now()->addDays(3)->toDateString();
+
+        // Base Query for the selected period
         $baseQuery = TrafficFine::whereBetween('created_at', [$from_date, $to_date]);
 
-        // Critical: Calculate Risk (Unpaid fines near pay_by date)
-        $today = now();
-        $threeDaysFromNow = now()->addDays(3);
-
         $summary = [
-            'total_count' => (clone $baseQuery)->count(),
-            'total_amount' => (float) (clone $baseQuery)->sum(DB::raw('COALESCE(ticket_amount,0) + COALESCE(late_fee,0)')),
-            'total_unpaid' => (clone $baseQuery)->whereRaw("UPPER(status) != 'PAID'")->count(),
-            'total_paid' => (clone $baseQuery)->whereRaw("UPPER(status) = 'PAID'")->count(),
-            // Late Fee specific metrics
-            'already_penalized' => (clone $baseQuery)->whereRaw("UPPER(status) != 'PAID'")->where('late_fee', '>', 0)->count(),
-            'at_risk_count' => (clone $baseQuery)->whereRaw("UPPER(status) != 'PAID'")
+            // 1. Penalized: Already late (late_fee > 0)
+            'penalized_count' => (clone $baseQuery)->whereRaw("UPPER(status) != 'PAID'")
+                ->where('late_fee', '>', 0)->count(),
+
+            // 2. Expiring: No late fee yet, but due within 72 hours
+            'expiring_soon_count' => (clone $baseQuery)->whereRaw("UPPER(status) != 'PAID'")
                 ->where('late_fee', 0)
-                ->whereBetween('pay_by', [$today->toDateString(), $threeDaysFromNow->toDateString()])
-                ->count(),
+                ->whereBetween('pay_by', [$today, $threeDays])->count(),
+
+            // 3. Financial Breakdown
+            'total_penalties_amount' => (float) (clone $baseQuery)->whereRaw("UPPER(status) != 'PAID'")
+                ->sum('late_fee'),
+            'total_expiring_tickets_amount' => (float) (clone $baseQuery)->whereRaw("UPPER(status) != 'PAID'")
+                ->where('late_fee', 0)
+                ->whereBetween('pay_by', [$today, $threeDays])
+                ->sum('ticket_amount'),
+
+            'total_paid' => (clone $baseQuery)->whereRaw("UPPER(status) = 'PAID'")->count(),
+            'total_count' => (clone $baseQuery)->count(),
             'from' => $from_date->toDateString(),
             'to' => $to_date->toDateString(),
         ];
 
         // Timeseries
-        $timeseriesRaw = TrafficFine::select(
-            DB::raw('DATE(created_at) as date'),
-            DB::raw('COUNT(*) as count'),
-            DB::raw('SUM(COALESCE(ticket_amount,0)+COALESCE(late_fee,0)) as amount')
-        )
+        $timeseriesRaw = TrafficFine::select(DB::raw('DATE(created_at) as date'), DB::raw('COUNT(*) as count'))
             ->whereBetween('created_at', [$from_date, $to_date])
             ->groupBy('date')->orderBy('date')->get()->keyBy('date');
 
         $dates = [];
         for ($d = $from->copy(); $d->lte($to); $d->addDay()) {
             $key = $d->toDateString();
-            $row = $timeseriesRaw->get($key);
-            $dates[] = [
-                'date' => $key,
-                'count' => $row ? (int)$row->count : 0,
-                'amount' => $row ? (float)$row->amount : 0.0,
-            ];
+            $dates[] = ['date' => $key, 'count' => $timeseriesRaw->has($key) ? (int)$timeseriesRaw->get($key)->count : 0];
         }
 
-        // Top violations
+        // 4. Top Violations (ONLY NON-SETTLED)
         $topViolations = DB::table('traffic_fine_violations')
-            ->join('traffic_fines','traffic_fine_violations.traffic_fine_id','traffic_fines.id')
+            ->join('traffic_fines', 'traffic_fine_violations.traffic_fine_id', 'traffic_fines.id')
             ->select('traffic_fine_violations.violation_name', DB::raw('COUNT(*) as occurrences'))
             ->whereBetween('traffic_fines.created_at', [$from_date, $to_date])
+            ->whereRaw("UPPER(traffic_fines.status) != 'PAID'") // Filter unsettled
             ->groupBy('violation_name')->orderByDesc('occurrences')->limit(10)->get();
 
         return response()->json([
             'summary' => $summary,
             'timeseries' => $dates,
-            'top_violations' => $topViolations,
-            'recent' => TrafficFine::with('violations')
-                ->whereBetween('created_at', [$from_date, $to_date])
-                ->orderByDesc('created_at')->limit(10)->get()
+            'top_violations' => $topViolations
         ]);
     }
 
     public function byDay(Request $request) {
-        $date = Carbon::parse($request->get('date'))->toDateString();
-        $query = TrafficFine::whereDate('created_at', $date);
+        $query = TrafficFine::whereDate('created_at', Carbon::parse($request->get('date'))->toDateString());
         return $this->handleDrillDown($query, $request);
     }
 
     public function byViolation(Request $request) {
-        $name = $request->get('violation_name');
         $from = Carbon::parse($request->get('from'))->startOfDay();
         $to = Carbon::parse($request->get('to'))->endOfDay();
-        $query = TrafficFine::whereHas('violations', fn($q) => $q->where('violation_name', $name))
+        $query = TrafficFine::whereHas('violations', fn($q) => $q->where('violation_name', $request->get('violation_name')))
             ->whereBetween('created_at', [$from, $to]);
         return $this->handleDrillDown($query, $request);
     }
@@ -113,21 +107,35 @@ class FinesAnalyticsController extends Controller
         $meta_counts = [
             'all'    => (clone $query)->count(),
             'paid'   => (clone $query)->whereRaw("UPPER(status) = 'PAID'")->count(),
-            'unpaid' => (clone $query)->whereRaw("UPPER(status) != 'PAID'")->count(),
             'at_risk'=> (clone $query)->whereRaw("UPPER(status) != 'PAID'")
                 ->where(fn($q) => $q->where('late_fee', '>', 0)->orWhere('pay_by', '<=', now()->addDays(3)))->count(),
         ];
 
-        if ($request->get('status') === 'at_risk') {
+        // Default to risky fines
+        $status = $request->get('status', 'at_risk');
+
+        if ($status === 'at_risk') {
             $query->whereRaw("UPPER(status) != 'PAID'")
                 ->where(fn($q) => $q->where('late_fee', '>', 0)->orWhere('pay_by', '<=', now()->addDays(3)));
-        } elseif ($status = $request->get('status')) {
-            $query->whereRaw(strtolower($status) === 'unpaid' ? "UPPER(status) != 'PAID'" : "UPPER(status) = 'PAID'");
+        } elseif ($status === 'paid') {
+            $query->whereRaw("UPPER(status) = 'PAID'");
         }
 
         return response()->json([
             'results' => $query->with(['violations'])->orderBy('pay_by', 'asc')->paginate(20),
             'meta_counts' => $meta_counts
         ]);
+    }
+
+    private function exportCsvRange($from, $to) {
+        $headers = [ 'Content-type' => 'text/csv', 'Content-Disposition' => "attachment; filename=fines_risk_report.csv" ];
+        return response()->stream(function() use ($from, $to) {
+            $file = fopen('php://output', 'w');
+            fputcsv($file, ['Date', 'Plate', 'Ticket', 'Status', 'Late Fee', 'Ticket Amount', 'Pay By']);
+            TrafficFine::whereBetween('created_at', [$from, $to])->chunk(200, function($fines) use ($file) {
+                foreach($fines as $f) fputcsv($file, [$f->created_at, $f->plate_number, $f->ticket_number, $f->status, $f->late_fee, $f->ticket_amount, $f->pay_by]);
+            });
+            fclose($file);
+        }, 200, $headers);
     }
 }
