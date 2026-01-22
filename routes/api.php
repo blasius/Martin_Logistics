@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\Support\SupportTicketMessageController;
 use App\Http\Controllers\Api\VerificationController;
 use App\Http\Controllers\Api\ControlTowerController;
 use App\Http\Controllers\Api\WhatsAppVerificationController;
+use App\Http\Controllers\Api\DriverController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -35,9 +36,9 @@ Route::get('/portal/fines/by-day', [FinesAnalyticsController::class, 'byDay']);
 Route::get('/portal/fines/export-day', [FinesAnalyticsController::class, 'exportDay']); // CSV export drill-down
 // Optionally keep the export range path using ?export=csv handled in index()
 Route::get('/portal/fines/by-violation', [FinesAnalyticsController::class, 'byViolation']);
-
+Route::get('/portal/fines/by-violation', [FinesAnalyticsController::class, 'byViolation']);
 // Targeted CSV Exports
-Route::get('/portal/fines/export-violation', [FinesAnalyticsController::class, 'exportViolationCsv']);
+Route::get('/portal/drivers', [DriverController::class, 'index']);
 
 //Support system
 Route::middleware(['auth:sanctum'])->prefix('portal/support')->group(function () {
