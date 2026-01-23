@@ -9,6 +9,8 @@ use App\Models\Trailer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use App\Exports\DispatchExport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class DispatchController extends Controller
 {
@@ -107,41 +109,6 @@ class DispatchController extends Controller
 
     public function export(): BinaryFileResponse
     {
-        // Fetch the data using the same logic as the index
-        $data = Vehicle::all()->map(function ($vehicle) {
-            $currentDriver = DB::table('users')
-                ->join('driver_vehicle_assignments', 'users.id', '=', 'driver_vehicle_assignments.driver_id')
-                ->where('driver_vehicle_assignments.vehicle_id', $vehicle->id)
-                ->whereNull('driver_vehicle_assignments.end_date')
-                ->value('name');
-
-            $currentTrailer = DB::table('trailers')
-                ->join('trailer_assignments', 'trailers.id', '=', 'trailer_assignments.trailer_id')
-                ->where('trailer_assignments.vehicle_id', $vehicle->id)
-                ->whereNull('trailer_assignments.unassigned_at')
-                ->value('plate_number');
-
-            return [
-                'Plate Number' => $vehicle->plate_number,
-                'Make'         => $vehicle->make,
-                'Model'        => $vehicle->model,
-                'Driver'       => $currentDriver ?? 'UNASSIGNED',
-                'Trailer'      => $currentTrailer ?? 'BOBTAIL',
-                'Status'       => $vehicle->status,
-            ];
-        });
-
-        // Create a temporary CSV or Excel file
-        $fileName = 'dispatch_report_' . now()->format('Y-m-d') . '.csv';
-        $path = storage_path('app/' . $fileName);
-
-        $file = fopen($path, 'w');
-        fputcsv($file, array_keys($data->first())); // Headers
-        foreach ($data as $row) {
-            fputcsv($file, $row);
-        }
-        fclose($file);
-
-        return response()->download($path)->deleteFileAfterSend();
+        return Excel::download(new DispatchExport, 'fleet_dispatch_' . now()->format('Y-m-d') . '.xlsx');
     }
 }

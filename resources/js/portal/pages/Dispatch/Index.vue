@@ -17,10 +17,10 @@
             <div class="flex gap-6">
                 <button
                     @click="exportToExcel"
-                    class="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
+                    class="flex items-center gap-2 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-black rounded-lg transition-all shadow-md active:scale-95"
                 >
-                    <Download class="w-4 h-4" />
-                    EXPORT EXCEL
+                    <FileSpreadsheet class="w-4 h-4" />
+                    DOWNLOAD EXCEL (.XLSX)
                 </button>
                 <div class="text-center">
                     <p class="text-[10px] font-bold text-slate-400 uppercase">Idle Drivers</p>
