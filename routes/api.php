@@ -44,6 +44,7 @@ Route::get('/portal/drivers', [DriverController::class, 'index']);
 Route::get('/portal/vehicles', [VehicleController::class, 'index']);
 Route::get('/portal/dispatch', [DispatchController::class, 'index']);
 Route::post('/portal/dispatch/pair', [DispatchController::class, 'pair']);
+Route::get('/portal/dispatch/export', [DispatchController::class, 'export']);
 
 //Support system
 Route::middleware(['auth:sanctum'])->prefix('portal/support')->group(function () {

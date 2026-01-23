@@ -15,6 +15,13 @@
             </div>
 
             <div class="flex gap-6">
+                <button
+                    @click="exportToExcel"
+                    class="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
+                >
+                    <Download class="w-4 h-4" />
+                    EXPORT EXCEL
+                </button>
                 <div class="text-center">
                     <p class="text-[10px] font-bold text-slate-400 uppercase">Idle Drivers</p>
                     <p class="text-lg font-black text-indigo-600">{{ availableDrivers.length }}</p>
@@ -85,6 +92,7 @@
 import { ref, computed, onMounted } from 'vue';
 import axios from 'axios';
 import { Search, User, Container } from 'lucide-vue-next';
+import { Download } from 'lucide-vue-next';
 
 const vehicles = ref([]);
 const availableDrivers = ref([]);
@@ -96,6 +104,11 @@ const loadData = async () => {
     vehicles.value = data.vehicles;
     availableDrivers.value = data.available_drivers;
     availableTrailers.value = data.available_trailers;
+};
+
+const exportToExcel = () => {
+    // Open the export URL in a new tab to trigger the download
+    window.open('/api/portal/dispatch/export', '_blank');
 };
 
 const filteredVehicles = computed(() => {
