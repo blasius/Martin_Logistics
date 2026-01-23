@@ -11,7 +11,8 @@ import {
     FileText,
     Settings,
     HelpCircle,
-    Radar
+    Radar,
+    Zap
 } from "lucide-vue-next";
 
 export const menu = [
@@ -24,6 +25,11 @@ export const menu = [
         label: "Control Tower",
         icon: Radar,
         to: "/control-tower",
+    },
+    {
+        label: "Dispatch",
+        icon: Zap,
+        to: "/dispatch",
     },
     {
         label: "Fines",

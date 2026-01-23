@@ -20,6 +20,7 @@ import Analytics from "../pages/Fines/Analytics.vue";
 
 // Control Tower (Live Operational Board)
 import ControlTower from "../pages/ControlTower/Index.vue";
+import Dispatch from "../pages/Dispatch/Index.vue";
 
 export const index = createRouter({
     history: createWebHistory("/portal/"),
@@ -29,27 +30,24 @@ export const index = createRouter({
             component: DashboardLayout,
             children: [
                 { path: "dashboard", component: Dashboard },
-
                 // Core modules
                 { path: "drivers", component: Drivers },
                 { path: "trips", component: Trips },
                 { path: "vehicles", component: Vehicles },
                 { path: "routes", component: RoutesPage },
                 { path: "billing", component: Invoices },
-
                 // Reports & Support
                 { path: "reports", component: Reports },
                 { path: "support", component: Support },
-
                 // Settings
                 { path: "settings", component: Settings },
-
                 // Fines module
                 { path: "fines", component: Fines },
                 { path: "fines/analytics", component: Analytics },
-
                 // Control Tower
                 { path: "control-tower", component: ControlTower },
+                //Dispatch page
+                { path: "dispatch", component: Dispatch },
             ],
         },
 
