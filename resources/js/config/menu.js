@@ -32,6 +32,14 @@ export const menu = [
         to: "/dispatch",
     },
     {
+        label: "Compliance",
+        icon: Ticket,
+        children: [
+            { label: "Insurances", to: "/insurances" },
+            { label: "Inspections", to: "/inspections" },
+        ],
+    },
+    {
         label: "Fines",
         icon: Ticket,
         children: [

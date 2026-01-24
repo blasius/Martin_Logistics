@@ -23,6 +23,7 @@
     "dependencies": {
         "@tailwindcss/cli": "^4.1.13",
         "chart.js": "^4.5.1",
+        "dayjs": "^1.11.19",
         "firebase": "^12.5.0",
         "fullcalendar": "^6.1.19",
         "laravel-echo": "^2.2.6",
