@@ -111,4 +111,28 @@ class DispatchController extends Controller
     {
         return Excel::download(new DispatchExport, 'fleet_dispatch_' . now()->format('Y-m-d') . '.xlsx');
     }
+
+    public function history($id)
+    {
+        $driverHistory = DB::table('driver_vehicle_assignments')
+            ->join('users', 'driver_vehicle_assignments.driver_id', '=', 'users.id')
+            ->where('vehicle_id', $id)
+            ->select('users.name', 'driver_vehicle_assignments.start_date', 'driver_vehicle_assignments.end_date')
+            ->orderBy('driver_vehicle_assignments.start_date', 'desc')
+            ->limit(5)
+            ->get();
+
+        $trailerHistory = DB::table('trailer_assignments')
+            ->join('trailers', 'trailer_assignments.trailer_id', '=', 'trailers.id')
+            ->where('vehicle_id', $id)
+            ->select('trailers.plate_number', 'trailer_assignments.assigned_at', 'trailer_assignments.unassigned_at')
+            ->orderBy('trailer_assignments.assigned_at', 'desc')
+            ->limit(5)
+            ->get();
+
+        return response()->json([
+            'drivers' => $driverHistory,
+            'trailers' => $trailerHistory
+        ]);
+    }
 }
