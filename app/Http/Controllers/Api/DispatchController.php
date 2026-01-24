@@ -135,4 +135,39 @@ class DispatchController extends Controller
             'trailers' => $trailerHistory
         ]);
     }
+
+    // Move to Maintenance (Unpairs everything)
+    public function toggleMaintenance(Request $request)
+    {
+        $request->validate(['vehicle_id' => 'required']);
+        $vehicleId = $request->vehicle_id;
+
+        DB::transaction(function () use ($vehicleId) {
+            DB::table('vehicles')->where('id', $vehicleId)->update(['status' => 'maintenance']);
+
+            DB::table('driver_vehicle_assignments')
+                ->where('vehicle_id', $vehicleId)
+                ->whereNull('end_date')
+                ->update(['end_date' => now()]);
+
+            DB::table('trailer_assignments')
+                ->where('vehicle_id', $vehicleId)
+                ->whereNull('unassigned_at')
+                ->update(['unassigned_at' => now()]);
+        });
+
+        return response()->json(['message' => 'Vehicle moved to maintenance.']);
+    }
+
+// Return to Active Status
+    public function activateVehicle(Request $request)
+    {
+        $request->validate(['vehicle_id' => 'required']);
+
+        DB::table('vehicles')
+            ->where('id', $request->vehicle_id)
+            ->update(['status' => 'active']);
+
+        return response()->json(['message' => 'Vehicle returned to active service.']);
+    }
 }
