@@ -46,6 +46,8 @@ Route::get('/portal/dispatch', [DispatchController::class, 'index']);
 Route::post('/portal/dispatch/pair', [DispatchController::class, 'pair']);
 Route::get('/portal/dispatch/export', [DispatchController::class, 'export']);
 Route::get('/portal/dispatch/history/{id}', [DispatchController::class, 'history']);
+Route::post('/portal/dispatch/maintenance', [DispatchController::class, 'toggleMaintenance']);
+Route::post('/portal/dispatch/activate', [DispatchController::class, 'activateVehicle']);
 
 //Support system
 Route::middleware(['auth:sanctum'])->prefix('portal/support')->group(function () {
