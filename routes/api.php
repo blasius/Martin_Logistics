@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\WhatsAppVerificationController;
 use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Api\DispatchController;
+use App\Http\Controllers\Api\InsuranceController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -48,6 +49,9 @@ Route::get('/portal/dispatch/export', [DispatchController::class, 'export']);
 Route::get('/portal/dispatch/history/{id}', [DispatchController::class, 'history']);
 Route::post('/portal/dispatch/maintenance', [DispatchController::class, 'toggleMaintenance']);
 Route::post('/portal/dispatch/activate', [DispatchController::class, 'activateVehicle']);
+
+Route::get('/portal/insurances', [InsuranceController::class, 'index']);
+Route::post('/portal/insurances', [InsuranceController::class, 'store']);
 
 //Support system
 Route::middleware(['auth:sanctum'])->prefix('portal/support')->group(function () {
