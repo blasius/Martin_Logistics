@@ -1,5 +1,15 @@
 <template>
-    <div class="h-screen flex flex-col bg-slate-50 overflow-hidden">
+    <div class="h-screen flex flex-col bg-slate-50 overflow-hidden relative">
+        <Transition name="slide-fade">
+            <div v-if="notification.show"
+                 class="fixed bottom-8 right-8 z-50 flex items-center gap-3 px-6 py-3 bg-slate-900 text-white rounded-xl shadow-2xl border border-slate-700 no-print">
+                <div class="p-1 bg-emerald-500 rounded-full">
+                    <Check class="w-4 h-4 text-white" />
+                </div>
+                <span class="text-sm font-bold tracking-wide">{{ notification.message }}</span>
+            </div>
+        </Transition>
+
         <header class="bg-white border-b border-slate-200 px-8 py-4 flex flex-wrap items-center justify-between gap-4 shadow-sm z-10 no-print">
             <div class="flex items-center gap-4">
                 <div class="p-2 bg-indigo-600 rounded-lg">
@@ -22,17 +32,6 @@
             </div>
 
             <div class="flex items-center gap-3">
-                <div class="flex gap-4 mr-4 text-right border-r pr-6 border-slate-200">
-                    <div>
-                        <p class="text-[10px] font-bold text-slate-400 uppercase">Idle Drivers</p>
-                        <p class="text-sm font-black text-indigo-600">{{ availableDrivers.length }}</p>
-                    </div>
-                    <div>
-                        <p class="text-[10px] font-bold text-slate-400 uppercase">Idle Trailers</p>
-                        <p class="text-sm font-black text-emerald-600">{{ availableTrailers.length }}</p>
-                    </div>
-                </div>
-
                 <button @click="exportToExcel" class="flex items-center gap-2 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-black rounded-lg shadow-md transition-all active:scale-95">
                     <FileSpreadsheet class="w-4 h-4" />
                     EXCEL
@@ -53,13 +52,6 @@
         </div>
 
         <div class="flex-1 overflow-y-auto px-8 py-4 space-y-2 custom-scrollbar">
-            <div v-if="filteredVehicles.length === 0" class="py-20 text-center">
-                <div class="inline-block p-4 bg-slate-100 rounded-full mb-4">
-                    <Search class="w-8 h-8 text-slate-300" />
-                </div>
-                <p class="text-slate-400 font-bold uppercase text-xs tracking-widest">No matching units found</p>
-            </div>
-
             <div v-for="v in filteredVehicles" :key="v.id"
                  class="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-12 gap-4 items-center hover:border-indigo-300 hover:shadow-sm transition-all group page-break-inside-avoid">
 
@@ -79,9 +71,9 @@
                     <User class="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 no-print" />
                     <select
                         @change="update(v.id, $event.target.value, 'driver')"
-                        class="w-full pl-8 pr-2 py-1.5 bg-slate-50 border-slate-200 rounded text-xs font-bold text-slate-700 appearance-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50">
+                        class="w-full pl-8 pr-2 py-1.5 bg-slate-50 border-slate-200 rounded text-xs font-bold text-slate-700 appearance-none focus:ring-1 focus:ring-indigo-500">
                         <option :value="null">-- STANDBY / NO DRIVER --</option>
-                        <option v-if="v.current_driver" :value="null" selected>{{ v.current_driver.name }} (Current)</option>
+                        <option v-if="v.current_driver" :value="null" selected>{{ v.current_driver.name }}</option>
                         <option v-for="d in availableDrivers" :key="d.id" :value="d.id">{{ d.user.name }}</option>
                     </select>
                 </div>
@@ -93,9 +85,9 @@
                         class="w-full pl-8 pr-2 py-1.5 bg-slate-50 border-slate-200 rounded text-xs font-bold text-slate-700 appearance-none focus:ring-1 focus:ring-emerald-500">
                         <option :value="null">-- BOBTAIL / NO TRAILER --</option>
                         <option v-if="v.current_assignment" :value="v.current_assignment.trailer_id" selected>
-                            {{ v.current_assignment.trailer.plate_number }} ({{ v.current_assignment.trailer.type }})
+                            {{ v.current_assignment.trailer.plate_number }}
                         </option>
-                        <option v-for="t in availableTrailers" :key="t.id" :value="t.id">{{ t.plate_number }} - {{ t.capacity_weight }}kg</option>
+                        <option v-for="t in availableTrailers" :key="t.id" :value="t.id">{{ t.plate_number }}</option>
                     </select>
                 </div>
             </div>
@@ -104,108 +96,76 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, reactive } from 'vue';
 import axios from 'axios';
-import { Search, User, Container, FileSpreadsheet, Printer, Truck } from 'lucide-vue-next';
+import { Search, User, Container, FileSpreadsheet, Printer, Truck, Check } from 'lucide-vue-next';
 
-// --- STATE ---
 const vehicles = ref([]);
 const availableDrivers = ref([]);
 const availableTrailers = ref([]);
 const searchQuery = ref('');
 
-// --- DATA FETCHING ---
-const loadData = async () => {
-    try {
-        const { data } = await axios.get('/api/portal/dispatch');
-        vehicles.value = data.vehicles;
-        availableDrivers.value = data.available_drivers;
-        availableTrailers.value = data.available_trailers;
-    } catch (e) {
-        console.error("Failed to sync fleet board.");
-    }
-};
-
-// --- COMPUTED SEARCH ---
-const filteredVehicles = computed(() => {
-    if (!searchQuery.value) return vehicles.value;
-    const q = searchQuery.value.toLowerCase();
-    return vehicles.value.filter(v =>
-        v.plate_number.toLowerCase().includes(q) ||
-        (v.current_driver && v.current_driver.name.toLowerCase().includes(q)) ||
-        (v.current_assignment && v.current_assignment.trailer.plate_number.toLowerCase().includes(q))
-    );
+// NOTIFICATION LOGIC
+const notification = reactive({
+    show: false,
+    message: ''
 });
 
-// --- ACTIONS ---
-const exportToExcel = () => window.open('/api/portal/dispatch/export', '_blank');
-const printBoard = () => window.print();
+const triggerNotification = (msg) => {
+    notification.message = msg;
+    notification.show = true;
+    setTimeout(() => { notification.show = false; }, 3000);
+};
+
+const loadData = async () => {
+    const { data } = await axios.get('/api/portal/dispatch');
+    vehicles.value = data.vehicles;
+    availableDrivers.value = data.available_drivers;
+    availableTrailers.value = data.available_trailers;
+};
 
 const update = async (vehicleId, targetId, type) => {
     try {
         const payload = { vehicle_id: vehicleId };
         type === 'driver' ? payload.driver_id = targetId : payload.trailer_id = targetId;
-
         await axios.post('/api/portal/dispatch/pair', payload);
-        // Instant reload to update dropdown pools
         await loadData();
+        triggerNotification(`Vehicle ${type} updated successfully`);
     } catch (e) {
-        alert("Operation failed. The asset may have been modified by another user.");
-        loadData();
+        console.error(e);
     }
 };
+
+const filteredVehicles = computed(() => {
+    if (!searchQuery.value) return vehicles.value;
+    const q = searchQuery.value.toLowerCase();
+    return vehicles.value.filter(v =>
+        v.plate_number.toLowerCase().includes(q) ||
+        (v.current_driver && v.current_driver.name.toLowerCase().includes(q))
+    );
+});
+
+const exportToExcel = () => window.open('/api/portal/dispatch/export', '_blank');
+const printBoard = () => window.print();
 
 onMounted(loadData);
 </script>
 
 <style scoped>
-/* CUSTOM SCROLLBAR FOR WEB */
+.slide-fade-enter-active { transition: all 0.3s ease-out; }
+.slide-fade-leave-active { transition: all 0.4s cubic-bezier(1, 0.5, 0.8, 1); }
+.slide-fade-enter-from, .slide-fade-leave-to {
+    transform: translateY(20px);
+    opacity: 0;
+}
+
 .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 
-/* PRINT ENGINE OPTIMIZATION */
 @media print {
-    header, .no-print, button, input, .absolute {
-        display: none !important;
-    }
-
+    header, .no-print, button, input { display: none !important; }
     .bg-slate-50 { background-color: white !important; }
-
-    .overflow-y-auto {
-        overflow: visible !important;
-        height: auto !important;
-    }
-
-    .h-screen { height: auto !important; }
-
-    select {
-        border: none !important;
-        background: transparent !important;
-        appearance: none !important;
-        padding-left: 0 !important;
-        font-size: 10pt !important;
-    }
-
-    .page-break-inside-avoid {
-        page-break-inside: avoid;
-    }
-
-    * {
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-    }
-
-    /* Print Header Branding */
-    .flex-1::before {
-        content: "MARTIN LOGISTICS - DISPATCH STATUS REPORT (" attr(data-date) ")";
-        display: block;
-        text-align: center;
-        font-size: 14pt;
-        font-weight: bold;
-        margin-bottom: 20px;
-        border-bottom: 2px solid #334155;
-        padding-bottom: 10px;
-    }
+    .overflow-y-auto { overflow: visible !important; height: auto !important; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 }
 </style>
