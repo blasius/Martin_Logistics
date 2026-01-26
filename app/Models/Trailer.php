@@ -45,4 +45,15 @@ class Trailer extends Model
         return $this->morphOne(TrafficFine::class, 'fineable')->latestOfMany();
     }
 
+    /// In BOTH models, use this exact syntax:
+    public function insurances()
+    {
+        return $this->morphMany(VehicleInsurance::class, 'insurable');
+    }
+
+    public function inspections()
+    {
+        return $this->morphMany(VehicleInspection::class, 'inspected');
+    }
+
 }

@@ -65,5 +65,10 @@ class VehicleInspection extends Model implements Eventable
             ->backgroundColor($color);
     }
 
+    public function inspected()
+    {
+        return $this->morphTo();
+    }
+
 }
 
