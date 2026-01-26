@@ -12,29 +12,52 @@ class ComplianceSummaryController extends Controller
 {
     public function complianceSummary()
     {
-        $today = now();
+        $today = now()->startOfDay();
 
-        // Insurance Stats
-        $insurances = \App\Models\VehicleInsurance::all();
-        $groundedIns = $insurances->filter(fn($i) => \Carbon\Carbon::parse($i->expiry_date)->isPast())->count();
+        // 1. Module-Specific Alert Counts
+        $insuranceAlerts = \App\Models\VehicleInsurance::where('expiry_date', '<', $today)->count();
+        $inspectionAlerts = \App\Models\VehicleInspection::where('completed_date', '<', $today)->count();
 
-        // Inspection Stats
-        $inspections = \App\Models\VehicleInspection::all();
-        $groundedInsp = $inspections->filter(fn($i) => \Carbon\Carbon::parse($i->completed_date)->isPast())->count();
+        // 2. Traffic Fine Alerts (Mapped to your specific migration status 'PENDING')
+        // Note: I updated the status check to 'PENDING' to match your migration default
+        $fineAlerts = \App\Models\TrafficFine::where('status', 'PENDING')
+            ->where('pay_by', '<', $today)
+            ->count();
 
-        // Total Fleet
+        // 3. Unique Grounded Vehicles
         $totalVehicles = \App\Models\Vehicle::count();
-        $groundedTotal = \App\Models\VehicleInsurance::where('expiry_date', '<', $today)
-            ->orWhereHas('vehicle.inspections', function($q) use ($today) {
-                $q->where('completed_date', '<', $today);
-            })->distinct('vehicle_id')->count();
+
+        // Get IDs from Insurance
+        $insIds = \App\Models\VehicleInsurance::where('expiry_date', '<', $today)->pluck('vehicle_id');
+
+        // Get IDs from Inspections
+        $inspIds = \App\Models\VehicleInspection::where('completed_date', '<', $today)->pluck('vehicle_id');
+
+        // Get IDs from Traffic Fines (Fixing the polymorphic column name here)
+        $fineIds = \App\Models\TrafficFine::where('fineable_type', \App\Models\Vehicle::class)
+            ->where('status', 'PENDING')
+            ->where('pay_by', '<', $today)
+            ->pluck('fineable_id'); // This was where vehicle_id was missing
+
+        $groundedVehicleIds = collect()
+            ->concat($insIds)
+            ->concat($inspIds)
+            ->concat($fineIds)
+            ->unique();
+
+        $groundedCount = $groundedVehicleIds->count();
 
         return response()->json([
             'total_vehicles' => $totalVehicles,
-            'grounded_total' => $groundedTotal,
-            'insurance_alerts' => $groundedIns,
-            'inspection_alerts' => $groundedInsp,
-            'health_percentage' => $totalVehicles > 0 ? round((($totalVehicles - $groundedTotal) / $totalVehicles) * 100) : 100
+            'grounded_total' => $groundedCount,
+            'alerts' => [
+                'insurance' => $insuranceAlerts,
+                'inspections' => $inspectionAlerts,
+                'fines' => $fineAlerts,
+            ],
+            'health_percentage' => $totalVehicles > 0
+                ? round((($totalVehicles - $groundedCount) / $totalVehicles) * 100)
+                : 100
         ]);
     }
 }
