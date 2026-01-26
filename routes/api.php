@@ -57,6 +57,9 @@ Route::post('/portal/insurances', [InsuranceController::class, 'store']);
 Route::get('/portal/inspections', [InsuranceController::class, 'index']);
 Route::post('/portal/inspections', [InsuranceController::class, 'store']);
 
+Route::get('/portal/drivers/search-users', [DriverController::class, 'searchUsers']);
+Route::post('/portal/drivers', [DriverController::class, 'store']);
+
 Route::get('/portal/compliance-summary', [ComplianceSummaryController::class, 'complianceSummary']);
 
 //Support system
