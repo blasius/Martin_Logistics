@@ -10,6 +10,7 @@ import Trips from "../pages/Trips/Index.vue";
 import Vehicles from "../pages/Vehicles/Index.vue";
 import Insurances from "../pages/Compliance/Insurance.vue";
 import Inspections from "../pages/Compliance/Inspection.vue";
+import ComplianceSummary from "../pages/Compliance/Index.vue";
 import RoutesPage from "../pages/Routes/Index.vue";
 import Invoices from "../pages/Invoices/Index.vue";
 import Reports from "../pages/Reports/Index.vue";
@@ -50,10 +51,9 @@ export const index = createRouter({
                 { path: "control-tower", component: ControlTower },
                 //Dispatch page
                 { path: "dispatch", component: Dispatch },
-                //Dispatch page
                 { path: "insurances", component: Insurances },
-                //Dispatch page
                 { path: "inspections", component: Inspections },
+                { path: "compliance-summary", component: ComplianceSummary },
             ],
         },
 

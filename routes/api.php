@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Api\DispatchController;
 use App\Http\Controllers\Api\InsuranceController;
+use App\Http\Controllers\Api\ComplianceSummaryController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -55,6 +56,8 @@ Route::post('/portal/insurances', [InsuranceController::class, 'store']);
 
 Route::get('/portal/inspections', [InsuranceController::class, 'index']);
 Route::post('/portal/inspections', [InsuranceController::class, 'store']);
+
+Route::get('/portal/compliance-summary', [ComplianceSummaryController::class, 'complianceSummary']);
 
 //Support system
 Route::middleware(['auth:sanctum'])->prefix('portal/support')->group(function () {
