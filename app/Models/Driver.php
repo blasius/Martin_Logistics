@@ -9,16 +9,19 @@ class Driver extends Model
 {
     use HasFactory;
     protected $guarded = [];
-
     protected $fillable = [
         'user_id',
         'phone',
         'whatsapp_phone',
-        'passport_number',
         'driving_licence',
+        'licence_expiry',
+        'licence_file',
+        'passport_number',
+        'passport_expiry',
+        'passport_file',
         'nationality',
         'sex',
-        'date_of_birth',
+        'date_of_birth'
     ];
 
     public function user()
