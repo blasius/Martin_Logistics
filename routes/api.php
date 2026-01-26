@@ -53,6 +53,9 @@ Route::post('/portal/dispatch/activate', [DispatchController::class, 'activateVe
 Route::get('/portal/insurances', [InsuranceController::class, 'index']);
 Route::post('/portal/insurances', [InsuranceController::class, 'store']);
 
+Route::get('/portal/inspections', [InsuranceController::class, 'index']);
+Route::post('/portal/inspections', [InsuranceController::class, 'store']);
+
 //Support system
 Route::middleware(['auth:sanctum'])->prefix('portal/support')->group(function () {
 
