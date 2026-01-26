@@ -36,7 +36,7 @@ export const menu = [
         icon: Ticket,
         children: [
             { label: "Summary", to: "/compliance-summary" },
-            { label: "Inspections", to: "/inspections" },
+            { label: "Insurances", to: "/insurances" },
             { label: "Inspections", to: "/inspections" },
         ],
     },
