@@ -84,4 +84,9 @@ class VehicleInsurance extends Model implements Eventable
             ->url($url)
             ->backgroundColor($color);
     }
+
+    public function insurable()
+    {
+        return $this->morphTo();
+    }
 }

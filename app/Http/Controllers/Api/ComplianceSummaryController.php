@@ -3,9 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\VehicleInspection;
 use App\Models\Vehicle;
-use Illuminate\Http\Request;
+use App\Models\Trailer;
 use Carbon\Carbon;
 
 class ComplianceSummaryController extends Controller
@@ -14,50 +13,48 @@ class ComplianceSummaryController extends Controller
     {
         $today = now()->startOfDay();
 
-        // 1. Module-Specific Alert Counts
-        $insuranceAlerts = \App\Models\VehicleInsurance::where('expiry_date', '<', $today)->count();
-        $inspectionAlerts = \App\Models\VehicleInspection::where('completed_date', '<', $today)->count();
+        // Process Truck fleet
+        $vehicles = Vehicle::with(['insurances', 'inspections', 'trafficFines'])->get()
+            ->map(fn($u) => $this->mapCompliance($u, 'Truck', $today));
 
-        // 2. Traffic Fine Alerts (Mapped to your specific migration status 'PENDING')
-        // Note: I updated the status check to 'PENDING' to match your migration default
-        $fineAlerts = \App\Models\TrafficFine::where('status', 'PENDING')
-            ->where('pay_by', '<', $today)
-            ->count();
+        // Process Trailer fleet
+        $trailers = Trailer::with(['insurances', 'inspections', 'trafficFines'])->get()
+            ->map(fn($u) => $this->mapCompliance($u, 'Trailer', $today));
 
-        // 3. Unique Grounded Vehicles
-        $totalVehicles = \App\Models\Vehicle::count();
-
-        // Get IDs from Insurance
-        $insIds = \App\Models\VehicleInsurance::where('expiry_date', '<', $today)->pluck('vehicle_id');
-
-        // Get IDs from Inspections
-        $inspIds = \App\Models\VehicleInspection::where('completed_date', '<', $today)->pluck('vehicle_id');
-
-        // Get IDs from Traffic Fines (Fixing the polymorphic column name here)
-        $fineIds = \App\Models\TrafficFine::where('fineable_type', \App\Models\Vehicle::class)
-            ->where('status', 'PENDING')
-            ->where('pay_by', '<', $today)
-            ->pluck('fineable_id'); // This was where vehicle_id was missing
-
-        $groundedVehicleIds = collect()
-            ->concat($insIds)
-            ->concat($inspIds)
-            ->concat($fineIds)
-            ->unique();
-
-        $groundedCount = $groundedVehicleIds->count();
+        $fullFleet = $vehicles->concat($trailers);
 
         return response()->json([
-            'total_vehicles' => $totalVehicles,
-            'grounded_total' => $groundedCount,
-            'alerts' => [
-                'insurance' => $insuranceAlerts,
-                'inspections' => $inspectionAlerts,
-                'fines' => $fineAlerts,
+            'stats' => [
+                'total_units' => $fullFleet->count(),
+                'grounded_count' => $fullFleet->where('is_grounded', true)->count(),
+                'insurance_alerts' => $fullFleet->filter(fn($u) => $u['issues']['insurance'])->count(),
+                'inspection_alerts' => $fullFleet->filter(fn($u) => $u['issues']['inspection'])->count(),
+                'fine_alerts' => $fullFleet->filter(fn($u) => $u['issues']['fines'])->count(),
+                'health_percentage' => $fullFleet->count() > 0
+                    ? round(($fullFleet->where('is_grounded', false)->count() / $fullFleet->count()) * 100)
+                    : 100,
             ],
-            'health_percentage' => $totalVehicles > 0
-                ? round((($totalVehicles - $groundedCount) / $totalVehicles) * 100)
-                : 100
+            'grounded_list' => $fullFleet->where('is_grounded', true)->values()
         ]);
+    }
+
+    private function mapCompliance($unit, $label, $today)
+    {
+        $hasExpiredIns = $unit->insurances->where('expiry_date', '<', $today->toDateString())->isNotEmpty();
+        $hasExpiredInsp = $unit->inspections->where('completed_date', '<', $today->toDateString())->isNotEmpty();
+        $hasOverdueFine = $unit->trafficFines->where('status', 'PENDING')
+            ->where('pay_by', '<', $today->toDateString())
+            ->isNotEmpty();
+
+        return [
+            'plate' => $unit->plate_number,
+            'type' => $label,
+            'is_grounded' => ($hasExpiredIns || $hasExpiredInsp || $hasOverdueFine),
+            'issues' => [
+                'insurance' => $hasExpiredIns,
+                'inspection' => $hasExpiredInsp,
+                'fines' => $hasOverdueFine,
+            ]
+        ];
     }
 }
