@@ -14,20 +14,26 @@ class InsuranceController extends Controller
     public function index()
     {
         $today = now();
-        $insurances = VehicleInsurance::with('vehicle:id,plate_number')
-            ->orderBy('expiry_date', 'asc')
+
+        // Get all records to split them
+        $allInsurances = VehicleInsurance::with('vehicle:id,plate_number')
+            ->orderBy('expiry_date', 'desc')
             ->get()
             ->map(function ($ins) use ($today) {
                 $expiry = \Carbon\Carbon::parse($ins->expiry_date);
-                // Calculate real-time day difference
                 $ins->days_left = (int) $today->diffInDays($expiry, false);
                 return $ins;
             });
 
         return response()->json([
-            'grounded' => $insurances->where('days_left', '<=', 0)->values(),
-            'critical' => $insurances->whereBetween('days_left', [1, 14])->values(),
-            'upcoming' => $insurances->where('days_left', '>', 14)->values(),
+            // Active/Current Radar data
+            'grounded' => $allInsurances->where('days_left', '<=', 0)->values(),
+            'critical' => $allInsurances->whereBetween('days_left', [1, 14])->values(),
+            'upcoming' => $allInsurances->where('days_left', '>', 14)->values(),
+
+            // Audit Archive: Everything that is expired or historically logged
+            'archive'  => $allInsurances->where('days_left', '<', 0)->values(),
+
             'vehicles' => Vehicle::select('id', 'plate_number')->get(),
         ]);
     }
