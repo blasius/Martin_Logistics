@@ -24,6 +24,20 @@
                     <h2 class="text-lg font-black text-white uppercase tracking-tight">Fuel Intelligence</h2>
                 </div>
 
+                <div class="flex gap-6 mb-6 px-2">
+                    <div>
+                        <p class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Fleet Refill (Today)</p>
+                        <p class="text-xl font-black text-emerald-500">{{ stats.totalRefilled }} <span class="text-[10px] text-slate-500">LITERS</span></p>
+                    </div>
+                    <div class="border-l border-slate-800 pl-6">
+                        <p class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Est. Loss (Today)</p>
+                        <p class="text-xl font-black text-rose-500">{{ stats.totalStolen }} <span class="text-[10px] text-slate-500">LITERS</span></p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                </div>
+
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div @click="openModal('Critical Fuel Levels', 'critical-fuel')"
                          class="bg-slate-900/40 border border-slate-800 p-5 rounded-[2rem] cursor-pointer hover:bg-slate-800/60 hover:border-rose-500/50 transition-all duration-300 group">
@@ -51,10 +65,12 @@
                          class="bg-slate-900/40 border border-slate-800 p-5 rounded-[2rem] cursor-pointer hover:bg-slate-800/60 hover:border-emerald-500/50 transition-all duration-300 group">
                         <span class="text-4xl font-black block leading-none mb-1 text-emerald-500">{{ stats.fillings.length }}</span>
                         <p class="text-[11px] font-black uppercase tracking-widest text-slate-400 leading-tight">Recent Refills</p>
-                        <div class="mt-4 space-y-1.5 pt-4 border-t border-slate-800/50">
-                            <div v-for="(v, i) in stats.fillings.slice(0, 5)" :key="i" class="flex justify-between text-[10px] font-bold uppercase tracking-tighter text-slate-500">
-                                <span>{{ v.plate }}</span><span class="text-emerald-500">+{{ v.val }}L</span>
+                        <div v-for="(v, i) in stats.fillings" :key="i" class="flex justify-between items-center text-[10px] font-bold uppercase tracking-tighter">
+                            <div class="flex flex-col">
+                                <span class="text-slate-300">{{ v.plate }}</span>
+                                <span class="text-[8px] text-slate-600 lowercase italic">{{ v.driver_name || 'unassigned' }}</span>
                             </div>
+                            <span class="text-emerald-500 font-black">+{{ Math.round(v.val) }}L</span>
                         </div>
                     </div>
                 </div>
@@ -63,7 +79,7 @@
             <div class="space-y-6">
                 <div class="flex items-center gap-3 border-b border-slate-800/50 pb-4">
                     <div class="p-2 bg-amber-500/10 rounded-xl"><Clock class="text-amber-500 w-5 h-5" /></div>
-                    <h2 class="text-lg font-black text-white uppercase tracking-tight">Operations & Delays</h2>
+                    <h2 class="text-lg font-black text-white uppercase tracking-tight">Operations & Support</h2>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
