@@ -63,14 +63,6 @@ class Vehicle extends Model
             ->whereNull('unassigned_at') // only currently attached
             ->latest('assigned_at');
     }
-
-    public function drivers()
-    {
-        return $this->belongsToMany(Driver::class, 'driver_vehicle_assignments')
-            ->withPivot('assigned_at', 'unassigned_at')
-            ->withTimestamps();
-    }
-
     public function wialonUnit()
     {
         return $this->hasOne(WialonUnit::class);
@@ -98,6 +90,13 @@ class Vehicle extends Model
     public function insurances()
     {
         return $this->morphMany(VehicleInsurance::class, 'insurable');
+    }
+
+    public function drivers()
+    {
+        return $this->belongsToMany(Driver::class, 'driver_vehicle_assignments')
+            ->withPivot('start_date', 'end_date') // ONLY these two
+            ->withTimestamps(); // Only if you have created_at/updated_at
     }
 
 }

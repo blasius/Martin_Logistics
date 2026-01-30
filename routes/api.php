@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Api\DispatchController;
 use App\Http\Controllers\Api\InsuranceController;
 use App\Http\Controllers\Api\ComplianceSummaryController;
+use App\Http\Controllers\Api\FleetDashboardController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -77,4 +78,10 @@ Route::middleware(['auth:sanctum'])->prefix('portal/support')->group(function ()
     Route::post('tickets/{ticket}/messages', [SupportTicketMessageController::class, 'store']);
 });
 
-Route::get('/portal/control-tower/stats', [ControlTowerController::class, 'getStats']);
+Route::prefix('portal')->group(function () {
+    // Live snapshot for the main cards
+    Route::get('/control-tower', [FleetDashboardController::class, 'getSnapshot']);
+
+    // Audit reports for the modal drill-downs
+    Route::get('/report/{type}', [FleetDashboardController::class, 'getDetailedReport']);
+});
