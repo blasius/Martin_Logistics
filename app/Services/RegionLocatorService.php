@@ -10,7 +10,7 @@ class RegionLocatorService
 
     public function __construct()
     {
-        $path = storage_path('app/geo/filtered_countries.geojson');
+        /*$path = storage_path('app/geo/filtered_countries.geojson');
 
         if (!file_exists($path)) {
             throw new \Exception("GeoJSON file not found at: $path");
@@ -23,7 +23,7 @@ class RegionLocatorService
         }
 
         $this->regions = $json['features'];
-        Log::info("Loaded " . count($this->regions) . " regions from GeoJSON");
+        Log::info("Loaded " . count($this->regions) . " regions from GeoJSON");*/
     }
 
     /**
