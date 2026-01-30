@@ -4,8 +4,6 @@ use App\Jobs\SyncWialonUnitsJob;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 
-Artisan::command('inspire', function () {
-    $this->comment(Inspiring::quote());
-})->purpose('Display an inspiring quote');
-
-Schedule::job(new SyncWialonUnitsJob)->everyTwoMinutes()->withoutOverlapping();
+//Schedule::job(new SyncWialonUnitsJob)->everyTwoMinutes()->withoutOverlapping();
+Schedule::command('telemetry:sync')->everyThreeMinutes();
+Schedule::command('telemetry:archive')->dailyAt('02:00');

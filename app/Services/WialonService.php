@@ -7,6 +7,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class WialonService
 {
@@ -126,6 +127,58 @@ class WialonService
         return [];
     }
 
+    public function processVehicleTelemetry($vehicle, $newData)
+    {
+        $lastFuel = $vehicle->current_fuel;
+        $newFuel = $newData['fuel'];
+        $fuelDiff = $newFuel - $lastFuel;
+
+        $eventType = null;
+        $eventValue = 0;
+
+        // 1. Detect Refill (Threshold: +10L)
+        if ($fuelDiff >= 10) {
+            $eventType = 'refill';
+            $eventValue = $fuelDiff;
+        }
+        // 2. Detect Theft (Threshold: -5L while engine is off)
+        elseif ($fuelDiff <= -5 && $newData['ignition'] == 0) {
+            $eventType = 'theft';
+            $eventValue = abs($fuelDiff);
+        }
+
+        // 3. Update the "Live" Vehicle State
+        $vehicle->update([
+            'current_fuel' => $newFuel,
+            'current_odometer' => $newData['milage'],
+            'last_lat' => $newData['lat'],
+            'last_lon' => $newData['lon'],
+            // Update stationary timestamp if speed is 0
+            'stationary_at' => ($newData['speed'] > 0) ? null : ($vehicle->stationary_at ?? now()),
+        ]);
+
+        // 4. Deciding whether to write a "History Point" to telemetry_recent
+        // We save if an event happened OR if it's been more than 5 mins since the last log
+        $lastLog = DB::table('telemetry_recent')
+            ->where('vehicle_id', $vehicle->id)
+            ->latest('created_at')
+            ->first();
+
+        $isTimeLog = !$lastLog || Carbon::parse($lastLog->created_at)->diffInMinutes(now()) >= 5;
+
+        if ($eventType || $isTimeLog) {
+            DB::table('telemetry_recent')->insert([
+                'vehicle_id' => $vehicle->id,
+                'fuel' => $newFuel,
+                'speed' => $newData['speed'],
+                'location' => DB::raw("ST_GeomFromText('POINT({$newData['lon']} {$newData['lat']})')"),
+                'event_type' => $eventType, // 'theft', 'refill', or null
+                'event_value' => $eventValue,
+                'created_at' => now(),
+            ]);
+        }
+    }
+
     public function getUnitsWithPosition(): Collection
     {
         // Get the data from the local database
@@ -194,5 +247,118 @@ class WialonService
                 ]
             );
         }
+    }
+
+    /**
+     * Main entry point for the Scheduled Job.
+     * Fetches all units from Wialon and processes their telemetry.
+     */
+    public function syncTelemetry()
+    {
+        $units = $this->getUnitsOnly();
+
+        if (empty($units)) {
+            Log::info("Wialon Sync: No units found to process.");
+            return 0;
+        }
+
+        $processedCount = 0;
+
+        foreach ($units as $unitData) {
+            $wialonUnit = WialonUnit::where('wialon_id', $unitData['id'])->first();
+            if (!$wialonUnit || !$wialonUnit->vehicle_id) continue;
+
+            $vehicle = $wialonUnit->vehicle;
+            $pos = $unitData['pos'] ?? null;
+            $params = $unitData['lmsg']['p'] ?? [];
+            if (!$pos) continue;
+
+            // Parse Data
+            $lat = $pos['y'];
+            $lon = $pos['x'];
+            $speed = $pos['s'] ?? 0;
+            $odometer = ($unitData['cnm'] ?? 0) / 1000;
+            $ignition = (bool)($params['io_239'] ?? 0);
+            $rawFuel = $params['io_270'] ?? 0;
+            $currentFuel = ($rawFuel * 0.09770395701) - 0.09770395701;
+
+            // --- NEW: Event Detection Logic ---
+            $eventType = null;
+            $eventValue = 0;
+            $fuelDiff = $currentFuel - $vehicle->current_fuel;
+
+            // 1. Refill Detection (Threshold: +10L)
+            if ($fuelDiff >= 10) {
+                $eventType = 'refill';
+                $eventValue = $fuelDiff;
+            }
+            // 2. Theft Detection (Threshold: -5L loss while ignition is OFF)
+            elseif ($fuelDiff <= -5 && !$ignition) {
+                $eventType = 'theft';
+                $eventValue = abs($fuelDiff);
+            }
+
+            // 3. Stationary Logic (For the "24h+ Stops" tile)
+            $stationaryAt = $vehicle->stationary_at;
+            if ($speed > 0) {
+                $stationaryAt = null; // Vehicle is moving
+            } elseif ($speed == 0 && is_null($stationaryAt)) {
+                $stationaryAt = now(); // Just stopped
+            }
+
+            // --- Update the Vehicle (Live Dashboard State) ---
+            $vehicle->update([
+                'last_lat' => $lat,
+                'last_lon' => $lon,
+                'current_fuel' => round($currentFuel, 2),
+                'current_odometer' => round($odometer, 2),
+                'is_engine_on' => $ignition,
+                'stationary_at' => $stationaryAt, // Critical for "Operations" tile
+                'last_update' => now(),
+            ]);
+
+            // --- Determine if we save to telemetry_recent ---
+            // Record if: Significance filter passes OR a Fuel Event was detected
+            $isSignificant = $this->evaluateSignificance($vehicle, $lat, $lon, $currentFuel, $odometer, $ignition);
+
+            if ($isSignificant || $eventType) {
+                DB::table('telemetry_recent')->insert([
+                    'vehicle_id'  => $vehicle->id,
+                    'fuel'        => round($currentFuel, 2),
+                    'odometer'    => round($odometer, 2),
+                    'speed'       => $speed,
+                    'ignition'    => $ignition,
+                    'event_type'  => $eventType,   // 'theft', 'refill', or null
+                    'event_value' => round($eventValue, 2),
+                    'location'    => DB::raw("ST_GeomFromText('POINT($lon $lat)', 4326)"),
+                    'created_at'  => now(),
+                ]);
+            }
+
+            $processedCount++;
+        }
+
+        return $processedCount;
+    }
+
+    private function evaluateSignificance($vehicle, $lat, $lon, $fuel, $odo, $ignition): bool
+    {
+        $lastRecord = DB::table('telemetry_recent')
+            ->where('vehicle_id', $vehicle->id)
+            ->latest('id')
+            ->first();
+
+        if (!$lastRecord) return true;
+
+        // 1. Movement: Has it moved more than 50 meters?
+        $hasMoved = (abs($lastRecord->odometer - $odo) > 0.05);
+
+        // 2. Engine State: Did someone turn the truck on/off?
+        $ignitionChanged = ($lastRecord->ignition != $ignition);
+
+        // 3. Heartbeat: If nothing happened, save a point every 10 mins anyway
+        $isStale = now()->diffInMinutes($lastRecord->created_at) >= 10;
+
+        return $hasMoved || $ignitionChanged || $isStale;
     }
 }
