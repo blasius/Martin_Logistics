@@ -16,30 +16,29 @@ class FleetDashboardController extends Controller
      */
     public function getSnapshot()
     {
-        $now = now();
-        $today = $now->copy()->startOfDay();
+        $today = now()->startOfDay();
 
-        // 1. Fetch Vehicles with currently active drivers
-        // We strictly use start_date and end_date as defined in your assignments table
-        $vehicles = Vehicle::with(['drivers' => function($query) use ($now) {
-            $query->wherePivot('start_date', '<=', $now)
-                ->where(function($q) use ($now) {
-                    $q->where('driver_vehicle_assignments.end_date', '>=', $now)
-                        ->orWhereNull('driver_vehicle_assignments.end_date');
-                });
-        }])->get();
+        // 1. Fetch Vehicles and attach Current Driver (matching your index logic)
+        $vehicles = Vehicle::all()->map(function ($vehicle) {
+            $currentDriver = DB::table('users')
+                ->join('drivers', 'users.id', '=', 'drivers.user_id') // Ensure we link User -> Driver
+                ->join('driver_vehicle_assignments', 'drivers.id', '=', 'driver_vehicle_assignments.driver_id')
+                ->where('driver_vehicle_assignments.vehicle_id', $vehicle->id)
+                ->whereNull('driver_vehicle_assignments.end_date') // This is the Dispatch logic
+                ->select('users.name')
+                ->first();
 
-        // 2. Fetch Today's Raw Events from the Hot Table (telemetry_recent)
-        // We join vehicles and drivers here to get names for the Top 5 lists
+            $vehicle->current_driver_name = $currentDriver ? $currentDriver->name : 'Unassigned';
+            return $vehicle;
+        });
+
+        // 2. Fetch Today's Events with Current Driver attribution
+        // We join the events to the same "Active Assignment" logic
         $rawEvents = DB::table('telemetry_recent')
             ->join('vehicles', 'vehicles.id', '=', 'telemetry_recent.vehicle_id')
-            ->leftJoin('driver_vehicle_assignments', function($join) use ($now) {
+            ->leftJoin('driver_vehicle_assignments', function($join) {
                 $join->on('vehicles.id', '=', 'driver_vehicle_assignments.vehicle_id')
-                    ->where('driver_vehicle_assignments.start_date', '<=', $now)
-                    ->where(function($q) use ($now) {
-                        $q->where('driver_vehicle_assignments.end_date', '>=', $now)
-                            ->orWhereNull('driver_vehicle_assignments.end_date');
-                    });
+                    ->whereNull('driver_vehicle_assignments.end_date'); // Match Dispatch Logic
             })
             ->leftJoin('drivers', 'drivers.id', '=', 'driver_vehicle_assignments.driver_id')
             ->leftJoin('users', 'users.id', '=', 'drivers.user_id')
@@ -52,23 +51,22 @@ class FleetDashboardController extends Controller
             ])
             ->get();
 
-        // 3. Aggregate Fleet-Wide Daily Totals
+        // 3. Totals
         $totalRefilled = $rawEvents->where('event_type', 'refill')->sum('val');
         $totalStolen = $rawEvents->where('event_type', 'theft')->sum('val');
 
-        // 4. Construct the Dashboard Stats Object
+        // 4. Transform Stats
         $stats = [
             'totalRefilled' => round($totalRefilled),
             'totalStolen'   => round($totalStolen),
 
-            // Critical Fuel: Using live cached data in 'vehicles' table
             'criticalFuel' => $vehicles->filter(fn($v) => $v->tank_capacity > 0 && ($v->current_fuel / $v->tank_capacity) * 100 < 15)
                 ->map(fn($v) => [
                     'plate' => $v->plate_number,
+                    'driver_name' => $v->current_driver_name,
                     'val'   => round(($v->current_fuel / $v->tank_capacity) * 100)
                 ])->values(),
 
-            // Grouped Refills: Summing multiple entries for same vehicle
             'fillings' => $rawEvents->where('event_type', 'refill')
                 ->groupBy('plate')
                 ->map(fn($group) => [
@@ -78,7 +76,6 @@ class FleetDashboardController extends Controller
                 ])
                 ->sortByDesc('val')->take(5)->values(),
 
-            // Grouped Thefts: Summing losses for same vehicle
             'thefts' => $rawEvents->where('event_type', 'theft')
                 ->groupBy('plate')
                 ->map(fn($group) => [
@@ -88,24 +85,17 @@ class FleetDashboardController extends Controller
                 ])
                 ->sortByDesc('val')->take(5)->values(),
 
-            // Stationary Units: Units not moved in 24h
             'longStops' => $vehicles->whereNotNull('stationary_at')
-                ->where('stationary_at', '<', $now->copy()->subHours(24))
+                ->where('stationary_at', '<', now()->subHours(24))
                 ->map(fn($v) => [
                     'plate' => $v->plate_number,
-                    'driver' => $v->drivers->first()->name ?? 'N/A'
+                    'driver_name' => $v->current_driver_name
                 ])->values(),
 
-            // Placeholders for external logic modules
-            'breakdowns'  => [],
-            'grounded'    => [],
-            'fuelRequests' => []
+            'breakdowns' => [], 'grounded' => [], 'fuelRequests' => []
         ];
 
-        return response()->json([
-            'totalUnits' => $vehicles->count(),
-            'stats'      => $stats
-        ]);
+        return response()->json(['totalUnits' => $vehicles->count(), 'stats' => $stats]);
     }
 
     public function getDetailedReport(Request $request, $type)
