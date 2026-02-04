@@ -13,11 +13,9 @@
                 <i class="lucide lucide-bell w-5 h-5"></i>
             </button>
             <div class="flex items-center gap-2">
-                <img
-                    src="/images/avatar-placeholder.png"
-                    alt="User Avatar"
-                    class="w-8 h-8 rounded-full"
-                />
+                <div class="w-10 h-10 rounded-xl bg-orange-600 text-white flex items-center justify-center font-black text-xs shadow-lg">
+                    SA
+                </div>
                 <span class="text-sm font-medium text-gray-700">Dispatcher</span>
             </div>
         </div>
