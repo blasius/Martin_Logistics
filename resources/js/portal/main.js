@@ -1,6 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import {index} from './router'
+import router from './router' // Changed from {index} to router
 import App from './App.vue'
 import '../../css/app.css'
 
@@ -22,6 +22,6 @@ app.config.globalProperties.$axios = api;
         await ensureCsrfCookie();
     }
 
-    app.use(index);
+    app.use(router); // Changed from index to router
     app.mount('#app')
 })();
