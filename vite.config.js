@@ -16,7 +16,7 @@ const isLocal = fs.existsSync(KEY_FILE) && fs.existsSync(CERT_FILE);
 export default defineConfig({
     plugins: [
         laravel({
-            input: ['resources/css/app.css', 'resources/js/app.js'],
+            input: ['resources/css/app.css', 'resources/js/app.js', 'resources/js/portal/main.js'],
             refresh: true,
         }),
         vue({
