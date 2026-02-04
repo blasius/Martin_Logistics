@@ -8,7 +8,13 @@
                 <option value="vehicle">Vehicles</option>
                 <option value="trailer">Trailers</option>
             </select>
-            <input v-model="filters.plate" @input="debounced" type="text" placeholder="Search plate..." class="border border-slate-200 px-3 py-2 rounded-lg w-64 text-sm" />
+            <input
+                v-model="filters.plate"
+                @input="debounced"
+                type="text"
+                placeholder="Search plate or driver name..."
+                class="border border-slate-200 px-3 py-2 rounded-lg w-64 text-sm"
+            />
             <select v-model="filters.status" @change="fetch" class="border border-slate-200 px-3 py-2 rounded-lg text-sm">
                 <option value="">Any status</option>
                 <option value="PENDING">Pending</option>

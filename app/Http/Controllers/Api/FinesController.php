@@ -17,14 +17,50 @@ class FinesController extends Controller
     {
         $query = TrafficFine::with(['violations', 'fineable'])->orderByDesc('created_at');
 
-        // ... existing filters (type, plate, status) ...
         if ($request->filled('type')) {
-            if ($request->type === 'vehicle') { $query->where('fineable_type', Vehicle::class); }
-            elseif ($request->type === 'trailer') { $query->where('fineable_type', Trailer::class); }
+            if ($request->type === 'vehicle') {
+                $query->where('fineable_type', Vehicle::class);
+            } elseif ($request->type === 'trailer') {
+                $query->where('fineable_type', Trailer::class);
+            }
         }
+
         if ($request->filled('plate')) {
-            $query->where('plate_number', 'like', "%{$request->plate}%");
+            $searchTerm = $request->plate;
+
+            $query->where(function ($q) use ($searchTerm) {
+                // 1. Search by Plate Number
+                $q->where('plate_number', 'like', "%{$searchTerm}%");
+
+                // 2. Search by Driver Name for Vehicles
+                $q->orWhere(function ($sub) use ($searchTerm) {
+                    $sub->where('fineable_type', Vehicle::class)
+                        ->whereIn('fineable_id', function ($dbQuery) use ($searchTerm) {
+                            $dbQuery->select('vehicle_id')
+                                ->from('driver_vehicle_assignments')
+                                ->join('users', 'users.id', '=', 'driver_vehicle_assignments.driver_id')
+                                ->where('users.name', 'like', "%{$searchTerm}%")
+                                ->whereNull('end_date');
+                        });
+                });
+
+                // 3. Search by Driver Name for Trailers
+                // (Trailers -> Vehicle -> Driver Assignment)
+                $q->orWhere(function ($sub) use ($searchTerm) {
+                    $sub->where('fineable_type', Trailer::class)
+                        ->whereIn('fineable_id', function ($dbQuery) use ($searchTerm) {
+                            $dbQuery->select('trailer_id')
+                                ->from('trailer_assignments')
+                                ->join('driver_vehicle_assignments', 'trailer_assignments.vehicle_id', '=', 'driver_vehicle_assignments.vehicle_id')
+                                ->join('users', 'users.id', '=', 'driver_vehicle_assignments.driver_id')
+                                ->where('users.name', 'like', "%{$searchTerm}%")
+                                ->whereNull('trailer_assignments.unassigned_at')
+                                ->whereNull('driver_vehicle_assignments.end_date');
+                        });
+                });
+            });
         }
+
         if ($request->filled('status')) {
             $query->where('status', strtoupper($request->status));
         }
@@ -32,16 +68,16 @@ class FinesController extends Controller
         $perPage = intval($request->get('per_page', 15));
         $paginator = $query->paginate($perPage);
 
+        // Attach the names to the JSON for the Vue page
         $paginator->getCollection()->transform(function ($fine) {
-            // 1. Driver Logic (Same as before)
             $driverName = null;
-            if ($fine->fineable_type === Vehicle::class && $fine->fineable_id) {
+            if ($fine->fineable_type === Vehicle::class) {
                 $driverName = DB::table('users')
                     ->join('driver_vehicle_assignments', 'users.id', '=', 'driver_vehicle_assignments.driver_id')
                     ->where('driver_vehicle_assignments.vehicle_id', $fine->fineable_id)
                     ->whereNull('driver_vehicle_assignments.end_date')
                     ->value('users.name');
-            } elseif ($fine->fineable_type === Trailer::class && $fine->fineable_id) {
+            } elseif ($fine->fineable_type === Trailer::class) {
                 $driverName = DB::table('users')
                     ->join('driver_vehicle_assignments', 'users.id', '=', 'driver_vehicle_assignments.driver_id')
                     ->join('trailer_assignments', 'driver_vehicle_assignments.vehicle_id', '=', 'trailer_assignments.vehicle_id')
@@ -51,14 +87,12 @@ class FinesController extends Controller
                     ->value('users.name');
             }
 
-            // 2. Date & Penalty Logic
-            $issuedAt = $fine->issued_at ? Carbon::parse($fine->issued_at) : null;
-
             $fine->assigned_driver_name = $driverName;
-            $fine->issued_at_human = $issuedAt ? $issuedAt->diffForHumans() : 'Unknown date';
 
-            // Check if older than 14 days and unpaid
-            $fine->is_overdue = $issuedAt ? $issuedAt->diffInDays(Carbon::now()) > 14 : false;
+            // Human readable date logic
+            $issuedAt = $fine->issued_at ? \Carbon\Carbon::parse($fine->issued_at) : null;
+            $fine->issued_at_human = $issuedAt ? $issuedAt->diffForHumans() : 'Unknown';
+            $fine->is_overdue = $issuedAt ? $issuedAt->diffInDays(now()) > 14 : false;
             $fine->show_penalty_warning = ($fine->is_overdue && $fine->status === 'PENDING');
 
             return $fine;
