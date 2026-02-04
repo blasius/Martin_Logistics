@@ -4,9 +4,9 @@
             <div>
                 <h1 class="text-2xl font-black text-slate-800 flex items-center gap-2 uppercase tracking-tight">
                     <i class="lucide lucide-alert-octagon text-red-600"></i>
-                    Risk & Penalties
+                    TRAFFIC FINES ANALYTICS
                 </h1>
-                <p class="text-sm text-slate-500 font-medium italic">Active financial exposure from unsettled fines</p>
+                <p class="text-sm text-slate-500 font-medium italic"></p>
             </div>
 
             <div class="flex items-center gap-2">
