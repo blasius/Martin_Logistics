@@ -25,7 +25,8 @@ import Analytics from "../pages/Fines/Analytics.vue";
 import ControlTower from "../pages/ControlTower/Index.vue";
 import Dispatch from "../pages/Dispatch/Index.vue";
 
-export const index = createRouter({
+// Changed 'index' to 'router' to match your export and app.js import
+const router = createRouter({
     history: createWebHistory("/portal/"),
     routes: [
         {
@@ -33,31 +34,26 @@ export const index = createRouter({
             component: DashboardLayout,
             children: [
                 { path: "dashboard", component: Dashboard },
-                // Core modules
                 { path: "drivers", component: Drivers },
                 { path: "trips", component: Trips },
                 { path: "vehicles", component: Vehicles },
                 { path: "routes", component: RoutesPage },
                 { path: "billing", component: Invoices },
-                // Reports & Support
                 { path: "reports", component: Reports },
                 { path: "support", component: Support },
-                // Settings
                 { path: "settings", component: Settings },
-                // Fines module
                 { path: "fines", component: Fines },
                 { path: "fines/analytics", component: Analytics },
-                // Control Tower
                 { path: "control-tower", component: ControlTower },
-                //Dispatch page
                 { path: "dispatch", component: Dispatch },
                 { path: "insurances", component: Insurances },
                 { path: "inspections", component: Inspections },
                 { path: "compliance-summary", component: ComplianceSummary },
             ],
         },
-
         // Redirect unknown paths to dashboard
         { path: "/:pathMatch(.*)*", redirect: "/dashboard" },
     ],
 });
+
+export default router;
