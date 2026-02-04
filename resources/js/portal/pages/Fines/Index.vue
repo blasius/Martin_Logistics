@@ -2,7 +2,7 @@
     <div class="p-6 bg-slate-50 min-h-screen">
         <header class="mb-8">
             <h1 class="text-3xl font-black text-slate-800 tracking-tight">TRAFFIC FINES</h1>
-            <p class="text-sm font-bold text-slate-400 uppercase">Monitor and manage fleet violations</p>
+            <p class="text-sm font-bold text-slate-400 uppercase">Monitoring</p>
         </header>
 
         <div class="flex flex-wrap gap-4 mb-6 bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
@@ -32,7 +32,7 @@
 
             <div class="flex items-end">
                 <button @click="manualCheck" class="bg-slate-800 hover:bg-slate-900 text-white px-6 py-2.5 rounded-xl text-xs font-black transition-all shadow-md active:scale-95" :disabled="!filters.plate">
-                    FORCE CHECK
+                    CHECK AGAIN
                 </button>
             </div>
         </div>
