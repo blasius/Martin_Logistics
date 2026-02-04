@@ -17,6 +17,7 @@ class FinesController extends Controller
     {
         $query = TrafficFine::with(['violations', 'fineable'])->orderByDesc('created_at');
 
+        // 1. Filter by Type
         if ($request->filled('type')) {
             if ($request->type === 'vehicle') {
                 $query->where('fineable_type', Vehicle::class);
@@ -25,14 +26,15 @@ class FinesController extends Controller
             }
         }
 
+        // 2. Search by Plate OR Driver Name (Manual SQL Subqueries)
         if ($request->filled('plate')) {
             $searchTerm = $request->plate;
 
             $query->where(function ($q) use ($searchTerm) {
-                // 1. Search by Plate Number
+                // Search by Plate Number
                 $q->where('plate_number', 'like', "%{$searchTerm}%");
 
-                // 2. Search by Driver Name for Vehicles
+                // Search by Driver Name for Vehicles
                 $q->orWhere(function ($sub) use ($searchTerm) {
                     $sub->where('fineable_type', Vehicle::class)
                         ->whereIn('fineable_id', function ($dbQuery) use ($searchTerm) {
@@ -44,8 +46,7 @@ class FinesController extends Controller
                         });
                 });
 
-                // 3. Search by Driver Name for Trailers
-                // (Trailers -> Vehicle -> Driver Assignment)
+                // Search by Driver Name for Trailers
                 $q->orWhere(function ($sub) use ($searchTerm) {
                     $sub->where('fineable_type', Trailer::class)
                         ->whereIn('fineable_id', function ($dbQuery) use ($searchTerm) {
@@ -61,6 +62,7 @@ class FinesController extends Controller
             });
         }
 
+        // 3. Filter by Status
         if ($request->filled('status')) {
             $query->where('status', strtoupper($request->status));
         }
@@ -68,9 +70,10 @@ class FinesController extends Controller
         $perPage = intval($request->get('per_page', 15));
         $paginator = $query->paginate($perPage);
 
-        // Attach the names to the JSON for the Vue page
+        // 4. Attach metadata for Vue (Driver Name & Human Dates)
         $paginator->getCollection()->transform(function ($fine) {
             $driverName = null;
+
             if ($fine->fineable_type === Vehicle::class) {
                 $driverName = DB::table('users')
                     ->join('driver_vehicle_assignments', 'users.id', '=', 'driver_vehicle_assignments.driver_id')
@@ -89,8 +92,8 @@ class FinesController extends Controller
 
             $fine->assigned_driver_name = $driverName;
 
-            // Human readable date logic
-            $issuedAt = $fine->issued_at ? \Carbon\Carbon::parse($fine->issued_at) : null;
+            // Date logic
+            $issuedAt = $fine->issued_at ? Carbon::parse($fine->issued_at) : null;
             $fine->issued_at_human = $issuedAt ? $issuedAt->diffForHumans() : 'Unknown';
             $fine->is_overdue = $issuedAt ? $issuedAt->diffInDays(now()) > 14 : false;
             $fine->show_penalty_warning = ($fine->is_overdue && $fine->status === 'PENDING');
@@ -119,7 +122,6 @@ class FinesController extends Controller
         ]);
 
         CheckPlateJob::dispatch($data['plate'], $data['type']);
-
         return response()->json(['status' => 'queued']);
     }
 }
