@@ -33,7 +33,7 @@
 
 <script setup>
 import { ref, onMounted } from "vue";
-import { api } from "@/plugins/axios";
+import { api } from "../../../plugins/axios";
 
 const tickets = ref([]);
 
@@ -45,7 +45,7 @@ const badge = (status) => ({
 }[status]);
 
 onMounted(async () => {
-    const res = await api.get("/api/portal/support/tickets");
+    const res = await api.get("/portal/support/tickets");
     tickets.value = res.data.data;
 });
 </script>

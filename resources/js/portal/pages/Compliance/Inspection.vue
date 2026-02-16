@@ -180,7 +180,7 @@
 
 <script setup>
 import { reactive, ref, onMounted } from 'vue';
-import axios from 'axios';
+import { api } from "../../../plugins/axios";
 import { ClipboardCheck, Plus, X, Upload, AlertOctagon, FileText, Clock, CheckCircle } from 'lucide-vue-next';
 
 const showAddModal = ref(false);
@@ -197,7 +197,7 @@ const form = reactive({
 });
 
 const loadRadar = async () => {
-    const res = await axios.get('/api/portal/inspections');
+    const res = await axios.get('/portal/inspections');
     Object.assign(data, res.data);
 };
 
@@ -215,7 +215,7 @@ const submitInspection = async () => {
     Object.keys(form).forEach(key => fd.append(key, form[key]));
 
     try {
-        const res = await axios.post('/api/portal/inspections', fd, {
+        const res = await axios.post('/portal/inspections', fd, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
         Object.assign(data, res.data);

@@ -1,27 +1,33 @@
-import { defineStore } from 'pinia'
-import axios from './api'
+import { defineStore } from 'pinia';
+import api, { ensureCsrfCookie } from '../plugins/axios';
 
 export const useAuthStore = defineStore('auth', {
     state: () => ({
-        token: localStorage.getItem('token') || null,
-        user: JSON.parse(localStorage.getItem('user') || 'null'),
+        user: null,
+        isInitialized: false, // Prevents UI flicker
     }),
-    getters: {
-        isAuthenticated: (s) => !!s.token,
-    },
     actions: {
         async login(identifier, password) {
-            const { data } = await axios.post('/login', { identifier, password })
-            this.token = data.token
-            this.user = data.user
-            localStorage.setItem('token', this.token)
-            localStorage.setItem('user', JSON.stringify(this.user))
-            return data
+            await ensureCsrfCookie();
+            const { data } = await api.post('/portal/login', { identifier, password });
+            this.user = data.user;
         },
-        logout() {
-            this.token = null
-            this.user = null
-            localStorage.clear()
+
+        async logout() {
+            await api.post('/logout');
+            this.user = null;
+            window.location.href = '/portal/login';
         },
-    },
-})
+
+        async checkAuth() {
+            try {
+                const { data } = await api.get('/user');
+                this.user = data;
+            } catch (e) {
+                this.user = null;
+            } finally {
+                this.isInitialized = true;
+            }
+        }
+    }
+});

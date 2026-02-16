@@ -98,7 +98,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { api } from '@/plugins/axios';
+import { api } from "../../../plugins/axios";
 import {
     Truck, Container, Plus, Search,
     Link, Link2Off, Settings2, History
@@ -111,7 +111,7 @@ let timer = null;
 
 async function fetchVehicles(page = 1) {
     try {
-        const { data } = await api.get('/api/portal/vehicles', {
+        const { data } = await api.get('/portal/vehicles', {
             params: { page, search: search.value }
         });
         vehicles.value = data.vehicles;

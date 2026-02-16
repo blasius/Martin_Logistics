@@ -146,7 +146,7 @@
 
 <script setup>
 import { ref, computed, onMounted, reactive } from 'vue';
-import axios from 'axios';
+import { api } from "../../../plugins/axios";
 import { Search, User, Container, FileSpreadsheet, Printer, Truck, Check, CheckCircle, AlertTriangle, History, X, Wrench } from 'lucide-vue-next';
 
 // --- STATE ---
@@ -159,12 +159,20 @@ const confirm = reactive({ show: false, payload: null, type: 'unpair' });
 const historyPanel = reactive({ show: false, vehiclePlate: '' });
 const historyData = ref({ drivers: [], trailers: [] });
 
-// --- METHODS ---
+// Example: resources/js/portal/pages/Dispatch/Index.vue
 const loadData = async () => {
-    const { data } = await axios.get('/api/portal/dispatch');
-    vehicles.value = data.vehicles;
-    availableDrivers.value = data.available_drivers;
-    availableTrailers.value = data.available_trailers;
+    try {
+        const { data } = await axios.get('portal/dispatch');
+        vehicles.value = data.vehicles;
+        availableDrivers.value = data.available_drivers;
+        availableTrailers.value = data.available_trailers;
+    } catch (e) {
+        // If it's a 404, the data just won't load, but you stay on the page.
+        console.error("Failed to load page data:", e.message);
+
+        // IMPORTANT: Do NOT do router.push('/portal/login') here!
+        // Let the axios.js interceptor handle the 401s globally.
+    }
 };
 
 const handleSelectChange = (vehicleId, targetId, type) => {
@@ -185,7 +193,7 @@ const confirmMaintenance = (vehicle) => {
 };
 
 const returnToService = async (vehicle) => {
-    await axios.post('/api/portal/dispatch/activate', { vehicle_id: vehicle.id });
+    await axios.post('/portal/dispatch/activate', { vehicle_id: vehicle.id });
     triggerNotification("Unit returned to Active Service");
     loadData();
 };
@@ -193,7 +201,7 @@ const returnToService = async (vehicle) => {
 const proceedWithUpdate = async () => {
     const p = confirm.payload;
     if (p.action === 'maintenance') {
-        await axios.post('/api/portal/dispatch/maintenance', { vehicle_id: p.vehicleId });
+        await axios.post('/portal/dispatch/maintenance', { vehicle_id: p.vehicleId });
         triggerNotification("Unit moved to Maintenance");
     } else {
         await executeRecordUpdate(p.vehicleId, p.targetId, p.type);
@@ -203,14 +211,14 @@ const proceedWithUpdate = async () => {
 };
 
 const executeRecordUpdate = async (vehicleId, targetId, type) => {
-    await axios.post('/api/portal/dispatch/pair', { vehicle_id: vehicleId, [type + '_id']: targetId });
+    await axios.post('/portal/dispatch/pair', { vehicle_id: vehicleId, [type + '_id']: targetId });
     triggerNotification(`${type} updated`);
     loadData();
 };
 
 const showHistory = async (vehicle) => {
     historyPanel.vehiclePlate = vehicle.plate_number;
-    const { data } = await axios.get(`/api/portal/dispatch/history/${vehicle.id}`);
+    const { data } = await axios.get(`/portal/dispatch/history/${vehicle.id}`);
     historyData.value = data;
     historyPanel.show = true;
 };
@@ -222,7 +230,7 @@ const triggerNotification = (msg) => {
 };
 
 const cancelUpdate = () => { confirm.show = false; loadData(); };
-const exportToExcel = () => window.open('/api/portal/dispatch/export', '_blank');
+const exportToExcel = () => window.open('/portal/dispatch/export', '_blank');
 const printBoard = () => window.print();
 
 const filteredVehicles = computed(() => {

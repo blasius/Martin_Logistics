@@ -4,55 +4,79 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Contact;
-use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
-    public function login(Request $request)
+    public function portalLogin(Request $request)
+    {
+        // 1. Validate the incoming request
+        $credentials = $request->validate([
+            'identifier' => 'required|email', // Assuming 'identifier' is the email
+            'password'   => 'required|string',
+        ]);
+
+        // 2. Map 'identifier' to the 'email' column for Auth::attempt
+        $attemptCredentials = [
+            'email'    => $credentials['identifier'],
+            'password' => $credentials['password'],
+        ];
+
+        // 3. Attempt to log the user in using the 'web' guard
+        if (Auth::guard('web')->attempt($attemptCredentials, $request->boolean('remember'))) {
+
+            // Regenerate session to prevent fixation attacks
+            $request->session()->regenerate();
+
+            return response()->json([
+                'user'    => Auth::user(),
+                'message' => 'Authenticated via session'
+            ]);
+        }
+
+        // 4. If authentication fails, throw the standard error
+        throw ValidationException::withMessages([
+            'identifier' => [__('auth.failed')],
+        ]);
+    }
+
+    public function login(Request $request) // Token-based for Mobile/API
     {
         $request->validate([
-            'identifier' => 'required|string', // email, phone, or whatsapp
+            'identifier' => 'required|string',
             'password' => 'required|string',
         ]);
 
-        // Look for the contact
         $contact = Contact::where('value', $request->identifier)->first();
 
-        if (! $contact) {
-            throw ValidationException::withMessages([
-                'identifier' => ['No account found for this contact method.'],
-            ]);
+        if (! $contact || ! $contact->user || ! Hash::check($request->password, $contact->user->password)) {
+            throw ValidationException::withMessages(['identifier' => [__('auth.failed')]]);
         }
 
-        $user = $contact->user;
-
-        if (! $user || ! \Hash::check($request->password, $user->password)) {
-            throw ValidationException::withMessages([
-                'identifier' => ['The provided credentials are incorrect.'],
-            ]);
-        }
-
-        // Optional: only allow login if the contact is verified
         if (! $contact->isVerified()) {
-            return response()->json([
-                'message' => 'Please verify your contact method before logging in.'
-            ], 403);
+            return response()->json(['message' => 'Verify your contact method first.'], 403);
         }
-
-        $token = $user->createToken('api_token')->plainTextToken;
 
         return response()->json([
-            'token' => $token,
-            'user' => $user,
+            'token' => $contact->user->createToken('api_token')->plainTextToken,
+            'user' => $contact->user,
         ]);
     }
 
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        // 1. Kill current mobile token if it exists
+        if ($request->user()->currentAccessToken()) {
+            $request->user()->currentAccessToken()->delete();
+        }
+
+        // 2. Kill the web session
+        Auth::guard('web')->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
         return response()->json(['message' => 'Logged out successfully']);
     }

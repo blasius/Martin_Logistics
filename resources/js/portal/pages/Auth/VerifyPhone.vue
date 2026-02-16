@@ -14,7 +14,7 @@
 <script setup>
 import { ref } from 'vue'
 import { auth, RecaptchaVerifier, signInWithPhoneNumber } from '@/plugins/firebase'
-import { api } from '@/plugins/axios'
+import { api } from '../../plugins/axios'
 
 const fullNumber = ref('')
 const smsCode = ref('')

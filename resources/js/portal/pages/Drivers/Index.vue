@@ -140,7 +140,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
-import { api } from '@/plugins/axios';
+import { api } from "../../../plugins/axios";
 import {
     Users, UserPlus, Search, X, CheckCircle, CreditCard,
     MoreHorizontal, FileText, ShieldCheck
@@ -171,7 +171,7 @@ const debounceUserSearch = () => {
     clearTimeout(timer);
     if (userSearch.value.length < 2) return userResults.value = [];
     timer = setTimeout(async () => {
-        const { data } = await api.get('/api/portal/drivers/search-users', { params: { q: userSearch.value } });
+        const { data } = await api.get('/portal/drivers/search-users', { params: { q: userSearch.value } });
         userResults.value = data;
     }, 300);
 };
@@ -193,7 +193,7 @@ const handleUpload = (event, type) => {
 };
 
 async function fetchDrivers() {
-    const { data } = await api.get('/api/portal/drivers', { params: { search: search.value } });
+    const { data } = await api.get('/portal/drivers', { params: { search: search.value } });
     drivers.value = data.drivers;
     stats.value = data.stats;
 }
@@ -228,7 +228,7 @@ async function saveDriver() {
             formData.append('passport_file', form.passport_file);
         }
 
-        await api.post('/api/portal/drivers', formData, {
+        await api.post('/portal/drivers', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
 
