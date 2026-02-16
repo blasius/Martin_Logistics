@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { api } from 'plugins/axios'
 import Pusher from 'pusher-js';
 window.axios = axios;
 

@@ -1,26 +1,24 @@
-// resources/js/portal/plugins/axios.js
 import axios from "axios";
 
-// Base URL — use environment variable or default to your backend
-const api = axios.create({
-    baseURL: import.meta.env.VITE_API_BASE_URL || "https://martin_logistics.test",
-    withCredentials: true, // critical for Sanctum cookie auth
+// 1. Export the 'api' instance
+export const api = axios.create({
+    baseURL: import.meta.env.VITE_API_BASE_URL || "https://martin_logistics.test/api",
+    withCredentials: true,
+    withXSRFToken: true,
     headers: {
         "Accept": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
     },
 });
 
-// --- 🛡 CSRF Handling (for Sanctum SPA mode) ---
-async function ensureCsrfCookie() {
-    try {
-        await api.get("/sanctum/csrf-cookie");
-    } catch (error) {
-        console.error("Failed to get CSRF cookie:", error);
-    }
+// 2. Export the CSRF function
+export async function ensureCsrfCookie() {
+    const baseUrl = (import.meta.env.VITE_API_BASE_URL || "https://martin_logistics.test").replace('/api', '');
+    return axios.get(`${baseUrl}/sanctum/csrf-cookie`, { withCredentials: true });
 }
 
-// --- 🔐 Token Handling (for mobile/driver mode) ---
-function setAuthToken(token) {
+// 3. Export the missing setAuthToken function
+export function setAuthToken(token) {
     if (token) {
         api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     } else {
@@ -28,16 +26,21 @@ function setAuthToken(token) {
     }
 }
 
-// --- 🧩 Auto Retry Logic for Expired Tokens ---
+// Interceptor logic
 api.interceptors.response.use(
     (response) => response,
     async (error) => {
-        if (error.response?.status === 401) {
-            console.warn("Unauthorized: clearing token");
-            localStorage.removeItem("token");
+        const status = error.response?.status;
+        const isLoginPage = window.location.pathname.includes('/portal/login');
+
+        if (status === 401 && !isLoginPage) {
+            // Only redirect if we are trying to access a PROTECTED page
+            console.warn("Session expired or missing. Redirecting...");
+            window.location.href = '/portal/login';
         }
+
         return Promise.reject(error);
     }
 );
 
-export { api, ensureCsrfCookie, setAuthToken };
+export default api;

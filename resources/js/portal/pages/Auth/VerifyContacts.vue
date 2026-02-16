@@ -41,7 +41,7 @@ const verificationCode = ref('')
 const formValues = ref({ email: '', phone: '', whatsapp: '' })
 
 const fetchContacts = async () => {
-    const res = await api.get('/api/contacts')
+    const res = await api.get('/contacts')
     contacts.value = res.data
 }
 

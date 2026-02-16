@@ -70,7 +70,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue';
-import axios from 'axios';
+import { api } from "../../../plugins/axios";
 import { RefreshCw } from 'lucide-vue-next';
 
 const filter = ref('all');
@@ -85,7 +85,7 @@ const filteredUnits = computed(() => {
 });
 
 const loadData = async () => {
-    const res = await axios.get('/api/portal/compliance-summary');
+    const res = await axios.get('/portal/compliance-summary');
     Object.assign(data, res.data);
 };
 

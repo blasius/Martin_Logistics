@@ -152,7 +152,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { api } from '@/plugins/axios.js';
+import { api } from "../../../plugins/axios";
 import Chart from 'chart.js/auto';
 
 const range = ref('30');
@@ -179,7 +179,7 @@ onMounted(() => fetchData());
 async function fetchData() {
     loading.value = true;
     try {
-        const { data } = await api.get('/api/portal/fines/analytics', { params: { range: range.value } });
+        const { data } = await api.get('/portal/fines/analytics', { params: { range: range.value } });
         summary.value = data.summary;
         timeseries.value = data.timeseries;
         topViolations.value = data.top_violations;
@@ -215,7 +215,7 @@ function openDrillDown(type, value) {
 }
 
 async function fetchModalPage(page) {
-    const endpoint = modalType.value === 'date' ? '/api/portal/fines/by-day' : '/api/portal/fines/by-violation';
+    const endpoint = modalType.value === 'date' ? '/portal/fines/by-day' : '/portal/fines/by-violation';
     const params = { page, from: summary.value.from, to: summary.value.to, search: modalSearch.value, status: modalStatus.value };
     if (modalType.value === 'date') params.date = modalValue.value;
     else params.violation_name = modalValue.value;
@@ -231,7 +231,7 @@ const formatCurrency = (n) => Number(n || 0).toLocaleString() + ' RWF';
 const calculateRatio = () => summary.value.total_count ? Math.round((summary.value.total_paid / summary.value.total_count) * 100) : 0;
 const closeModal = () => showModal.value = false;
 const handleModalSearch = () => { clearTimeout(searchDebounce); searchDebounce = setTimeout(() => fetchModalPage(1), 400); };
-const downloadExport = () => window.open(`/api/portal/fines/analytics?export=csv&range=${range.value}`, '_blank');
+const downloadExport = () => window.open(`/portal/fines/analytics?export=csv&range=${range.value}`, '_blank');
 
 const getStatusLabel = (f) => {
     if (f.status === 'PAID') return 'Settled';

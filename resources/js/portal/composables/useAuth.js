@@ -15,7 +15,7 @@ if (token.value) {
 
 async function fetchUser() {
     try {
-        const { data } = await api.get("/api/user");
+        const { data } = await api.get("/user");
         user.value = data;
     } catch (err) {
         console.error("Failed to fetch user:", err);

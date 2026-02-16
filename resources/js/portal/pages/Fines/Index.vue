@@ -107,7 +107,7 @@
 
 <script setup>
 import { ref } from 'vue';
-import { api } from '@/plugins/axios.js';
+import { api } from "../../../plugins/axios";
 
 const filters = ref({ type: '', plate: '', status: '' });
 const items = ref([]);
@@ -118,7 +118,7 @@ let debounceTimer = null;
 const fetch = async (page = 1) => {
     loading.value = true;
     try {
-        const res = await api.get('/api/portal/fines', { params: { ...filters.value, page } });
+        const res = await api.get('/portal/fines', { params: { ...filters.value, page } });
         items.value = res.data.data;
         meta.value = res.data;
     } finally {
@@ -138,7 +138,7 @@ const goto = (page) => {
 const manualCheck = async () => {
     if (!filters.value.plate) return;
     try {
-        await api.post('/api/portal/fines/check', {
+        await api.post('/portal/fines/check', {
             plate: filters.value.plate,
             type: filters.value.type || 'vehicle'
         });

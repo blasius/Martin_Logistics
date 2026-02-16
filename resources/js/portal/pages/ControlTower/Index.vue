@@ -147,7 +147,7 @@
 
 <script setup>
 import { ref, onMounted, reactive } from 'vue';
-import axios from 'axios';
+import { api } from "../../../plugins/axios";
 import { Fuel, Clock, Activity, ShieldAlert, Timer, CreditCard, X, ArrowRight } from 'lucide-vue-next';
 
 const totalUnits = ref(0);
@@ -163,7 +163,7 @@ const stats = ref({
 });
 
 const loadSnapshot = async () => {
-    const { data } = await axios.get('/api/portal/control-tower');
+    const { data } = await axios.get('/portal/control-tower');
     totalUnits.value = data.totalUnits;
     stats.value = data.stats;
 };
@@ -177,7 +177,7 @@ const openModal = (title, type) => {
 const fetchReport = async () => {
     loading.value = true;
     try {
-        const { data } = await axios.get(`/api/portal/report/${activeModal.value}`, {
+        const { data } = await axios.get(`/portal/report/${activeModal.value}`, {
             params: { start: filters.date + ' 00:00:00', end: filters.date + ' 23:59:59' }
         });
         modalData.value = data;

@@ -1,87 +1,67 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\ContactController;
-use App\Http\Controllers\API\FineCheckController;
-use App\Http\Controllers\API\FinesAnalyticsController;
-use App\Http\Controllers\API\FinesController;
-use App\Http\Controllers\Api\FirebaseVerificationController;
-use App\Http\Controllers\Api\Support\SupportCategoryController;
-use App\Http\Controllers\Api\Support\SupportTicketController;
-use App\Http\Controllers\Api\Support\SupportTicketMessageController;
-use App\Http\Controllers\Api\VerificationController;
-use App\Http\Controllers\Api\ControlTowerController;
-use App\Http\Controllers\Api\WhatsAppVerificationController;
-use App\Http\Controllers\Api\DriverController;
-use App\Http\Controllers\Api\VehicleController;
-use App\Http\Controllers\Api\DispatchController;
-use App\Http\Controllers\Api\InsuranceController;
-use App\Http\Controllers\Api\ComplianceSummaryController;
-use App\Http\Controllers\Api\FleetDashboardController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Http\Request;
 
-Route::post('/login', [AuthController::class, 'login']);
-Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
+// Public Routes
+Route::post('/login', [AuthController::class, 'login']); // Token-based
+Route::post('/portal/login', [AuthController::class, 'portalLogin']); // Session-based
 
+// Protected Routes
 Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/contacts', [ContactController::class, 'index']);
-    Route::post('/contacts', [ContactController::class, 'store']);
-    Route::post('/contacts/{contact}/send-code', [VerificationController::class, 'sendCode']);
-    Route::post('/contacts/{contact}/verify', [VerificationController::class, 'verify']);
-    Route::post('/contacts/{contact}/send-whatsapp', [WhatsAppVerificationController::class, 'send']);
-    Route::post('/contacts/{contact}/verify-whatsapp', [WhatsAppVerificationController::class, 'verify']);
-    Route::post('/contacts/{contact}/verify-firebase', [FirebaseVerificationController::class, 'verify']);
-});
 
-Route::get('/portal/fines', [FinesController::class, 'index']);           // GET /api/portal/fines
-Route::get('/portal/fines/recent/{plate}', [FinesController::class, 'recent']);
-Route::post('/portal/fines/check', [FinesController::class, 'forceCheck']);
-Route::get('/portal/fines/analytics', [FinesAnalyticsController::class, 'index']);
-Route::get('/portal/fines/by-day', [FinesAnalyticsController::class, 'byDay']);
-Route::get('/portal/fines/export-day', [FinesAnalyticsController::class, 'exportDay']); // CSV export drill-down
-// Optionally keep the export range path using ?export=csv handled in index()
-Route::get('/portal/fines/by-violation', [FinesAnalyticsController::class, 'byViolation']);
-Route::get('/portal/fines/by-violation', [FinesAnalyticsController::class, 'byViolation']);
-// Targeted CSV Exports
-Route::get('/portal/drivers', [DriverController::class, 'index']);
-Route::get('/portal/vehicles', [VehicleController::class, 'index']);
-Route::get('/portal/dispatch', [DispatchController::class, 'index']);
-Route::post('/portal/dispatch/pair', [DispatchController::class, 'pair']);
-Route::get('/portal/dispatch/export', [DispatchController::class, 'export']);
-Route::get('/portal/dispatch/history/{id}', [DispatchController::class, 'history']);
-Route::post('/portal/dispatch/maintenance', [DispatchController::class, 'toggleMaintenance']);
-Route::post('/portal/dispatch/activate', [DispatchController::class, 'activateVehicle']);
+    // Initial Session Check (Critical for UI protection on refresh)
+    Route::get('/user', function (Request $request) {
+        return $request->user();
+    });
 
-Route::get('/portal/insurances', [InsuranceController::class, 'index']);
-Route::post('/portal/insurances', [InsuranceController::class, 'store']);
+    Route::post('/logout', [AuthController::class, 'logout']);
 
-Route::get('/portal/inspections', [InsuranceController::class, 'index']);
-Route::post('/portal/inspections', [InsuranceController::class, 'store']);
+    // --- Portal Routes (Session-based via Vue) ---
+    Route::prefix('portal')->group(function () {
 
-Route::get('/portal/drivers/search-users', [DriverController::class, 'searchUsers']);
-Route::post('/portal/drivers', [DriverController::class, 'store']);
+        // Fines & Analytics
+        Route::get('/fines', [FinesController::class, 'index']);
+        Route::get('/fines/recent/{plate}', [FinesController::class, 'recent']);
+        Route::post('/fines/check', [FinesController::class, 'forceCheck']);
+        Route::get('/fines/analytics', [FinesAnalyticsController::class, 'index']);
+        Route::get('/fines/by-day', [FinesAnalyticsController::class, 'byDay']);
+        Route::get('/fines/export-day', [FinesAnalyticsController::class, 'exportDay']);
+        Route::get('/fines/by-violation', [FinesAnalyticsController::class, 'byViolation']);
 
-Route::get('/portal/compliance-summary', [ComplianceSummaryController::class, 'complianceSummary']);
+        // Operations
+        Route::get('/drivers', [DriverController::class, 'index']);
+        Route::get('/drivers/search-users', [DriverController::class, 'searchUsers']);
+        Route::post('/drivers', [DriverController::class, 'store']);
 
-//Support system
-Route::middleware(['auth:sanctum'])->prefix('portal/support')->group(function () {
+        Route::get('/vehicles', [VehicleController::class, 'index']);
 
-    Route::get('categories', [SupportCategoryController::class, 'index']);
+        Route::get('/dispatch', [DispatchController::class, 'index']);
+        Route::post('/dispatch/pair', [DispatchController::class, 'pair']);
+        Route::get('/dispatch/export', [DispatchController::class, 'export']);
+        Route::get('/dispatch/history/{id}', [DispatchController::class, 'history']);
+        Route::post('/dispatch/maintenance', [DispatchController::class, 'toggleMaintenance']);
+        Route::post('/dispatch/activate', [DispatchController::class, 'activateVehicle']);
 
-    Route::get('tickets', [SupportTicketController::class, 'index']);
-    Route::post('tickets', [SupportTicketController::class, 'store']);
-    Route::get('tickets/{ticket}', [SupportTicketController::class, 'show']);
+        Route::get('/insurances', [InsuranceController::class, 'index']);
+        Route::post('/insurances', [InsuranceController::class, 'store']);
+        Route::get('/inspections', [InsuranceController::class, 'index']);
+        Route::post('/inspections', [InsuranceController::class, 'store']);
 
-    Route::patch('tickets/{ticket}/status', [SupportTicketController::class, 'updateStatus']);
-    Route::patch('tickets/{ticket}/assign', [SupportTicketController::class, 'assign']);
+        Route::get('/compliance-summary', [ComplianceSummaryController::class, 'complianceSummary']);
+        Route::get('/control-tower', [FleetDashboardController::class, 'getSnapshot']);
+        Route::get('/report/{type}', [FleetDashboardController::class, 'getDetailedReport']);
 
-    Route::post('tickets/{ticket}/messages', [SupportTicketMessageController::class, 'store']);
-});
-
-Route::prefix('portal')->group(function () {
-    // Live snapshot for the main cards
-    Route::get('/control-tower', [FleetDashboardController::class, 'getSnapshot']);
-
-    // Audit reports for the modal drill-downs
-    Route::get('/report/{type}', [FleetDashboardController::class, 'getDetailedReport']);
+        // Support System Nested Group
+        Route::prefix('support')->group(function () {
+            Route::get('categories', [SupportCategoryController::class, 'index']);
+            Route::get('tickets', [SupportTicketController::class, 'index']);
+            Route::post('tickets', [SupportTicketController::class, 'store']);
+            Route::get('tickets/{ticket}', [SupportTicketController::class, 'show']);
+            Route::patch('tickets/{ticket}/status', [SupportTicketController::class, 'updateStatus']);
+            Route::patch('tickets/{ticket}/assign', [SupportTicketController::class, 'assign']);
+            Route::post('tickets/{ticket}/messages', [SupportTicketMessageController::class, 'store']);
+        });
+    });
 });

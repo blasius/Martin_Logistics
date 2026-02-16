@@ -207,7 +207,7 @@
 
 <script setup>
 import { reactive, ref, computed, onMounted } from 'vue';
-import axios from 'axios';
+import { api } from "../../../plugins/axios";
 import { ShieldAlert, Plus, X, Upload, Search, AlertOctagon, FileText, Clock, CheckCircle } from 'lucide-vue-next';
 
 // --- STATE ---
@@ -245,7 +245,7 @@ const filteredArchive = computed(() => {
 
 // --- METHODS ---
 const loadRadar = async () => {
-    const res = await axios.get('/api/portal/insurances');
+    const res = await axios.get('/portal/insurances');
     Object.assign(data, res.data);
 };
 
@@ -263,7 +263,7 @@ const submitPolicy = async () => {
     Object.keys(form).forEach(key => fd.append(key, form[key]));
 
     try {
-        const res = await axios.post('/api/portal/insurances', fd, {
+        const res = await axios.post('/portal/insurances', fd, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
 
