@@ -1,7 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "../store/authStore"; // Adjust path as needed
 import DashboardLayout from "../layouts/DashboardLayout.vue";
-// ... (Your other imports)
 
 const router = createRouter({
     history: createWebHistory("/portal/"),
@@ -43,21 +42,23 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
     const authStore = useAuthStore();
 
-    // 1. If we haven't checked the session yet (e.g. on Page Refresh), do it now
+    // 1. If the app hasn't checked the session yet, wait for it.
+    // This prevents the router from thinking you're logged out
+    // just because the API call is still in progress.
     if (!authStore.isInitialized) {
         await authStore.checkAuth();
     }
 
     const isAuthenticated = !!authStore.user;
 
-    // 2. Page requires auth but user is not logged in
+    // 2. Redirect to login if page requires auth and user isn't logged in
     if (to.meta.requiresAuth && !isAuthenticated) {
-        return next('/login');
+        return next({ name: 'portal.login' });
     }
 
-    // 3. User is logged in but tries to access the login page
-    if (to.meta.guestOnly && isAuthenticated) {
-        return next('/dashboard');
+    // 3. If user is already logged in, don't let them see the login page
+    if (to.name === 'portal.login' && isAuthenticated) {
+        return next({ name: 'portal.dashboard' });
     }
 
     next();

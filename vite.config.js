@@ -5,7 +5,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 
-const DOMAIN = 'Martin_Logistics.test';
+const DOMAIN = 'Martin-Logistics.test';
 const HERD_CERT_PATH = path.join(os.homedir(), '.config', 'herd', 'config', 'valet', 'Certificates');
 const KEY_FILE = path.join(HERD_CERT_PATH, `${DOMAIN}.key`);
 const CERT_FILE = path.join(HERD_CERT_PATH, `${DOMAIN}.crt`);
@@ -42,7 +42,7 @@ export default defineConfig({
             cert: fs.readFileSync(CERT_FILE),
         },
         hmr: {
-            host: 'martin_logistics.test',
+            host: 'martin-logistics.test',
             protocol: 'wss'
         },
     } : {}, // If not local/no certs, use default server config

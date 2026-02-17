@@ -163,7 +163,7 @@ const stats = ref({
 });
 
 const loadSnapshot = async () => {
-    const { data } = await axios.get('/portal/control-tower');
+    const { data } = await axios.get('portal/control-tower');
     totalUnits.value = data.totalUnits;
     stats.value = data.stats;
 };

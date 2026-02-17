@@ -24,6 +24,8 @@ return Application::configure(basePath: dirname(__DIR__))
             ShareErrorsFromSession::class,
         ]);
 
+        $middleware->statefulApi();
+
         $middleware->api(prepend: [
             EnsureFrontendRequestsAreStateful::class,
         ]);

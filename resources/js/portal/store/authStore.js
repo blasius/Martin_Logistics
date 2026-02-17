@@ -11,21 +11,14 @@ export const useAuthStore = defineStore('auth', {
         // This is the missing piece the Vue component is looking for
         async login(identifier, password) {
             try {
-                // 1. Initialize CSRF for the session
                 await ensureCsrfCookie();
+                const { data } = await api.post('portal/login', { identifier, password });
 
-                // 2. Call the portalLogin method in AuthController
-                // Axios uses baseURL: .../api, so this hits /portal/login
-                const { data } = await api.post('portal/login', {
-                    identifier,
-                    password,
-                });
-
-                // 3. Save user to state
                 this.user = data.user;
+                this.isInitialized = true; // <--- ADD THIS
                 return data;
             } catch (error) {
-                // Re-throw so Login.vue can catch it and show the error message
+                this.isInitialized = true; // Even on failure, we are now "initialized"
                 throw error;
             }
         },
@@ -33,7 +26,7 @@ export const useAuthStore = defineStore('auth', {
         // resources/js/portal/store/authStore.js
         async checkAuth() {
             try {
-                // This will now hit https://martin_logistics.test/api/user
+                // This will now hit https://martin-logistics.test/api/user
                 const { data } = await api.get('user');
                 this.user = data;
             } catch (e) {
@@ -46,7 +39,7 @@ export const useAuthStore = defineStore('auth', {
         },
 
         async logout() {
-            await api.post('/logout');
+            await api.post('logout');
             this.user = null;
             window.location.href = 'portal/login';
         }
