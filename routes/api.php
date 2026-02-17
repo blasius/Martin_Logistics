@@ -3,13 +3,28 @@
 use App\Http\Controllers\Api\AuthController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
+use App\Http\Controllers\Api\ComplianceSummaryController;
+use App\Http\Controllers\Api\ContactController;
+use App\Http\Controllers\Api\ControlTowerController;
+use App\Http\Controllers\Api\DispatchController;
+use App\Http\Controllers\Api\DriverController;
+use App\Http\Controllers\Api\FineCheckController;
+use App\Http\Controllers\Api\FinesAnalytticsController;
+use App\Http\Controllers\Api\FinesController;
+use App\Http\Controllers\Api\FirebaseVerificationController;
+use App\Http\Controllers\Api\FleetDashboardController;
+use App\Http\Controllers\Api\InspectionController;
+use App\Http\Controllers\Api\InsuranceController;
+use App\Http\Controllers\Api\VehicleController;
+use App\Http\Controllers\Api\VerificationController;
+use App\Http\Controllers\Api\WhatsAppVerificationController;
 
 // Public Routes
 Route::post('/login', [AuthController::class, 'login']); // Token-based
 Route::post('/portal/login', [AuthController::class, 'portalLogin']); // Session-based
 
 // Protected Routes
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware('auth')->group(function () {
 
     // Initial Session Check (Critical for UI protection on refresh)
     Route::get('/user', function (Request $request) {
