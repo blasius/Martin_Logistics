@@ -9,7 +9,7 @@ use App\Http\Controllers\Api\ControlTowerController;
 use App\Http\Controllers\Api\DispatchController;
 use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\FineCheckController;
-use App\Http\Controllers\Api\FinesAnalytticsController;
+use App\Http\Controllers\Api\FinesAnalyticsController;
 use App\Http\Controllers\Api\FinesController;
 use App\Http\Controllers\Api\FirebaseVerificationController;
 use App\Http\Controllers\Api\FleetDashboardController;
