@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use App\Exports\DispatchExport;
 use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Support\Facades\URL;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class DispatchController extends Controller
 {
@@ -169,5 +171,35 @@ class DispatchController extends Controller
             ->update(['status' => 'active']);
 
         return response()->json(['message' => 'Vehicle returned to active service.']);
+    }
+
+    // 1. Get the Signed URL
+    public function getPrintUrl()
+    {
+        return response()->json([
+            'url' => URL::temporarySignedRoute('dispatch.print.secure', now()->addMinutes(10))
+        ]);
+    }
+
+// 2. The PDF Logic (Emulating your Index logic)
+    public function printStatus(Request $request)
+    {
+        // Mirroring your index() logic exactly
+        $vehicles = Vehicle::with(['currentAssignment.trailer'])->get()->map(function ($vehicle) {
+            $currentDriver = DB::table('users')
+                ->join('driver_vehicle_assignments', 'users.id', '=', 'driver_vehicle_assignments.driver_id')
+                ->where('driver_vehicle_assignments.vehicle_id', $vehicle->id)
+                ->whereNull('driver_vehicle_assignments.end_date')
+                ->select('users.id', 'users.name')
+                ->first();
+
+            $vehicle->current_driver = $currentDriver;
+            return $vehicle;
+        });
+
+        $pdf = Pdf::loadView('pdfs.dispatch_board', compact('vehicles'))
+            ->setPaper('a4', 'landscape');
+
+        return $pdf->stream('fleet-status.pdf');
     }
 }

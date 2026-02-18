@@ -22,6 +22,9 @@ use App\Http\Controllers\Api\WhatsAppVerificationController;
 // Public Routes
 Route::post('/login', [AuthController::class, 'login']); // Token-based
 Route::post('/portal/login', [AuthController::class, 'portalLogin']); // Session-based
+Route::get('/dispatch/secure-print', [DispatchController::class, 'printStatus'])
+    ->name('dispatch.print.secure')
+    ->middleware('signed'); // Laravel 12 handles this alias automatically
 
 // Protected Routes
 Route::middleware('auth')->group(function () {
@@ -58,6 +61,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/dispatch/history/{id}', [DispatchController::class, 'history']);
         Route::post('/dispatch/maintenance', [DispatchController::class, 'toggleMaintenance']);
         Route::post('/dispatch/activate', [DispatchController::class, 'activateVehicle']);
+        Route::get('/dispatch/print-url', [DispatchController::class, 'getPrintUrl']);
 
         Route::get('/insurances', [InsuranceController::class, 'index']);
         Route::post('/insurances', [InsuranceController::class, 'store']);

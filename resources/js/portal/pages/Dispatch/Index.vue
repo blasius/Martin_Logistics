@@ -1,6 +1,8 @@
 <template>
     <div class="h-screen flex flex-col bg-slate-50 overflow-hidden relative">
 
+        <iframe ref="pdfFrame" @load="onFrameLoad" class="hidden invisible w-0 h-0 absolute"></iframe>
+
         <Transition name="fade">
             <div v-if="confirm.show" class="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm no-print">
                 <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 border border-slate-200">
@@ -76,8 +78,10 @@
                 <button @click="exportToExcel" class="flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white text-xs font-black rounded-lg shadow-md hover:bg-emerald-800 transition-all">
                     <FileSpreadsheet class="w-4 h-4" /> EXCEL
                 </button>
-                <button @click="printBoard" class="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white text-xs font-black rounded-lg shadow-md hover:bg-slate-800 transition-all">
-                    <Printer class="w-4 h-4" /> PRINT
+                <button @click="printBoard" :disabled="isPrinting" class="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white text-xs font-black rounded-lg shadow-md hover:bg-slate-800 transition-all disabled:opacity-50">
+                    <Printer v-if="!isPrinting" class="w-4 h-4" />
+                    <span v-else class="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    {{ isPrinting ? 'GENERATING...' : 'PRINT' }}
                 </button>
             </div>
         </header>
@@ -147,7 +151,7 @@
 <script setup>
 import { ref, computed, onMounted, reactive } from 'vue';
 import { api } from "../../../plugins/axios";
-import { Search, User, Container, FileSpreadsheet, Printer, Truck, Check, CheckCircle, AlertTriangle, History, X, Wrench } from 'lucide-vue-next';
+import { Search, FileSpreadsheet, Printer, Truck, Check, CheckCircle, AlertTriangle, History, X, Wrench } from 'lucide-vue-next';
 
 // --- STATE ---
 const vehicles = ref([]);
@@ -159,22 +163,47 @@ const confirm = reactive({ show: false, payload: null, type: 'unpair' });
 const historyPanel = reactive({ show: false, vehiclePlate: '' });
 const historyData = ref({ drivers: [], trailers: [] });
 
-// Example: resources/js/portal/pages/Dispatch/Index.vue
+// ADDED: Print state
+const pdfFrame = ref(null);
+const isPrinting = ref(false);
+
 const loadData = async () => {
     try {
-        const { data } = await axios.get('portal/dispatch');
+        const { data } = await api.get('portal/dispatch');
         vehicles.value = data.vehicles;
         availableDrivers.value = data.available_drivers;
         availableTrailers.value = data.available_trailers;
     } catch (e) {
-        // If it's a 404, the data just won't load, but you stay on the page.
         console.error("Failed to load page data:", e.message);
-
-        // IMPORTANT: Do NOT do router.push('/portal/login') here!
-        // Let the axios.js interceptor handle the 401s globally.
     }
 };
 
+// ADDED: Logic to fetch signed URL and trigger print
+const printBoard = async () => {
+    if (!pdfFrame.value) return;
+    isPrinting.value = true;
+    try {
+        const { data } = await api.get('portal/dispatch/print-url');
+        pdfFrame.value.src = data.url;
+    } catch (e) {
+        console.error("Print fetch failed", e);
+        isPrinting.value = false;
+    }
+};
+
+const onFrameLoad = () => {
+    if (!pdfFrame.value || !isPrinting.value) return;
+    const frame = pdfFrame.value;
+    if (frame.src && frame.src.includes('secure-print')) {
+        setTimeout(() => {
+            frame.contentWindow.focus();
+            frame.contentWindow.print();
+            isPrinting.value = false;
+        }, 500);
+    }
+};
+
+// --- REST OF ORIGINAL METHODS ---
 const handleSelectChange = (vehicleId, targetId, type) => {
     const isUnpairing = !targetId || targetId === 'null';
     if (isUnpairing) {
@@ -193,7 +222,7 @@ const confirmMaintenance = (vehicle) => {
 };
 
 const returnToService = async (vehicle) => {
-    await axios.post('/portal/dispatch/activate', { vehicle_id: vehicle.id });
+    await api.post('/portal/dispatch/activate', { vehicle_id: vehicle.id });
     triggerNotification("Unit returned to Active Service");
     loadData();
 };
@@ -201,7 +230,7 @@ const returnToService = async (vehicle) => {
 const proceedWithUpdate = async () => {
     const p = confirm.payload;
     if (p.action === 'maintenance') {
-        await axios.post('/portal/dispatch/maintenance', { vehicle_id: p.vehicleId });
+        await api.post('/portal/dispatch/maintenance', { vehicle_id: p.vehicleId });
         triggerNotification("Unit moved to Maintenance");
     } else {
         await executeRecordUpdate(p.vehicleId, p.targetId, p.type);
@@ -211,14 +240,14 @@ const proceedWithUpdate = async () => {
 };
 
 const executeRecordUpdate = async (vehicleId, targetId, type) => {
-    await axios.post('/portal/dispatch/pair', { vehicle_id: vehicleId, [type + '_id']: targetId });
+    await api.post('/portal/dispatch/pair', { vehicle_id: vehicleId, [type + '_id']: targetId });
     triggerNotification(`${type} updated`);
     loadData();
 };
 
 const showHistory = async (vehicle) => {
     historyPanel.vehiclePlate = vehicle.plate_number;
-    const { data } = await axios.get(`/portal/dispatch/history/${vehicle.id}`);
+    const { data } = await api.get(`/portal/dispatch/history/${vehicle.id}`);
     historyData.value = data;
     historyPanel.show = true;
 };
@@ -231,28 +260,14 @@ const triggerNotification = (msg) => {
 
 const cancelUpdate = () => { confirm.show = false; loadData(); };
 const exportToExcel = () => window.open('/portal/dispatch/export', '_blank');
-const printBoard = () => window.print();
 
 const filteredVehicles = computed(() => {
     const q = searchQuery.value.toLowerCase();
-    return vehicles.value.filter(v => v.plate_number.toLowerCase().includes(q) || (v.current_driver && v.current_driver.name.toLowerCase().includes(q)));
+    return vehicles.value.filter(v =>
+        v.plate_number.toLowerCase().includes(q) ||
+        (v.current_driver && v.current_driver.name.toLowerCase().includes(q))
+    );
 });
 
 onMounted(loadData);
 </script>
-
-<style scoped>
-.fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
-.slide-fade-enter-active { transition: all 0.3s ease-out; }
-.slide-fade-leave-to { transform: translateY(20px); opacity: 0; }
-.slide-enter-active, .slide-leave-active { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-.slide-enter-from, .slide-leave-to { transform: translateX(100%); }
-.custom-scrollbar::-webkit-scrollbar { width: 5px; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-@media print {
-    header, .no-print, button, input { display: none !important; }
-    .overflow-y-auto { overflow: visible !important; height: auto !important; }
-    select { border: none !important; appearance: none !important; background: transparent !important; }
-}
-</style>
