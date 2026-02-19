@@ -42,26 +42,24 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
     const authStore = useAuthStore();
 
-    // 1. If the app hasn't checked the session yet, wait for it.
-    // This prevents the router from thinking you're logged out
-    // just because the API call is still in progress.
+    // 1. If we haven't checked the session yet, check it now
     if (!authStore.isInitialized) {
         await authStore.checkAuth();
     }
 
-    const isAuthenticated = !!authStore.user;
+    // 2. Check if the route requires authentication
+    // Assuming you add "meta: { requiresAuth: true }" to your protected routes
+    const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
 
-    // 2. Redirect to login if page requires auth and user isn't logged in
-    if (to.meta.requiresAuth && !isAuthenticated) {
-        return next({ name: 'portal.login' });
+    if (requiresAuth && !authStore.user) {
+        // Redirect to login if trying to access a protected page while logged out
+        next({ name: 'Login' }); // Make sure this matches your login route name
+    } else if (to.name === 'Login' && authStore.user) {
+        // Redirect to dashboard if trying to access login while already logged in
+        next({ name: 'Dashboard' });
+    } else {
+        next(); // Carry on!
     }
-
-    // 3. If user is already logged in, don't let them see the login page
-    if (to.name === 'portal.login' && isAuthenticated) {
-        return next({ name: 'portal.dashboard' });
-    }
-
-    next();
 });
 
 export default router;

@@ -30,20 +30,30 @@ export function setAuthToken(token) {
 
 // Interceptor logic
 api.interceptors.response.use(
-    (response) => response,
+    (response) => {
+        // CATCH HTML RESPONSES: If Laravel redirects to a login page
+        // and returns HTML instead of JSON, treat it as a 401.
+        const contentType = response.headers['content-type'];
+        if (contentType && contentType.includes('text/html')) {
+            console.warn("Received HTML instead of JSON. Session likely expired.");
+            window.location.href = '/portal/login';
+            return Promise.reject(new Error("Session expired"));
+        }
+        return response;
+    },
     async (error) => {
         const status = error.response?.status;
-        const configUrl = error.config?.url; // Define the URL from the config
+        const configUrl = error.config?.url || '';
         const isLoginPage = window.location.pathname.includes('portal/login');
 
-        // 1. If it's the 'user' check failing on boot, don't redirect.
-        // Let authStore.checkAuth handle it silently.
-        if (status === 401 && configUrl === 'user') {
+        // Rule 1: Silent fail for boot-up check
+        if (status === 401 && configUrl.includes('user')) {
             return Promise.reject(error);
         }
 
-        // 2. For any other 401, redirect to login if not already there.
-        if (status === 401 && !isLoginPage) {
+        // Rule 2: Redirect for expired sessions on data routes
+        if ((status === 401 || status === 419) && !isLoginPage) {
+            console.warn("Session expired (401/419). Redirecting...");
             window.location.href = '/portal/login';
         }
 
