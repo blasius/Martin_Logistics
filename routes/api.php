@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\InsuranceController;
 use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Api\VerificationController;
 use App\Http\Controllers\Api\WhatsAppVerificationController;
+use App\Http\Controllers\Api\SearchController;
 
 // Public Routes
 Route::post('/login', [AuthController::class, 'login']); // Token-based
@@ -25,6 +26,7 @@ Route::post('/portal/login', [AuthController::class, 'portalLogin']); // Session
 Route::get('/dispatch/secure-print', [DispatchController::class, 'printStatus'])
     ->name('dispatch.print.secure')
     ->middleware('signed'); // Laravel 12 handles this alias automatically
+Route::get('/search/global', [SearchController::class, 'search']);
 
 // Protected Routes
 Route::middleware('auth')->group(function () {
