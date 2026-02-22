@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Driver extends Model
 {
@@ -40,4 +41,16 @@ class Driver extends Model
             ->withPivot('assigned_at', 'unassigned_at')
             ->withTimestamps();
     }
+
+    /**
+     * Get all trips associated with the driver.
+     */
+    public function trips(): HasMany
+    {
+        return $this->hasMany(Trip::class, 'driver_id');
+    }
+
+    /**
+     * Get the user record associated with the driver.
+     */
 }

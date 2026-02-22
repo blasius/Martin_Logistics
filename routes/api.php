@@ -74,6 +74,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/control-tower', [FleetDashboardController::class, 'getSnapshot']);
         Route::get('/report/{type}', [FleetDashboardController::class, 'getDetailedReport']);
 
+        Route::get('/drivers/{driver}', [SearchController::class, 'showDriver']);
+        Route::get('/vehicles/{vehicle}', [SearchController::class, 'showVehicle']);
+        Route::get('/orders/{order}', [SearchController::class, 'showOrder']);
+
         // Support System Nested Group
         Route::prefix('support')->group(function () {
             Route::get('categories', [SupportCategoryController::class, 'index']);

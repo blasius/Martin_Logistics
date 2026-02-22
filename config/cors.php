@@ -37,6 +37,9 @@ return [
 
         // The specific Vite host from your .env
         'https://vite.martin-logistics.test',
+        // PRODUCTION
+        'https://martin-logistics.nova.bi',
+        'https://www.martin-logistics.nova.bi',
     ],
 
     'allowed_origins_patterns' => [],

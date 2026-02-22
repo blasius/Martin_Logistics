@@ -31,7 +31,24 @@ const router = createRouter({
                 { path: "insurances", component: () => import("../pages/Compliance/Insurance.vue") },
                 { path: "inspections", component: () => import("../pages/Compliance/Inspection.vue") },
                 { path: "compliance-summary", component: () => import("../pages/Compliance/Index.vue") },
-                // ... (rest of your portal routes)
+                {
+                    path: "drivers/:id",
+                    name: "drivers.show",
+                    component: () => import("../pages/Drivers/Show.vue"),
+                    props: true // Allows the :id to be passed as a prop to the component
+                },
+                {
+                    path: "vehicles/:id",
+                    name: "vehicles.show",
+                    component: () => import("../pages/Vehicles/Show.vue"),
+                    props: true
+                },
+                {
+                    path: "orders/:id",
+                    name: "orders.show",
+                    component: () => import("../pages/Orders/Show.vue"),
+                    props: true
+                },
             ],
         },
         { path: "/:pathMatch(.*)*", redirect: "/login" },
