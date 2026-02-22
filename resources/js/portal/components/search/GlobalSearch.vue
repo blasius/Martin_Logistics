@@ -59,6 +59,9 @@
 import { ref, watch, computed } from 'vue';
 import { api } from '../../../plugins/axios';
 import debounce from 'lodash/debounce';
+import { useRouter } from 'vue-router'; // 1. Ensure this is imported
+
+const router = useRouter(); // 2. Initialize it here!
 import {
     Search, Loader2, ChevronRight, X,
     User, Truck, MapPin, Package, ClipboardList
@@ -120,12 +123,21 @@ const isResultEmpty = computed(() => {
 });
 
 const handleSelection = (item) => {
-    console.log("Selected:", item);
-    // Add your routing logic here, e.g.:
-    // router.push({ name: `${item.type.toLowerCase()}.show`, params: { id: item.id } });
-    query.value = '';
-    results.value = [];
+    const routeMap = {
+        'Driver': 'drivers.show',
+        'Vehicle': 'vehicles.show',
+        'Order': 'orders.show',
+        'Trip': 'trips.show'
+    };
+
+    const target = routeMap[item.type];
+    if (target) {
+        router.push({ name: target, params: { id: item.id } });
+    }
+
+    closeSearch();
 };
+
 </script>
 
 <style scoped>

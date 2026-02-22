@@ -2,7 +2,7 @@ import axios from "axios";
 
 // 1. Export the 'api' instance
 export const api = axios.create({
-    baseURL: import.meta.env.VITE_API_BASE_URL || "https://martin-logistics.test/api",
+    baseURL: import.meta.env.VITE_API_BASE_URL || "https://martin-logistics.nova.bi/api",
     withCredentials: true,
     withXSRFToken: true, // <--- This is the crucial modern Axios setting
     xsrfCookieName: "XSRF-TOKEN",
