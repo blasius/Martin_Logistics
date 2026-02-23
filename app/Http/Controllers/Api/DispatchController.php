@@ -49,10 +49,15 @@ class DispatchController extends Controller
             ->whereNotIn('id', $assignedTrailerIds)
             ->get();
 
+        $canEdit = auth()->user()->roles()
+            ->whereIn('name', ['admin', 'super_admin'])
+            ->exists();
+
         return response()->json([
             'vehicles' => $vehicles,
             'available_drivers' => $availableDrivers,
             'available_trailers' => $availableTrailers,
+            'can_edit' => $canEdit // Pass a boolean directly for simplicity
         ]);
     }
 
