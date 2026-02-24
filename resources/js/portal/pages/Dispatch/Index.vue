@@ -3,6 +3,44 @@
         <iframe ref="pdfFrame" @load="onFrameLoad" class="hidden invisible w-0 h-0 absolute"></iframe>
 
         <Transition name="fade">
+            <div v-if="infoModal.show" class="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full border border-slate-200 overflow-hidden">
+                    <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                        <h3 class="font-black text-slate-800 uppercase text-sm tracking-widest">Manifest Details</h3>
+                        <button @click="infoModal.show = false" class="text-slate-400 hover:text-slate-600"><X class="w-5 h-5" /></button>
+                    </div>
+                    <div class="p-6 space-y-4 text-xs">
+                        <div class="flex justify-between border-b border-slate-50 pb-2">
+                            <span class="text-slate-400 font-bold uppercase tracking-tighter">Unit</span>
+                            <span class="font-black text-slate-800">{{ infoModal.data.vehicle }}/{{ infoModal.data.trailer }}</span>
+                        </div>
+                        <div class="flex justify-between border-b border-slate-50 pb-2">
+                            <span class="text-slate-400 font-bold uppercase tracking-tighter">Driver</span>
+                            <span class="font-black text-slate-800">{{ infoModal.data.driver }}</span>
+                        </div>
+                        <div class="flex justify-between border-b border-slate-50 pb-2">
+                            <span class="text-slate-400 font-bold uppercase tracking-tighter">Passport</span>
+                            <span class="font-black text-slate-800">{{ infoModal.data.passport }}</span>
+                        </div>
+                        <div class="flex justify-between border-b border-slate-50 pb-2">
+                            <span class="text-slate-400 font-bold uppercase tracking-tighter">License</span>
+                            <span class="font-black text-slate-800">{{ infoModal.data.license }}</span>
+                        </div>
+                        <div class="flex justify-between border-b border-slate-50 pb-2">
+                            <span class="text-slate-400 font-bold uppercase tracking-tighter">Phone</span>
+                            <span class="font-black text-slate-800">{{ infoModal.data.phone }}</span>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-slate-50">
+                        <button @click="copyToClipboard" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-black text-xs uppercase flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200">
+                            <Copy class="w-4 h-4" /> Copy for Dispatch
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Transition>
+
+        <Transition name="fade">
             <div v-if="confirm.show" class="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm no-print">
                 <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 border border-slate-200">
                     <div class="flex items-center gap-4 mb-6">
@@ -90,9 +128,12 @@
                  class="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-12 gap-4 items-center transition-all"
                  :class="v.status === 'maintenance' ? 'opacity-70 bg-slate-50' : 'hover:border-indigo-300'">
 
-                <div class="col-span-2">
+                <div class="col-span-2 flex items-center gap-2">
                     <span class="font-black text-slate-900 uppercase tracking-tighter">{{ v.plate_number }}</span>
-                    <div class="text-[8px] font-black px-1.5 py-0.5 rounded inline-block ml-2 uppercase"
+                    <button @click="showInfo(v)" class="p-1 text-slate-300 hover:text-indigo-600 transition-colors" title="View/Copy Details">
+                        <Info class="w-4 h-4" />
+                    </button>
+                    <div class="text-[8px] font-black px-1.5 py-0.5 rounded inline-block uppercase"
                          :class="v.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'">{{ v.status }}</div>
                 </div>
 
@@ -109,11 +150,9 @@
                     </div>
                     <div v-if="hasStartedTyping(v.id, 'driver')" class="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded shadow-2xl max-h-48 overflow-y-auto hidden group-focus-within/search:block">
                         <div @mousedown="initiateAction(v, null, 'driver')" class="p-2 text-[10px] font-black text-rose-500 hover:bg-rose-50 cursor-pointer border-b uppercase">-- SET STANDBY --</div>
-                        <div v-for="d in getFilteredDrivers(v.id)" :key="d.id" @mousedown="initiateAction(v, d, 'driver')" class="p-2 border-b hover:bg-slate-50 cursor-pointer">
-                            <div class="flex justify-between items-center">
-                                <span class="text-xs font-black text-slate-700 uppercase">{{ d.user.name }}</span>
-                                <span v-if="getAssetLocation(d.user_id, 'driver')" class="text-[8px] bg-amber-100 text-amber-700 px-1.5 rounded font-black">On {{ getAssetLocation(d.user_id, 'driver') }}</span>
-                            </div>
+                        <div v-for="d in getFilteredDrivers(v.id)" :key="d.id" @mousedown="initiateAction(v, d, 'driver')" class="p-2 border-b hover:bg-slate-50 cursor-pointer flex justify-between items-center">
+                            <span class="text-xs font-black text-slate-700 uppercase">{{ d.user.name }}</span>
+                            <span v-if="getAssetLocation(d.user_id, 'driver')" class="text-[8px] bg-amber-100 text-amber-700 px-1.5 rounded font-black">On {{ getAssetLocation(d.user_id, 'driver') }}</span>
                         </div>
                     </div>
                 </div>
@@ -129,11 +168,9 @@
                     </div>
                     <div v-if="hasStartedTyping(v.id, 'trailer')" class="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded shadow-2xl max-h-48 overflow-y-auto hidden group-focus-within/search:block">
                         <div @mousedown="initiateAction(v, null, 'trailer')" class="p-2 text-[10px] font-black text-rose-500 hover:bg-rose-50 cursor-pointer border-b uppercase">-- UNCOUPLE --</div>
-                        <div v-for="t in getFilteredTrailers(v.id)" :key="t.id" @mousedown="initiateAction(v, t, 'trailer')" class="p-2 border-b hover:bg-slate-50 cursor-pointer">
-                            <div class="flex justify-between items-center">
-                                <span class="text-xs font-black text-slate-700 uppercase">{{ t.plate_number }}</span>
-                                <span v-if="getAssetLocation(t.id, 'trailer')" class="text-[8px] bg-amber-100 text-amber-700 px-1.5 rounded font-black">On {{ getAssetLocation(t.id, 'trailer') }}</span>
-                            </div>
+                        <div v-for="t in getFilteredTrailers(v.id)" :key="t.id" @mousedown="initiateAction(v, t, 'trailer')" class="p-2 border-b hover:bg-slate-50 cursor-pointer flex justify-between items-center">
+                            <span class="text-xs font-black text-slate-700 uppercase">{{ t.plate_number }}</span>
+                            <span v-if="getAssetLocation(t.id, 'trailer')" class="text-[8px] bg-amber-100 text-amber-700 px-1.5 rounded font-black">On {{ getAssetLocation(t.id, 'trailer') }}</span>
                         </div>
                     </div>
                 </div>
@@ -153,8 +190,7 @@
 <script setup>
 import { ref, computed, onMounted, reactive, markRaw } from 'vue';
 import { api } from "../../../plugins/axios";
-import { Search, FileSpreadsheet, Printer, Truck, Check, CheckCircle, AlertTriangle, History, X, Wrench, Lock, Link2, UserPlus, XCircle } from 'lucide-vue-next';
-// Using dayjs for easy duration calculation
+import { Search, FileSpreadsheet, Printer, Truck, Check, CheckCircle, Info, Copy, History, X, Wrench, Lock, Link2, UserPlus, XCircle } from 'lucide-vue-next';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 dayjs.extend(relativeTime);
@@ -171,21 +207,41 @@ const notification = reactive({ show: false, message: '' });
 const confirm = reactive({ show: false, title: '', message: '', severity: 'warning', icon: null, payload: null });
 const historyPanel = reactive({ show: false, vehiclePlate: '' });
 const historyData = ref({ drivers: [], trailers: [] });
+const infoModal = reactive({ show: false, data: {} });
 const isPrinting = ref(false);
 const pdfFrame = ref(null);
 
-// HELPER: Format "Time on Unit"
-const formatDuration = (date) => {
-    if (!date) return '';
-    return dayjs(date).fromNow(true); // returns "2 days", "5 hours", etc.
-};
-
+// --- METHODS ---
 const loadData = async () => {
     const { data } = await api.get('portal/dispatch');
     vehicles.value = data.vehicles;
     availableDrivers.value = data.available_drivers;
     availableTrailers.value = data.available_trailers;
     canEdit.value = data.can_edit;
+};
+
+const formatDuration = (date) => date ? dayjs(date).fromNow(true) : '';
+
+const showInfo = (v) => {
+    infoModal.data = {
+        vehicle: v.plate_number,
+        trailer: v.current_assignment?.trailer?.plate_number || 'N/A',
+        driver: v.current_driver?.name || 'N/A',
+        passport: v.current_driver?.passport_number || 'N/A',
+        license: v.current_driver?.license_number || 'N/A',
+        phone: v.current_driver?.phone || 'N/A'
+    };
+    infoModal.show = true;
+};
+
+const copyToClipboard = () => {
+    const d = infoModal.data;
+    const text = `UNIT: ${d.vehicle}/${d.trailer}\nDRIVER: ${d.driver}\nPASSPORT: ${d.passport}\nLICENSE: ${d.license}\nPHONE: ${d.phone}`;
+
+    navigator.clipboard.writeText(text).then(() => {
+        triggerNotification("Details copied!");
+        infoModal.show = false;
+    }).catch(() => triggerNotification("Failed to copy."));
 };
 
 const hasStartedTyping = (vid, type) => rowSearch[type + 's'][vid] && rowSearch[type + 's'][vid].trim().length > 0;
@@ -295,7 +351,10 @@ const filteredVehicles = computed(() => {
     }
     const q = searchQuery.value.toLowerCase();
     if (q) {
-        list = list.filter(v => v.plate_number.toLowerCase().includes(q) || (v.current_driver && v.current_driver.name.toLowerCase().includes(q)));
+        list = list.filter(v =>
+            v.plate_number.toLowerCase().includes(q) ||
+            (v.current_driver && v.current_driver.name.toLowerCase().includes(q))
+        );
     }
     return list;
 });
@@ -304,7 +363,6 @@ onMounted(loadData);
 </script>
 
 <style scoped>
-/* PRESERVED ANIMATIONS */
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 .slide-enter-active, .slide-leave-active { transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); }

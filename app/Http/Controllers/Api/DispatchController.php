@@ -21,10 +21,17 @@ class DispatchController extends Controller
         $vehicles = Vehicle::with(['currentAssignment.trailer'])->get()->map(function ($vehicle) {
             $currentDriver = DB::table('users')
                 ->join('driver_vehicle_assignments', 'users.id', '=', 'driver_vehicle_assignments.driver_id')
+                ->join('drivers', 'users.id', '=', 'drivers.user_id')
                 ->where('driver_vehicle_assignments.vehicle_id', $vehicle->id)
                 ->whereNull('driver_vehicle_assignments.end_date')
-                // Added start_date for the "Last Updated" badge
-                ->select('users.id', 'users.name', 'driver_vehicle_assignments.start_date')
+                ->select(
+                    'users.id',
+                    'users.name',
+                    'drivers.phone',           // Corrected: phone is in drivers table
+                    'drivers.passport_number',
+                    'drivers.driving_licence as license_number', // Corrected: mapping to your actual column name
+                    'driver_vehicle_assignments.start_date'
+                )
                 ->first();
 
             $vehicle->current_driver = $currentDriver;
