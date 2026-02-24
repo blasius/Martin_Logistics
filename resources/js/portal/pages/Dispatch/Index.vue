@@ -1,32 +1,22 @@
 <template>
     <div class="h-screen flex flex-col bg-slate-50 overflow-hidden relative">
-
         <iframe ref="pdfFrame" @load="onFrameLoad" class="hidden invisible w-0 h-0 absolute"></iframe>
 
         <Transition name="fade">
-            <div v-if="confirm.show" class="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm no-print">
-                <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 border border-slate-200">
-                    <div class="flex items-center gap-4 mb-4" :class="confirm.type === 'maintenance' ? 'text-rose-600' : 'text-amber-600'">
-                        <div class="p-3 rounded-full" :class="confirm.type === 'maintenance' ? 'bg-rose-100' : 'bg-amber-100'">
-                            <component :is="confirm.type === 'maintenance' ? Wrench : AlertTriangle" class="w-6 h-6" />
+            <div v-if="confirm.show" class="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm no-print">
+                <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 border border-slate-200">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="p-3 rounded-full" :class="confirm.severity === 'danger' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'">
+                            <component :is="confirm.icon" class="w-7 h-7" />
                         </div>
-                        <h3 class="text-lg font-black uppercase tracking-tight text-slate-800">
-                            {{ confirm.type === 'maintenance' ? 'Send to Shop?' : 'Confirm Unpair' }}
-                        </h3>
+                        <h3 class="text-xl font-black uppercase tracking-tight text-slate-800">{{ confirm.title }}</h3>
                     </div>
-                    <p class="text-sm text-slate-500 mb-6 font-medium leading-relaxed">
-                        {{ confirm.type === 'maintenance'
-                        ? 'This will instantly mark the unit as MAINTENANCE and unpair all active drivers and trailers.'
-                        : 'Are you sure you want to remove this assignment? This will end the active record.'
-                        }}
-                    </p>
+                    <div class="bg-slate-50 border border-slate-100 rounded-xl p-4 mb-8">
+                        <p class="text-sm text-slate-600 font-medium leading-relaxed" v-html="confirm.message"></p>
+                    </div>
                     <div class="flex gap-3">
-                        <button @click="cancelUpdate" class="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-black rounded-lg transition-all">CANCEL</button>
-                        <button @click="proceedWithUpdate"
-                                class="flex-1 px-4 py-2.5 text-white text-xs font-black rounded-lg shadow-lg transition-all"
-                                :class="confirm.type === 'maintenance' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-500 hover:bg-amber-600'">
-                            YES, PROCEED
-                        </button>
+                        <button @click="confirm.show = false" class="flex-1 px-4 py-3 bg-slate-100 text-slate-600 text-xs font-black rounded-xl uppercase">Cancel</button>
+                        <button @click="proceedWithUpdate" class="flex-1 px-4 py-3 text-white text-xs font-black rounded-xl shadow-lg uppercase transition-all" :class="confirm.severity === 'danger' ? 'bg-rose-600' : 'bg-amber-600'">Confirm</button>
                     </div>
                 </div>
             </div>
@@ -39,14 +29,12 @@
                         <h2 class="font-black text-slate-800 uppercase tracking-tight">Unit History</h2>
                         <p class="text-xs font-bold text-indigo-600">{{ historyPanel.vehiclePlate }}</p>
                     </div>
-                    <button @click="historyPanel.show = false" class="p-2 hover:bg-slate-200 rounded-full transition-colors">
-                        <X class="w-5 h-5 text-slate-400" />
-                    </button>
+                    <button @click="historyPanel.show = false" class="p-2 hover:bg-slate-200 rounded-full transition-colors"><X class="w-5 h-5 text-slate-400" /></button>
                 </div>
                 <div class="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
                     <section v-for="(type, key) in { 'Recent Drivers': 'drivers', 'Recent Trailers': 'trailers' }" :key="key">
-                        <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"> {{ key }} </h3>
-                        <div v-for="(h, i) in historyData[key.toLowerCase().split(' ')[1]]" :key="i" class="mb-4 pb-4 border-b border-slate-50 last:border-0">
+                        <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">{{ key }}</h3>
+                        <div v-for="(h, i) in historyData[type]" :key="i" class="mb-4 pb-4 border-b border-slate-50 last:border-0">
                             <p class="text-xs font-black text-slate-800">{{ h.name || h.plate_number }}</p>
                             <p class="text-[10px] text-slate-400 mt-1 font-medium italic">{{ h.start_date || h.assigned_at }} → {{ h.end_date || h.unassigned_at || 'Present' }}</p>
                         </div>
@@ -66,43 +54,41 @@
             <div class="flex items-center gap-4">
                 <div class="p-2 bg-indigo-600 rounded-lg"><Truck class="w-6 h-6 text-white" /></div>
                 <div>
-                    <h1 class="text-xl font-black text-slate-800 tracking-tight uppercase leading-none">Fleet Control</h1>
-                    <div class="flex items-center gap-2 mt-1">
-                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Fleet Operations Hub</p>
-                        <span v-if="!canEdit" class="text-[8px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full font-black border border-amber-100 uppercase flex items-center gap-1">
-                            <Lock class="w-2.5 h-2.5" /> Read Only Mode
-                        </span>
+                    <h1 class="text-xl font-black text-slate-800 uppercase leading-none">Fleet Control</h1>
+                    <div class="flex items-center gap-3 mt-1.5">
+                        <div class="flex bg-slate-100 p-0.5 rounded-lg">
+                            <button v-for="s in ['all', 'active', 'maintenance']" :key="s" @click="statusFilter = s"
+                                    class="px-3 py-1 text-[9px] font-black uppercase rounded-md transition-all"
+                                    :class="statusFilter === s ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'">{{ s }}</button>
+                        </div>
+                        <span v-if="!canEdit" class="text-[8px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full font-black border border-amber-100 uppercase flex items-center gap-1"><Lock class="w-2.5 h-2.5" /> View Only</span>
                     </div>
                 </div>
                 <div class="relative ml-4">
                     <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input v-model="searchQuery" type="text" placeholder="Search plate or driver..." class="pl-10 pr-4 py-2 w-80 bg-slate-100 border-none rounded-full text-sm focus:ring-2 focus:ring-indigo-500 transition-all" />
+                    <input v-model="searchQuery" type="text" placeholder="Filter current list..." class="pl-10 pr-4 py-2 w-64 bg-slate-100 border-none rounded-full text-sm focus:ring-2 focus:ring-indigo-500" />
                 </div>
             </div>
             <div class="flex items-center gap-3">
-                <button @click="exportToExcel" class="flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white text-xs font-black rounded-lg shadow-md hover:bg-emerald-800 transition-all">
-                    <FileSpreadsheet class="w-4 h-4" /> EXCEL
-                </button>
-                <button @click="printBoard" :disabled="isPrinting" class="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white text-xs font-black rounded-lg shadow-md hover:bg-slate-800 transition-all disabled:opacity-50">
-                    <Printer v-if="!isPrinting" class="w-4 h-4" />
-                    <span v-else class="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                    {{ isPrinting ? 'GENERATING...' : 'PRINT' }}
+                <button @click="exportToExcel" class="flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white text-xs font-black rounded-lg hover:bg-emerald-800"><FileSpreadsheet class="w-4 h-4" /> EXCEL</button>
+                <button @click="printBoard" :disabled="isPrinting" class="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white text-xs font-black rounded-lg hover:bg-slate-800">
+                    <Printer v-if="!isPrinting" class="w-4 h-4" /><span v-else class="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> PRINT
                 </button>
             </div>
         </header>
 
         <div class="px-8 py-3 bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest grid grid-cols-12 gap-4 shadow-lg z-10">
             <div class="col-span-2">Unit ID</div>
-            <div class="col-span-2">Specifications</div>
-            <div class="col-span-3">Current Driver</div>
-            <div class="col-span-3">Attached Trailer</div>
+            <div class="col-span-2">Specs</div>
+            <div class="col-span-3">Driver Assignment</div>
+            <div class="col-span-3">Trailer Assignment</div>
             <div class="col-span-2 text-right">Actions</div>
         </div>
 
         <div class="flex-1 overflow-y-auto px-8 py-4 space-y-2 custom-scrollbar">
             <div v-for="v in filteredVehicles" :key="v.id"
-                 class="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-12 gap-4 items-center group transition-all"
-                 :class="v.status === 'maintenance' ? 'opacity-75 bg-slate-50' : 'hover:border-indigo-300 hover:shadow-sm'">
+                 class="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-12 gap-4 items-center transition-all"
+                 :class="v.status === 'maintenance' ? 'opacity-70 bg-slate-50' : 'hover:border-indigo-300'">
 
                 <div class="col-span-2">
                     <span class="font-black text-slate-900 uppercase tracking-tighter">{{ v.plate_number }}</span>
@@ -110,47 +96,54 @@
                          :class="v.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'">{{ v.status }}</div>
                 </div>
 
-                <div class="col-span-2 text-xs text-slate-500 italic font-medium">{{ v.make }} {{ v.model }}</div>
+                <div class="col-span-2 text-xs text-slate-500 font-medium">{{ v.make }} {{ v.model }}</div>
 
-                <div class="col-span-3 relative">
-                    <select
-                        :disabled="v.status === 'maintenance' || !canEdit"
-                        :value="v.current_driver ? v.current_driver.id : null"
-                        @change="handleSelectChange(v.id, $event.target.value, 'driver')"
-                        :class="!canEdit ? 'bg-slate-100 text-slate-400 border-dashed cursor-not-allowed' : 'bg-slate-50'"
-                        class="w-full pl-3 pr-2 py-1.5 border-slate-200 rounded text-xs font-black text-slate-700 appearance-none focus:ring-1 focus:ring-indigo-500 transition-all">
-                        <option :value="null">-- STANDBY --</option>
-                        <option v-if="v.current_driver" :value="v.current_driver.id" selected>{{ v.current_driver.name }}</option>
-                        <option v-for="d in availableDrivers" :key="d.id" :value="d.id">{{ d.user.name }}</option>
-                    </select>
+                <div class="col-span-3 relative group/search">
+                    <div class="flex items-center gap-2">
+                        <input type="text" v-model="rowSearch.drivers[v.id]" :disabled="v.status === 'maintenance' || !canEdit"
+                               :placeholder="v.current_driver ? v.current_driver.name : '-- SEARCH DRIVER --'"
+                               class="flex-1 pl-3 pr-8 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs font-black text-slate-700 focus:ring-2 focus:ring-indigo-500 uppercase outline-none" />
+                        <span v-if="v.current_driver" class="text-[8px] bg-slate-100 text-slate-500 px-1.5 py-1 rounded font-bold whitespace-nowrap">
+                            {{ formatDuration(v.current_driver.start_date) }}
+                        </span>
+                    </div>
+                    <div v-if="hasStartedTyping(v.id, 'driver')" class="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded shadow-2xl max-h-48 overflow-y-auto hidden group-focus-within/search:block">
+                        <div @mousedown="initiateAction(v, null, 'driver')" class="p-2 text-[10px] font-black text-rose-500 hover:bg-rose-50 cursor-pointer border-b uppercase">-- SET STANDBY --</div>
+                        <div v-for="d in getFilteredDrivers(v.id)" :key="d.id" @mousedown="initiateAction(v, d, 'driver')" class="p-2 border-b hover:bg-slate-50 cursor-pointer">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs font-black text-slate-700 uppercase">{{ d.user.name }}</span>
+                                <span v-if="getAssetLocation(d.user_id, 'driver')" class="text-[8px] bg-amber-100 text-amber-700 px-1.5 rounded font-black">On {{ getAssetLocation(d.user_id, 'driver') }}</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="col-span-3 relative">
-                    <select
-                        :disabled="v.status === 'maintenance' || !canEdit"
-                        :value="v.current_assignment ? v.current_assignment.trailer_id : null"
-                        @change="handleSelectChange(v.id, $event.target.value, 'trailer')"
-                        :class="!canEdit ? 'bg-slate-100 text-slate-400 border-dashed cursor-not-allowed' : 'bg-slate-50'"
-                        class="w-full pl-3 pr-2 py-1.5 border-slate-200 rounded text-xs font-black text-slate-700 appearance-none focus:ring-1 focus:ring-emerald-500 transition-all">
-                        <option :value="null">-- BOBTAIL --</option>
-                        <option v-if="v.current_assignment" :value="v.current_assignment.trailer_id" selected>{{ v.current_assignment.trailer.plate_number }}</option>
-                        <option v-for="t in availableTrailers" :key="t.id" :value="t.id">{{ t.plate_number }}</option>
-                    </select>
+                <div class="col-span-3 relative group/search">
+                    <div class="flex items-center gap-2">
+                        <input type="text" v-model="rowSearch.trailers[v.id]" :disabled="v.status === 'maintenance' || !canEdit"
+                               :placeholder="v.current_assignment ? v.current_assignment.trailer.plate_number : '-- SEARCH TRAILER --'"
+                               class="flex-1 pl-3 pr-8 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs font-black text-slate-700 focus:ring-2 focus:ring-emerald-500 uppercase outline-none" />
+                        <span v-if="v.current_assignment" class="text-[8px] bg-slate-100 text-slate-500 px-1.5 py-1 rounded font-bold whitespace-nowrap">
+                            {{ formatDuration(v.current_assignment.assigned_at) }}
+                        </span>
+                    </div>
+                    <div v-if="hasStartedTyping(v.id, 'trailer')" class="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded shadow-2xl max-h-48 overflow-y-auto hidden group-focus-within/search:block">
+                        <div @mousedown="initiateAction(v, null, 'trailer')" class="p-2 text-[10px] font-black text-rose-500 hover:bg-rose-50 cursor-pointer border-b uppercase">-- UNCOUPLE --</div>
+                        <div v-for="t in getFilteredTrailers(v.id)" :key="t.id" @mousedown="initiateAction(v, t, 'trailer')" class="p-2 border-b hover:bg-slate-50 cursor-pointer">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs font-black text-slate-700 uppercase">{{ t.plate_number }}</span>
+                                <span v-if="getAssetLocation(t.id, 'trailer')" class="text-[8px] bg-amber-100 text-amber-700 px-1.5 rounded font-black">On {{ getAssetLocation(t.id, 'trailer') }}</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="col-span-2 flex justify-end gap-1 no-print">
                     <template v-if="canEdit">
-                        <button v-if="v.status === 'active'" @click="confirmMaintenance(v)" class="p-2 hover:bg-rose-50 text-slate-300 hover:text-rose-600 rounded-lg transition-colors" title="Send to Maintenance">
-                            <Wrench class="w-4 h-4" />
-                        </button>
-                        <button v-else @click="returnToService(v)" class="p-2 hover:bg-emerald-50 text-slate-300 hover:text-emerald-600 rounded-lg transition-colors" title="Return to Service">
-                            <CheckCircle class="w-4 h-4" />
-                        </button>
+                        <button v-if="v.status === 'active'" @click="confirmMaintenance(v)" class="p-2 hover:bg-rose-50 text-slate-300 hover:text-rose-600 rounded-lg"><Wrench class="w-4 h-4" /></button>
+                        <button v-else @click="returnToService(v)" class="p-2 hover:bg-emerald-50 text-slate-300 hover:text-emerald-600 rounded-lg"><CheckCircle class="w-4 h-4" /></button>
                     </template>
-
-                    <button @click="showHistory(v)" class="p-2 hover:bg-slate-100 text-slate-300 hover:text-indigo-600 rounded-lg transition-colors" title="View History">
-                        <History class="w-4 h-4" />
-                    </button>
+                    <button @click="showHistory(v)" class="p-2 hover:bg-slate-100 text-slate-300 hover:text-indigo-600 rounded-lg"><History class="w-4 h-4" /></button>
                 </div>
             </div>
         </div>
@@ -158,146 +151,166 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, reactive } from 'vue';
+import { ref, computed, onMounted, reactive, markRaw } from 'vue';
 import { api } from "../../../plugins/axios";
-import {
-    Search, FileSpreadsheet, Printer, Truck, Check,
-    CheckCircle, AlertTriangle, History, X, Wrench, Lock
-} from 'lucide-vue-next';
+import { Search, FileSpreadsheet, Printer, Truck, Check, CheckCircle, AlertTriangle, History, X, Wrench, Lock, Link2, UserPlus, XCircle } from 'lucide-vue-next';
+// Using dayjs for easy duration calculation
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+dayjs.extend(relativeTime);
 
 // --- STATE ---
 const vehicles = ref([]);
 const availableDrivers = ref([]);
 const availableTrailers = ref([]);
 const searchQuery = ref('');
-const canEdit = ref(false); // Controlled via backend role check
+const statusFilter = ref('all');
+const canEdit = ref(false);
+const rowSearch = reactive({ drivers: {}, trailers: {} });
 const notification = reactive({ show: false, message: '' });
-const confirm = reactive({ show: false, payload: null, type: 'unpair' });
+const confirm = reactive({ show: false, title: '', message: '', severity: 'warning', icon: null, payload: null });
 const historyPanel = reactive({ show: false, vehiclePlate: '' });
 const historyData = ref({ drivers: [], trailers: [] });
-
-// Print State
-const pdfFrame = ref(null);
 const isPrinting = ref(false);
+const pdfFrame = ref(null);
+
+// HELPER: Format "Time on Unit"
+const formatDuration = (date) => {
+    if (!date) return '';
+    return dayjs(date).fromNow(true); // returns "2 days", "5 hours", etc.
+};
 
 const loadData = async () => {
-    try {
-        const { data } = await api.get('portal/dispatch');
-        vehicles.value = data.vehicles;
-        availableDrivers.value = data.available_drivers;
-        availableTrailers.value = data.available_trailers;
-        canEdit.value = data.can_edit;
-    } catch (e) {
-        console.error("Failed to load page data:", e.message);
-    }
+    const { data } = await api.get('portal/dispatch');
+    vehicles.value = data.vehicles;
+    availableDrivers.value = data.available_drivers;
+    availableTrailers.value = data.available_trailers;
+    canEdit.value = data.can_edit;
 };
 
-const printBoard = async () => {
-    if (!pdfFrame.value) return;
-    isPrinting.value = true;
-    try {
-        const { data } = await api.get('portal/dispatch/print-url');
-        pdfFrame.value.src = data.url;
-    } catch (e) {
-        console.error("Print fetch failed", e);
-        isPrinting.value = false;
-    }
+const hasStartedTyping = (vid, type) => rowSearch[type + 's'][vid] && rowSearch[type + 's'][vid].trim().length > 0;
+
+const getAssetLocation = (id, type) => {
+    const found = vehicles.value.find(v => {
+        if (type === 'driver') return v.current_driver?.id === id || v.current_driver?.user_id === id;
+        return v.current_assignment?.trailer_id === id;
+    });
+    return found ? found.plate_number : null;
 };
 
-const onFrameLoad = () => {
-    if (!pdfFrame.value || !isPrinting.value) return;
-    const frame = pdfFrame.value;
-    if (frame.src && frame.src.includes('secure-print')) {
-        setTimeout(() => {
-            frame.contentWindow.focus();
-            frame.contentWindow.print();
-            isPrinting.value = false;
-        }, 500);
-    }
+const getFilteredDrivers = (vid) => {
+    const q = (rowSearch.drivers[vid] || '').toLowerCase();
+    return availableDrivers.value.filter(d => d.user.name.toLowerCase().includes(q));
 };
 
-const handleSelectChange = (vehicleId, targetId, type) => {
-    if (!canEdit.value) return;
-    const isUnpairing = !targetId || targetId === 'null';
-    if (isUnpairing) {
-        confirm.payload = { vehicleId, targetId: null, type };
-        confirm.type = 'unpair';
-        confirm.show = true;
+const getFilteredTrailers = (vid) => {
+    const q = (rowSearch.trailers[vid] || '').toLowerCase();
+    return availableTrailers.value.filter(t => t.plate_number.toLowerCase().includes(q));
+};
+
+const initiateAction = (vehicle, asset, type) => {
+    const assetId = asset?.id;
+    const assetName = type === 'driver' ? asset?.user.name : asset?.plate_number;
+    const assetUserId = type === 'driver' ? asset?.user_id : null;
+    const currentLocation = assetId ? getAssetLocation(type === 'driver' ? assetUserId : assetId, type) : null;
+
+    if (!assetId) {
+        confirm.title = "Unpair Asset";
+        confirm.message = `Remove current ${type} from unit <strong>${vehicle.plate_number}</strong>?`;
+        confirm.severity = 'warning'; confirm.icon = markRaw(XCircle);
+    } else if (currentLocation && currentLocation !== vehicle.plate_number) {
+        confirm.title = "Transfer Alert";
+        confirm.message = `<strong>${assetName}</strong> is currently on <strong>${currentLocation}</strong>. Detach from there and move to <strong>${vehicle.plate_number}</strong>?`;
+        confirm.severity = 'danger'; confirm.icon = markRaw(Link2);
     } else {
-        executeRecordUpdate(vehicleId, targetId, type);
+        confirm.title = "Confirm Assignment";
+        confirm.message = `Assign <strong>${assetName}</strong> to unit <strong>${vehicle.plate_number}</strong>?`;
+        confirm.severity = 'warning'; confirm.icon = markRaw(UserPlus);
     }
-};
 
-const confirmMaintenance = (vehicle) => {
-    if (!canEdit.value) return;
-    confirm.payload = { vehicleId: vehicle.id, action: 'maintenance' };
-    confirm.type = 'maintenance';
+    confirm.payload = { vehicleId: vehicle.id, assetId, type };
     confirm.show = true;
+    rowSearch[type + 's'][vehicle.id] = '';
 };
 
-const returnToService = async (vehicle) => {
-    if (!canEdit.value) return;
-    await api.post('/portal/dispatch/activate', { vehicle_id: vehicle.id });
-    triggerNotification("Unit returned to Active Service");
-    loadData();
+const confirmMaintenance = (v) => {
+    confirm.title = "Maintenance Mode";
+    confirm.message = `Mark <strong>${v.plate_number}</strong> as Maintenance? This will unpair all current assignments.`;
+    confirm.severity = 'danger'; confirm.icon = markRaw(Wrench);
+    confirm.payload = { vehicleId: v.id, action: 'maintenance' };
+    confirm.show = true;
 };
 
 const proceedWithUpdate = async () => {
     const p = confirm.payload;
     if (p.action === 'maintenance') {
         await api.post('/portal/dispatch/maintenance', { vehicle_id: p.vehicleId });
-        triggerNotification("Unit moved to Maintenance");
+        triggerNotification("Unit moved to Shop");
     } else {
-        await executeRecordUpdate(p.vehicleId, p.targetId, p.type);
+        await api.post('/portal/dispatch/pair', { vehicle_id: p.vehicleId, [p.type + '_id']: p.assetId });
+        triggerNotification(`${p.type} Updated`);
     }
     confirm.show = false;
     loadData();
 };
 
-const executeRecordUpdate = async (vehicleId, targetId, type) => {
-    await api.post('/portal/dispatch/pair', { vehicle_id: vehicleId, [type + '_id']: targetId });
-    triggerNotification(`${type} updated`);
+const returnToService = async (v) => {
+    await api.post('/portal/dispatch/activate', { vehicle_id: v.id });
+    triggerNotification("Unit Reactivated");
     loadData();
 };
 
-const showHistory = async (vehicle) => {
-    historyPanel.vehiclePlate = vehicle.plate_number;
-    const { data } = await api.get(`/portal/dispatch/history/${vehicle.id}`);
+const showHistory = async (v) => {
+    historyPanel.vehiclePlate = v.plate_number;
+    const { data } = await api.get(`/portal/dispatch/history/${v.id}`);
     historyData.value = data;
     historyPanel.show = true;
 };
 
 const triggerNotification = (msg) => {
-    notification.message = msg;
-    notification.show = true;
+    notification.message = msg; notification.show = true;
     setTimeout(() => notification.show = false, 3000);
-};
-
-const cancelUpdate = () => {
-    confirm.show = false;
-    loadData();
 };
 
 const exportToExcel = () => window.open('/portal/dispatch/export', '_blank');
 
+const printBoard = async () => {
+    isPrinting.value = true;
+    const { data } = await api.get('portal/dispatch/print-url');
+    pdfFrame.value.src = data.url;
+};
+
+const onFrameLoad = () => {
+    if (!isPrinting.value) return;
+    setTimeout(() => {
+        pdfFrame.value.contentWindow.print();
+        isPrinting.value = false;
+    }, 500);
+};
+
 const filteredVehicles = computed(() => {
+    let list = vehicles.value;
+    if (statusFilter.value !== 'all') {
+        list = list.filter(v => v.status === statusFilter.value);
+    }
     const q = searchQuery.value.toLowerCase();
-    return vehicles.value.filter(v =>
-        v.plate_number.toLowerCase().includes(q) ||
-        (v.current_driver && v.current_driver.name.toLowerCase().includes(q))
-    );
+    if (q) {
+        list = list.filter(v => v.plate_number.toLowerCase().includes(q) || (v.current_driver && v.current_driver.name.toLowerCase().includes(q)));
+    }
+    return list;
 });
 
 onMounted(loadData);
 </script>
 
 <style scoped>
-.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+/* PRESERVED ANIMATIONS */
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
-
 .slide-enter-active, .slide-leave-active { transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
 .slide-enter-from, .slide-leave-to { transform: translateX(100%); }
-
-.slide-fade-enter-active, .slide-fade-leave-active { transition: all 0.3s ease-out; }
+.slide-fade-enter-active, .slide-fade-leave-active { transition: all 0.3s; }
 .slide-fade-enter-from, .slide-fade-leave-to { transform: translateY(20px); opacity: 0; }
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 </style>
