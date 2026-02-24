@@ -18,36 +18,21 @@ class DispatchController extends Controller
 {
     public function index()
     {
-        // 1. Get Vehicles and manually attach the current Driver (User)
         $vehicles = Vehicle::with(['currentAssignment.trailer'])->get()->map(function ($vehicle) {
             $currentDriver = DB::table('users')
                 ->join('driver_vehicle_assignments', 'users.id', '=', 'driver_vehicle_assignments.driver_id')
                 ->where('driver_vehicle_assignments.vehicle_id', $vehicle->id)
                 ->whereNull('driver_vehicle_assignments.end_date')
-                ->select('users.id', 'users.name')
+                // Added start_date for the "Last Updated" badge
+                ->select('users.id', 'users.name', 'driver_vehicle_assignments.start_date')
                 ->first();
 
             $vehicle->current_driver = $currentDriver;
             return $vehicle;
         });
 
-        // 2. Available Drivers: Get drivers whose user_id is NOT in an active assignment
-        $assignedUserIds = DB::table('driver_vehicle_assignments')
-            ->whereNull('end_date')
-            ->pluck('driver_id');
-
-        $availableDrivers = Driver::with('user')
-            ->whereNotIn('user_id', $assignedUserIds)
-            ->get();
-
-        // 3. Available Trailers: Get trailers NOT in an active assignment
-        $assignedTrailerIds = DB::table('trailer_assignments')
-            ->whereNull('unassigned_at')
-            ->pluck('trailer_id');
-
-        $availableTrailers = Trailer::where('status', 'active')
-            ->whereNotIn('id', $assignedTrailerIds)
-            ->get();
+        $allDrivers = Driver::with('user')->get();
+        $allTrailers = Trailer::where('status', 'active')->get();
 
         $canEdit = auth()->user()->roles()
             ->whereIn('name', ['admin', 'super_admin'])
@@ -55,9 +40,9 @@ class DispatchController extends Controller
 
         return response()->json([
             'vehicles' => $vehicles,
-            'available_drivers' => $availableDrivers,
-            'available_trailers' => $availableTrailers,
-            'can_edit' => $canEdit // Pass a boolean directly for simplicity
+            'available_drivers' => $allDrivers,
+            'available_trailers' => $allTrailers,
+            'can_edit' => $canEdit
         ]);
     }
 
@@ -65,21 +50,25 @@ class DispatchController extends Controller
     {
         $request->validate([
             'vehicle_id' => 'required|exists:vehicles,id',
-            'driver_id'  => 'nullable|exists:drivers,id',
-            'trailer_id' => 'nullable|exists:trailers,id',
+            'driver_id'  => 'nullable',
+            'trailer_id' => 'nullable',
         ]);
 
         return DB::transaction(function () use ($request) {
             $now = now();
 
-            // Handle Trailer Assignment
             if ($request->has('trailer_id')) {
                 DB::table('trailer_assignments')
                     ->where('vehicle_id', $request->vehicle_id)
                     ->whereNull('unassigned_at')
                     ->update(['unassigned_at' => $now]);
 
-                if ($request->trailer_id) {
+                if ($request->trailer_id && $request->trailer_id !== 'null') {
+                    DB::table('trailer_assignments')
+                        ->where('trailer_id', $request->trailer_id)
+                        ->whereNull('unassigned_at')
+                        ->update(['unassigned_at' => $now]);
+
                     DB::table('trailer_assignments')->insert([
                         'vehicle_id'  => $request->vehicle_id,
                         'trailer_id'  => $request->trailer_id,
@@ -90,15 +79,19 @@ class DispatchController extends Controller
                 }
             }
 
-            // Handle Driver Assignment (Matching your Filament logic)
             if ($request->has('driver_id')) {
                 DB::table('driver_vehicle_assignments')
                     ->where('vehicle_id', $request->vehicle_id)
                     ->whereNull('end_date')
                     ->update(['end_date' => $now]);
 
-                if ($request->driver_id) {
-                    $userId = Driver::where('id', $request->driver_id)->value('user_id');
+                if ($request->driver_id && $request->driver_id !== 'null') {
+                    $userId = Driver::where('id', $request->driver_id)->value('user_id') ?? $request->driver_id;
+
+                    DB::table('driver_vehicle_assignments')
+                        ->where('driver_id', $userId)
+                        ->whereNull('end_date')
+                        ->update(['end_date' => $now]);
 
                     DB::table('driver_vehicle_assignments')->insert([
                         'vehicle_id' => $request->vehicle_id,
@@ -109,41 +102,10 @@ class DispatchController extends Controller
                     ]);
                 }
             }
-
-            return response()->json(['message' => 'Success']);
+            return response()->json(['message' => 'Dispatch status updated successfully.']);
         });
     }
 
-    public function export(): BinaryFileResponse
-    {
-        return Excel::download(new DispatchExport, 'fleet_dispatch_' . now()->format('Y-m-d') . '.xlsx');
-    }
-
-    public function history($id)
-    {
-        $driverHistory = DB::table('driver_vehicle_assignments')
-            ->join('users', 'driver_vehicle_assignments.driver_id', '=', 'users.id')
-            ->where('vehicle_id', $id)
-            ->select('users.name', 'driver_vehicle_assignments.start_date', 'driver_vehicle_assignments.end_date')
-            ->orderBy('driver_vehicle_assignments.start_date', 'desc')
-            ->limit(5)
-            ->get();
-
-        $trailerHistory = DB::table('trailer_assignments')
-            ->join('trailers', 'trailer_assignments.trailer_id', '=', 'trailers.id')
-            ->where('vehicle_id', $id)
-            ->select('trailers.plate_number', 'trailer_assignments.assigned_at', 'trailer_assignments.unassigned_at')
-            ->orderBy('trailer_assignments.assigned_at', 'desc')
-            ->limit(5)
-            ->get();
-
-        return response()->json([
-            'drivers' => $driverHistory,
-            'trailers' => $trailerHistory
-        ]);
-    }
-
-    // Move to Maintenance (Unpairs everything)
     public function toggleMaintenance(Request $request)
     {
         $request->validate(['vehicle_id' => 'required']);
@@ -151,34 +113,37 @@ class DispatchController extends Controller
 
         DB::transaction(function () use ($vehicleId) {
             DB::table('vehicles')->where('id', $vehicleId)->update(['status' => 'maintenance']);
-
-            DB::table('driver_vehicle_assignments')
-                ->where('vehicle_id', $vehicleId)
-                ->whereNull('end_date')
-                ->update(['end_date' => now()]);
-
-            DB::table('trailer_assignments')
-                ->where('vehicle_id', $vehicleId)
-                ->whereNull('unassigned_at')
-                ->update(['unassigned_at' => now()]);
+            DB::table('driver_vehicle_assignments')->where('vehicle_id', $vehicleId)->whereNull('end_date')->update(['end_date' => now()]);
+            DB::table('trailer_assignments')->where('vehicle_id', $vehicleId)->whereNull('unassigned_at')->update(['unassigned_at' => now()]);
         });
 
         return response()->json(['message' => 'Vehicle moved to maintenance.']);
     }
 
-// Return to Active Status
     public function activateVehicle(Request $request)
     {
         $request->validate(['vehicle_id' => 'required']);
-
-        DB::table('vehicles')
-            ->where('id', $request->vehicle_id)
-            ->update(['status' => 'active']);
-
+        DB::table('vehicles')->where('id', $request->vehicle_id)->update(['status' => 'active']);
         return response()->json(['message' => 'Vehicle returned to active service.']);
     }
 
-    // 1. Get the Signed URL
+    public function history($id)
+    {
+        $drivers = DB::table('driver_vehicle_assignments')
+            ->join('users', 'driver_vehicle_assignments.driver_id', '=', 'users.id')
+            ->where('vehicle_id', $id)
+            ->select('users.name', 'driver_vehicle_assignments.start_date', 'driver_vehicle_assignments.end_date')
+            ->orderBy('start_date', 'desc')->limit(5)->get();
+
+        $trailers = DB::table('trailer_assignments')
+            ->join('trailers', 'trailer_assignments.trailer_id', '=', 'trailers.id')
+            ->where('vehicle_id', $id)
+            ->select('trailers.plate_number', 'trailer_assignments.assigned_at', 'trailer_assignments.unassigned_at')
+            ->orderBy('assigned_at', 'desc')->limit(5)->get();
+
+        return response()->json(['drivers' => $drivers, 'trailers' => $trailers]);
+    }
+
     public function getPrintUrl()
     {
         return response()->json([
@@ -186,10 +151,8 @@ class DispatchController extends Controller
         ]);
     }
 
-// 2. The PDF Logic (Emulating your Index logic)
     public function printStatus(Request $request)
     {
-        // Mirroring your index() logic exactly
         $vehicles = Vehicle::with(['currentAssignment.trailer'])->get()->map(function ($vehicle) {
             $currentDriver = DB::table('users')
                 ->join('driver_vehicle_assignments', 'users.id', '=', 'driver_vehicle_assignments.driver_id')
@@ -202,9 +165,12 @@ class DispatchController extends Controller
             return $vehicle;
         });
 
-        $pdf = Pdf::loadView('pdfs.dispatch_board', compact('vehicles'))
-            ->setPaper('a4', 'landscape');
-
+        $pdf = Pdf::loadView('pdfs.dispatch_board', compact('vehicles'))->setPaper('a4', 'landscape');
         return $pdf->stream('fleet-status.pdf');
+    }
+
+    public function export(): BinaryFileResponse
+    {
+        return Excel::download(new DispatchExport, 'fleet_dispatch_' . now()->format('Y-m-d') . '.xlsx');
     }
 }
