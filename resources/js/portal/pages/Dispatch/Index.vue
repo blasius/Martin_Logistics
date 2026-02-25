@@ -328,7 +328,36 @@ const triggerNotification = (msg) => {
     setTimeout(() => notification.show = false, 3000);
 };
 
-const exportToExcel = () => window.open('/portal/dispatch/export', '_blank');
+const exportToExcel = async () => {
+    try {
+        triggerNotification("Generating Excel file...");
+
+        // Use the 'api' instance to ensure Auth headers (Bearer Token) are included
+        const response = await api.get('portal/dispatch/export', {
+            responseType: 'blob', // Crucial for binary data
+        });
+
+        // Create a URL for the downloaded file
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+
+        // Set filename
+        const filename = `fleet_dispatch_${dayjs().format('YYYY-MM-DD')}.xlsx`;
+        link.setAttribute('download', filename);
+
+        // Append to body, click, and cleanup
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+
+        triggerNotification("Export Complete");
+    } catch (error) {
+        console.error("Export failed", error);
+        triggerNotification("Export failed. Check console.");
+    }
+};
 
 const printBoard = async () => {
     isPrinting.value = true;

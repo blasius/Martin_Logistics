@@ -176,8 +176,9 @@ class DispatchController extends Controller
         return $pdf->stream('fleet-status.pdf');
     }
 
-    public function export(): BinaryFileResponse
+    public function export()
     {
+        // Ensure this matches your Export class logic
         return Excel::download(new DispatchExport, 'fleet_dispatch_' . now()->format('Y-m-d') . '.xlsx');
     }
 }
