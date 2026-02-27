@@ -95,7 +95,7 @@
                     <h1 class="text-xl font-black text-slate-800 uppercase leading-none">Fleet Control</h1>
                     <div class="flex items-center gap-3 mt-1.5">
                         <div class="flex bg-slate-100 p-0.5 rounded-lg">
-                            <button v-for="s in ['all', 'active', 'maintenance']" :key="s" @click="statusFilter = s"
+                            <button v-for="s in ['active', 'maintenance', 'inactive']" :key="s" @click="statusFilter = s"
                                     class="px-3 py-1 text-[9px] font-black uppercase rounded-md transition-all"
                                     :class="statusFilter === s ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'">{{ s }}</button>
                         </div>
@@ -104,7 +104,7 @@
                 </div>
                 <div class="relative ml-4">
                     <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input v-model="searchQuery" type="text" placeholder="Filter current list..." class="pl-10 pr-4 py-2 w-64 bg-slate-100 border-none rounded-full text-sm focus:ring-2 focus:ring-indigo-500" />
+                    <input v-model="searchQuery" type="text" placeholder="Search driver or plate number..." class="pl-10 pr-4 py-2 w-64 bg-slate-100 border-none rounded-full text-sm focus:ring-2 focus:ring-indigo-500" />
                 </div>
             </div>
             <div class="flex items-center gap-3">
@@ -126,7 +126,7 @@
         <div class="flex-1 overflow-y-auto px-8 py-4 space-y-2 custom-scrollbar">
             <div v-for="v in filteredVehicles" :key="v.id"
                  class="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-12 gap-4 items-center transition-all"
-                 :class="v.status === 'maintenance' ? 'opacity-70 bg-slate-50' : 'hover:border-indigo-300'">
+                 :class="v.status !== 'active' ? 'opacity-70 bg-slate-50' : 'hover:border-indigo-300'">
 
                 <div class="col-span-2 flex items-center gap-2">
                     <span class="font-black text-slate-900 uppercase tracking-tighter">{{ v.plate_number }}</span>
@@ -134,14 +134,18 @@
                         <Info class="w-4 h-4" />
                     </button>
                     <div class="text-[8px] font-black px-1.5 py-0.5 rounded inline-block uppercase"
-                         :class="v.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'">{{ v.status }}</div>
+                         :class="{
+                             'bg-emerald-100 text-emerald-700': v.status === 'active',
+                             'bg-amber-100 text-amber-700': v.status === 'maintenance',
+                             'bg-rose-100 text-rose-700': v.status === 'inactive'
+                         }">{{ v.status }}</div>
                 </div>
 
                 <div class="col-span-2 text-xs text-slate-500 font-medium">{{ v.make }} {{ v.model }}</div>
 
                 <div class="col-span-3 relative group/search">
                     <div class="flex items-center gap-2">
-                        <input type="text" v-model="rowSearch.drivers[v.id]" :disabled="v.status === 'maintenance' || !canEdit"
+                        <input type="text" v-model="rowSearch.drivers[v.id]" :disabled="v.status !== 'active' || !canEdit"
                                :placeholder="v.current_driver ? v.current_driver.name : '-- SEARCH DRIVER --'"
                                class="flex-1 pl-3 pr-8 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs font-black text-slate-700 focus:ring-2 focus:ring-indigo-500 uppercase outline-none" />
                         <span v-if="v.current_driver" class="text-[8px] bg-slate-100 text-slate-500 px-1.5 py-1 rounded font-bold whitespace-nowrap">
@@ -159,7 +163,7 @@
 
                 <div class="col-span-3 relative group/search">
                     <div class="flex items-center gap-2">
-                        <input type="text" v-model="rowSearch.trailers[v.id]" :disabled="v.status === 'maintenance' || !canEdit"
+                        <input type="text" v-model="rowSearch.trailers[v.id]" :disabled="v.status !== 'active' || !canEdit"
                                :placeholder="v.current_assignment ? v.current_assignment.trailer.plate_number : '-- SEARCH TRAILER --'"
                                class="flex-1 pl-3 pr-8 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs font-black text-slate-700 focus:ring-2 focus:ring-emerald-500 uppercase outline-none" />
                         <span v-if="v.current_assignment" class="text-[8px] bg-slate-100 text-slate-500 px-1.5 py-1 rounded font-bold whitespace-nowrap">
@@ -177,8 +181,8 @@
 
                 <div class="col-span-2 flex justify-end gap-1 no-print">
                     <template v-if="canEdit">
-                        <button v-if="v.status === 'active'" @click="confirmMaintenance(v)" class="p-2 hover:bg-rose-50 text-slate-300 hover:text-rose-600 rounded-lg"><Wrench class="w-4 h-4" /></button>
-                        <button v-else @click="returnToService(v)" class="p-2 hover:bg-emerald-50 text-slate-300 hover:text-emerald-600 rounded-lg"><CheckCircle class="w-4 h-4" /></button>
+                        <button v-if="v.status === 'active'" @click="confirmMaintenance(v)" class="p-2 hover:bg-rose-50 text-slate-300 hover:text-rose-600 rounded-lg" title="Send to Maintenance"><Wrench class="w-4 h-4" /></button>
+                        <button v-else @click="returnToService(v)" class="p-2 hover:bg-emerald-50 text-slate-300 hover:text-emerald-600 rounded-lg" title="Return to Service"><CheckCircle class="w-4 h-4" /></button>
                     </template>
                     <button @click="showHistory(v)" class="p-2 hover:bg-slate-100 text-slate-300 hover:text-indigo-600 rounded-lg"><History class="w-4 h-4" /></button>
                 </div>
@@ -200,7 +204,7 @@ const vehicles = ref([]);
 const availableDrivers = ref([]);
 const availableTrailers = ref([]);
 const searchQuery = ref('');
-const statusFilter = ref('all');
+const statusFilter = ref('active'); // Default changed to 'active'
 const canEdit = ref(false);
 const rowSearch = reactive({ drivers: {}, trailers: {} });
 const notification = reactive({ show: false, message: '' });
@@ -331,27 +335,16 @@ const triggerNotification = (msg) => {
 const exportToExcel = async () => {
     try {
         triggerNotification("Generating Excel file...");
-
-        // Use the 'api' instance to ensure Auth headers (Bearer Token) are included
-        const response = await api.get('portal/dispatch/export', {
-            responseType: 'blob', // Crucial for binary data
-        });
-
-        // Create a URL for the downloaded file
+        const response = await api.get('portal/dispatch/export', { responseType: 'blob' });
         const url = window.URL.createObjectURL(new Blob([response.data]));
         const link = document.createElement('a');
         link.href = url;
-
-        // Set filename
         const filename = `fleet_dispatch_${dayjs().format('YYYY-MM-DD')}.xlsx`;
         link.setAttribute('download', filename);
-
-        // Append to body, click, and cleanup
         document.body.appendChild(link);
         link.click();
         link.remove();
         window.URL.revokeObjectURL(url);
-
         triggerNotification("Export Complete");
     } catch (error) {
         console.error("Export failed", error);
@@ -375,9 +368,10 @@ const onFrameLoad = () => {
 
 const filteredVehicles = computed(() => {
     let list = vehicles.value;
-    if (statusFilter.value !== 'all') {
-        list = list.filter(v => v.status === statusFilter.value);
-    }
+
+    // Strict status filtering (no 'all' option anymore)
+    list = list.filter(v => v.status === statusFilter.value);
+
     const q = searchQuery.value.toLowerCase();
     if (q) {
         list = list.filter(v =>
