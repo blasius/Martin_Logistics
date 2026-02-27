@@ -18,6 +18,7 @@ class DispatchController extends Controller
 {
     public function index()
     {
+        // Eager load everything to avoid N+1 query issues
         $vehicles = Vehicle::with(['currentAssignment.trailer'])->get()->map(function ($vehicle) {
             $currentDriver = DB::table('users')
                 ->join('driver_vehicle_assignments', 'users.id', '=', 'driver_vehicle_assignments.driver_id')
@@ -27,23 +28,25 @@ class DispatchController extends Controller
                 ->select(
                     'users.id',
                     'users.name',
-                    'drivers.phone',           // Corrected: phone is in drivers table
+                    'drivers.phone',
                     'drivers.passport_number',
-                    'drivers.driving_licence as license_number', // Corrected: mapping to your actual column name
+                    'drivers.driving_licence as license_number',
                     'driver_vehicle_assignments.start_date'
                 )
                 ->first();
 
             $vehicle->current_driver = $currentDriver;
+
+            // Ensure status is lowercase to match the Vue filter 'active'|'maintenance'|'inactive'
+            $vehicle->status = strtolower($vehicle->status);
+
             return $vehicle;
         });
 
         $allDrivers = Driver::with('user')->get();
         $allTrailers = Trailer::where('status', 'active')->get();
 
-        $canEdit = auth()->user()->roles()
-            ->whereIn('name', ['admin', 'super_admin'])
-            ->exists();
+        $canEdit = auth()->user()->hasAnyRole(['admin', 'super_admin']); // Cleaner if using Spatie
 
         return response()->json([
             'vehicles' => $vehicles,
