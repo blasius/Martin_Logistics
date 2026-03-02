@@ -64,5 +64,30 @@ class ArchiveTelemetry extends Command
         $oldDate = now()->subDays(90)->format('Ymd');
         // You would typically query INFORMATION_SCHEMA.PARTITIONS here
         // and drop any where the name suffix is < $oldDate.
+
+        // ADD THIS: Automatic cleanup of 90-day-old partitions
+        $oldestDate = now()->subDays(90)->format('Ymd');
+
+        $partitions = DB::select("
+        SELECT PARTITION_NAME
+        FROM INFORMATION_SCHEMA.PARTITIONS
+        WHERE TABLE_NAME = 'telemetry_history'
+        AND TABLE_SCHEMA = DATABASE()
+    ");
+
+        foreach ($partitions as $p) {
+            $name = $p->PARTITION_NAME;
+            // If partition name is like 'p20240101' and is older than 90 days
+            if (preg_match('/^p(\d{8})$/', $name, $matches)) {
+                if ($matches[1] < $oldestDate) {
+                    try {
+                        DB::statement("ALTER TABLE telemetry_history DROP PARTITION $name");
+                        $this->info("Dropped expired partition: $name");
+                    } catch (\Exception $e) {
+                        $this->error("Failed to drop partition $name: " . $e->getMessage());
+                    }
+                }
+            }
+        }
     }
 }
