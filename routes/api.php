@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\Api\ComplianceSummaryController;
 use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\ControlTowerController;
+use App\Http\Controllers\Api\PortalControlTowerController;
 use App\Http\Controllers\Api\DispatchController;
 use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\FineCheckController;
@@ -71,7 +72,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/inspections', [InsuranceController::class, 'store']);
 
         Route::get('/compliance-summary', [ComplianceSummaryController::class, 'complianceSummary']);
-        Route::get('/control-tower', [FleetDashboardController::class, 'getSnapshot']);
+        Route::get('/control-tower', [ControlTowerController::class, 'index']);
         Route::get('/report/{type}', [FleetDashboardController::class, 'getDetailedReport']);
 
         Route::get('/drivers/{driver}', [SearchController::class, 'showDriver']);
