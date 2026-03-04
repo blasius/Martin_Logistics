@@ -186,123 +186,158 @@ class WialonService
     }
 
     /**
-     * Processes live telemetry and fuel events for all fleets.
+     * Processes live telemetry and fuel events for all fleets with stationary detection
+     * and persistent 5-point windowed logic.
      */
     public function syncTelemetry(): int
     {
         $processedCount = 0;
+        $now = now();
 
         foreach ($this->tokens as $fleetKey => $token) {
-            Log::info("Wialon Sync: Starting processing for [$fleetKey]");
+            $result = $this->callApi('core/search_items', [
+                'spec' => [
+                    'itemsType' => 'avl_unit',
+                    'propName' => 'sys_name',
+                    'propValueMask' => '*',
+                    'sortType' => 'sys_name',
+                ],
+                'force' => 1,
+                'flags' => 1025,
+                'from' => 0,
+                'to' => 0,
+            ], $token);
 
-            try {
-                // 1. Fetch items specifically for THIS token/fleet
-                $result = $this->callApi('core/search_items', [
-                    'spec' => [
-                        'itemsType' => 'avl_unit',
-                        'propName' => 'sys_name',
-                        'propValueMask' => '*',
-                        'sortType' => 'sys_name',
-                    ],
-                    'force' => 1,
-                    'flags' => 1025,
-                    'from' => 0,
-                    'to' => 0,
-                ], $token);
+            if (!isset($result['items'])) continue;
 
-                if (!isset($result['items'])) {
-                    Log::error("Wialon Sync: No items array returned for [$fleetKey]", ['response' => $result]);
-                    continue;
+            foreach ($result['items'] as $unitData) {
+                $wialonUnit = WialonUnit::where('wialon_id', $unitData['id'])->first();
+
+                // Retaining fixed concatenation (PHP uses "." not "+")
+                if ($wialonUnit) {
+                    // Log::info("Processing Vehicle: " . $wialonUnit->vehicle_id);
                 }
 
-                $unitCount = count($result['items']);
-                Log::info("Wialon Sync: Found $unitCount units in [$fleetKey]");
+                if (!$wialonUnit || !$wialonUnit->vehicle_id) continue;
 
-                foreach ($result['items'] as $unitData) {
-                    // 2. Check if the unit exists in our local DB mapping
-                    $wialonUnit = WialonUnit::where('wialon_id', $unitData['id'])->first();
+                $vehicleId = $wialonUnit->vehicle_id;
+                $pos = $unitData['pos'] ?? null;
+                $params = $unitData['lmsg']['p'] ?? [];
+                if (!$pos) continue;
 
-                    if (!$wialonUnit) {
-                        Log::warning("Wialon Sync: Unit ID {$unitData['id']} ({$unitData['nm']}) skipped. Reason: Not found in wialon_units table. Run syncUnits first.");
-                        continue;
-                    }
+                // 1. Calculations
+                $lat = $pos['y'];
+                $lon = $pos['x'];
+                $speed = $pos['s'] ?? 0;
+                $odometer = ($unitData['cnm'] ?? 0) / 1000;
+                $ignition = (bool)($params['io_239'] ?? 0);
+                $rawFuel = $params['io_270'] ?? 0;
+                $fuelLiters = round(($rawFuel * 0.09770395701) - 0.09770395701, 2);
+                $recordedAt = isset($unitData['lmsg']['t'])
+                    ? \Carbon\Carbon::createFromTimestamp($unitData['lmsg']['t'])
+                    : $now;
 
-                    if (!$wialonUnit->vehicle_id) {
-                        Log::warning("Wialon Sync: Unit {$unitData['nm']} skipped. Reason: No vehicle_id linked to this wialon_unit record.");
-                        continue;
-                    }
+                try {
+                    DB::transaction(function () use ($vehicleId, $recordedAt, $lat, $lon, $speed, $fuelLiters, $ignition, $odometer, $now) {
 
-                    $vehicle = $wialonUnit->vehicle;
-                    $pos = $unitData['pos'] ?? null;
-                    $params = $unitData['lmsg']['p'] ?? [];
+                        // 2. Fetch current snapshot BEFORE updating it
+                        $previousSnapshot = DB::table('vehicle_snapshots')
+                            ->where('vehicle_id', $vehicleId)
+                            ->first();
 
-                    if (!$pos) {
-                        Log::debug("Wialon Sync: Unit {$unitData['nm']} has no GPS position data.");
-                        continue;
-                    }
-
-                    // 3. Process the data
-                    $lat = $pos['y'];
-                    $lon = $pos['x'];
-                    $speed = $pos['s'] ?? 0;
-                    $odometer = ($unitData['cnm'] ?? 0) / 1000;
-                    $ignition = (bool)($params['io_239'] ?? 0);
-
-                    // Your Fuel Logic
-                    $rawFuel = $params['io_270'] ?? 0;
-                    $currentFuel = ($rawFuel * 0.09770395701) - 0.09770395701;
-
-                    $vehicle->update([
-                        'last_lat' => $lat,
-                        'last_lon' => $lon,
-                        'current_fuel' => round($currentFuel, 2),
-                        'current_odometer' => round($odometer, 2),
-                        'is_engine_on' => $ignition,
-                        'last_update' => now(),
-                    ]);
-
-                    // Significance & History
-                    if ($this->evaluateSignificance($vehicle, $lat, $lon, $currentFuel, $odometer, $ignition)) {
-                        DB::table('telemetry_recent')->insert([
-                            'vehicle_id'  => $vehicle->id,
-                            'fuel'        => round($currentFuel, 2),
-                            'odometer'    => round($odometer, 2),
-                            'speed'       => $speed,
-                            'ignition'    => $ignition,
-                            'location'    => DB::raw("ST_GeomFromText('POINT($lon $lat)', 4326)"),
-                            'created_at'  => now(),
+                        // 3. Insert Raw Point (Essential for the 5-point window check)
+                        DB::table('telemetry_points')->insert([
+                            'vehicle_id' => $vehicleId,
+                            'recorded_at' => $recordedAt,
+                            'latitude' => $lat,
+                            'longitude' => $lon,
+                            'speed' => $speed,
+                            'fuel_level_raw' => $fuelLiters,
+                            'ignition' => $ignition,
+                            'odometer' => $odometer,
+                            'created_at' => $now,
+                            'updated_at' => $now,
                         ]);
-                    }
+
+                        // 4. Update Snapshot
+                        DB::table('vehicle_snapshots')->updateOrInsert(
+                            ['vehicle_id' => $vehicleId],
+                            [
+                                'last_seen_at' => $recordedAt,
+                                'latitude' => $lat,
+                                'longitude' => $lon,
+                                'speed' => $speed,
+                                'fuel_level' => $fuelLiters,
+                                'ignition' => $ignition,
+                                'is_moving' => $speed > 2,
+                                'low_fuel' => $fuelLiters < 20,
+                                'updated_at' => $now,
+                            ]
+                        );
+
+                        // 5. Smart Event Detection (Refills/Drains)
+                        if ($previousSnapshot) {
+                            $diff = $fuelLiters - $previousSnapshot->fuel_level;
+                            $refillThreshold = 10;
+                            $drainThreshold = $ignition ? 12 : 5; // Stationary sensitivity
+
+                            // Check for Refill
+                            if ($diff >= $refillThreshold) {
+                                $this->logEvent($vehicleId, 'fuel_refill', $diff, $recordedAt);
+                            }
+                            // Check for Drain (using dynamic threshold + Windowed Confirmation)
+                            elseif ($diff <= ($drainThreshold * -1)) {
+                                if ($this->isPersistentDrain($vehicleId, $fuelLiters, $drainThreshold)) {
+                                    $this->logEvent($vehicleId, 'fuel_drain', abs($diff), $recordedAt);
+                                }
+                            }
+                        }
+                    });
 
                     $processedCount++;
+                } catch (\Exception $e) {
+                    Log::error("Sync Error for Vehicle $vehicleId: " . $e->getMessage());
                 }
-
-            } catch (\Exception $e) {
-                Log::error("Wialon Sync: Critical failure processing [$fleetKey]", [
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
-                ]);
             }
         }
-
-        Log::info("Wialon Sync: Finished. Total processed: $processedCount");
         return $processedCount;
     }
 
-    protected function evaluateSignificance($vehicle, $lat, $lon, $fuel, $odo, $ignition): bool
+    /**
+     * Helper: Confirms the fuel drop is not a temporary sensor spike.
+     */
+    private function isPersistentDrain($vehicleId, $currentFuel, $threshold): bool
     {
-        $lastRecord = DB::table('telemetry_recent')
-            ->where('vehicle_id', $vehicle->id)
-            ->latest('id')
-            ->first();
+        // Fetch last 5 points using the index on [vehicle_id, recorded_at]
+        $recentPoints = DB::table('telemetry_points')
+            ->where('vehicle_id', $vehicleId)
+            ->orderBy('recorded_at', 'desc')
+            ->limit(5)
+            ->pluck('fuel_level_raw');
 
-        if (!$lastRecord) return true;
+        if ($recentPoints->count() < 5) return false;
 
-        $hasMoved = (abs($lastRecord->odometer - $odo) > 0.05);
-        $ignitionChanged = ($lastRecord->ignition != $ignition);
-        $isStale = now()->diffInMinutes($lastRecord->created_at) >= 10;
+        // If any point in the last 5 was significantly higher,
+        // it confirms the fuel level was previously stable/high.
+        foreach ($recentPoints as $oldLevel) {
+            if (($oldLevel - $currentFuel) >= $threshold) {
+                return true; // Trend confirmed
+            }
+        }
 
-        return $hasMoved || $ignitionChanged || $isStale;
+        return false;
+    }
+
+    private function logEvent($vehicleId, $type, $value, $time)
+    {
+        DB::table('telemetry_events')->insert([
+            'vehicle_id' => $vehicleId,
+            'type' => $type,
+            'value' => $value,
+            'occurred_at' => $time,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 
     /**
