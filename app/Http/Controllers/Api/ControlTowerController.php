@@ -64,7 +64,9 @@ class ControlTowerController extends Controller
                 'totalRefilled' => (float) ($dailyFuel->total_refilled ?? 0),
                 'totalStolen'   => (float) ($dailyFuel->total_stolen ?? 0),
 
-                'criticalFuel' => $snapshots->where('low_fuel', true)->map(fn($s) => [
+                'criticalFuel' => $snapshots->where('low_fuel', true)
+                    ->where('fuel_level', '>', 0)
+                    ->map(fn($s) => [
                     'id'    => $s->vehicle_id,
                     'plate' => $s->plate,
                     'val'   => $s->fuel_level
@@ -73,8 +75,7 @@ class ControlTowerController extends Controller
                 'thefts'   => $recentThefts,
                 'fillings' => $recentFillings,
 
-                'breakdowns' => TelemetryEvent::where('type', 'breakdown')
-                    ->whereDate('occurred_at', $today)
+                'breakdowns' => Vehicle::where('status', 'inactive')
                     ->get(),
 
                 'longStops' => $snapshots->filter(function($s) {
