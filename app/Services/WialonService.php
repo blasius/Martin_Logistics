@@ -11,11 +11,11 @@ use Illuminate\Support\Facades\DB;
 
 class WialonService
 {
-    protected string $url;
+    public string $url;
     /** @var array Keyed array of API tokens from config */
-    protected array $tokens;
+    public array $tokens;
     /** @var array Storage for Session IDs (EIDs) keyed by token */
-    protected array $sids = [];
+    public array $sids = [];
     protected RegionLocatorService $regionLocator;
 
     public function __construct(RegionLocatorService $regionLocator)
@@ -87,7 +87,7 @@ class WialonService
     /**
      * Executes an API call for a specific fleet account.
      */
-    protected function callApi(string $svc, array $params, string $token)
+    public function callApi(string $svc, array $params, string $token)
     {
         $sid = $this->ensureSession($token);
 

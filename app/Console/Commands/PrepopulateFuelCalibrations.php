@@ -15,57 +15,71 @@ class PrepopulateFuelCalibrations extends Command
     {
         $this->info("Starting calibration fetch...");
 
-        // We use Flag 4097 (Base + Sensors) to get the 'sens' block
-        $result = $wialon->callApi('core/search_items', [
-            'spec' => [
-                'itemsType' => 'avl_unit',
-                'propName' => 'sys_name',
-                'propValueMask' => '*',
-                'sortType' => 'sys_name',
-            ],
-            'force' => 1,
-            'flags' => 4097,
-            'from' => 0,
-            'to' => 0,
-        ]);
+        // Access the tokens property directly from your service
+        // Ensure 'tokens' is public or has a getter in WialonService
+        $tokens = $wialon->tokens;
 
-        if (!isset($result['items'])) {
-            $this->error("Failed to fetch units from Wialon.");
+        if (empty($tokens)) {
+            $this->error("No tokens found in WialonService. Check your .env or Service initialization.");
             return;
         }
 
-        $bar = $this->output->createProgressBar(count($result['items']));
-        $count = 0;
+        foreach ($tokens as $fleetName => $token) {
+            $this->info("Fetching calibrations for fleet: " . (is_string($fleetName) ? $fleetName : 'Account'));
 
-        foreach ($result['items'] as $item) {
-            $wialonId = $item['id'];
+            $result = $wialon->callApi('core/search_items', [
+                'spec' => [
+                    'itemsType' => 'avl_unit',
+                    'propName' => 'sys_name',
+                    'propValueMask' => '*',
+                    'sortType' => 'sys_name',
+                ],
+                'force' => 1,
+                'flags' => 4097, // Base + Sensors
+                'from' => 0,
+                'to' => 0,
+            ], $token);
 
-            // Link to your local vehicle record
-            $vehicle = DB::table('wialon_units')->where('wialon_id', $wialonId)->first();
-
-            if (!$vehicle || !$vehicle->vehicle_id) {
-                $bar->advance();
+            if (!isset($result['items'])) {
+                $this->warn("No items found for this token.");
                 continue;
             }
 
-            // Find the fuel level sensor in the 'sens' object
-            $fuelSensor = collect($item['sens'] ?? [])->firstWhere('t', 'fuel level');
+            $bar = $this->output->createProgressBar(count($result['items']));
+            $count = 0;
 
-            if ($fuelSensor) {
-                DB::table('fuel_calibrations')->updateOrInsert(
-                    ['vehicle_id' => $vehicle->vehicle_id],
-                    [
-                        'calibration_table' => json_encode($fuelSensor['tbl']),
-                        'last_wialon_mt' => $fuelSensor['mt'] ?? 0,
-                        'updated_at' => now(),
-                    ]
-                );
-                $count++;
+            foreach ($result['items'] as $item) {
+                // Find our local vehicle by Wialon ID
+                $vehicle = DB::table('wialon_units')
+                    ->where('wialon_id', $item['id'])
+                    ->first();
+
+                if (!$vehicle || !$vehicle->vehicle_id) {
+                    $bar->advance();
+                    continue;
+                }
+
+                // Find the fuel sensor
+                $fuelSensor = collect($item['sens'] ?? [])->firstWhere('t', 'fuel level');
+
+                if ($fuelSensor) {
+                    DB::table('fuel_calibrations')->updateOrInsert(
+                        ['vehicle_id' => $vehicle->vehicle_id],
+                        [
+                            'calibration_table' => json_encode($fuelSensor['tbl']),
+                            'last_wialon_mt' => $fuelSensor['mt'] ?? 0,
+                            'updated_at' => now(),
+                        ]
+                    );
+                    $count++;
+                }
+                $bar->advance();
             }
-            $bar->advance();
+
+            $bar->finish();
+            $this->info("\nFinished. Populated $count calibrations for this fleet.");
         }
 
-        $bar->finish();
-        $this->info("\nDone! Populated $count vehicle calibrations.");
+        $this->info("\nAll processing complete.");
     }
 }
