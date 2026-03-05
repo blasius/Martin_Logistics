@@ -130,7 +130,7 @@
 
                 <div class="col-span-2 flex items-center gap-2">
                     <span class="font-black text-slate-900 uppercase tracking-tighter">{{ v.plate_number }}</span>
-                    <button @click="showInfo(v)" class="p-1 text-slate-300 hover:text-indigo-600 transition-colors" title="View/Copy Details">
+                    <button @click="showInfo(v)" class="p-1 text-slate-300 hover:text-indigo-600 transition-colors">
                         <Info class="w-4 h-4" />
                     </button>
                     <div class="text-[8px] font-black px-1.5 py-0.5 rounded inline-block uppercase"
@@ -181,10 +181,21 @@
 
                 <div class="col-span-2 flex justify-end gap-1 no-print">
                     <template v-if="canEdit">
-                        <button v-if="v.status === 'active'" @click="confirmMaintenance(v)" class="p-2 hover:bg-rose-50 text-slate-300 hover:text-rose-600 rounded-lg" title="Send to Maintenance"><Wrench class="w-4 h-4" /></button>
-                        <button v-else @click="returnToService(v)" class="p-2 hover:bg-emerald-50 text-slate-300 hover:text-emerald-600 rounded-lg" title="Return to Service"><CheckCircle class="w-4 h-4" /></button>
+                        <template v-if="v.status === 'active'">
+                            <button @click="confirmMaintenance(v)" class="p-2 hover:bg-amber-50 text-slate-300 hover:text-amber-600 rounded-lg" title="To Maintenance">
+                                <Wrench class="w-4 h-4" />
+                            </button>
+                            <button @click="confirmDeactivation(v)" class="p-2 hover:bg-rose-50 text-slate-300 hover:text-rose-600 rounded-lg" title="Deactivate">
+                                <XCircle class="w-4 h-4" />
+                            </button>
+                        </template>
+                        <button v-else @click="returnToService(v)" class="p-2 hover:bg-emerald-50 text-slate-300 hover:text-emerald-600 rounded-lg" title="Return to Service">
+                            <CheckCircle class="w-4 h-4" />
+                        </button>
                     </template>
-                    <button @click="showHistory(v)" class="p-2 hover:bg-slate-100 text-slate-300 hover:text-indigo-600 rounded-lg"><History class="w-4 h-4" /></button>
+                    <button @click="showHistory(v)" class="p-2 hover:bg-slate-100 text-slate-300 hover:text-indigo-600 rounded-lg">
+                        <History class="w-4 h-4" />
+                    </button>
                 </div>
             </div>
         </div>
@@ -204,7 +215,7 @@ const vehicles = ref([]);
 const availableDrivers = ref([]);
 const availableTrailers = ref([]);
 const searchQuery = ref('');
-const statusFilter = ref('active'); // Default changed to 'active'
+const statusFilter = ref('active');
 const canEdit = ref(false);
 const rowSearch = reactive({ drivers: {}, trailers: {} });
 const notification = reactive({ show: false, message: '' });
@@ -241,11 +252,10 @@ const showInfo = (v) => {
 const copyToClipboard = () => {
     const d = infoModal.data;
     const text = `UNIT: ${d.vehicle}/${d.trailer}\nDRIVER: ${d.driver}\nPASSPORT: ${d.passport}\nLICENSE: ${d.license}\nPHONE: ${d.phone}`;
-
     navigator.clipboard.writeText(text).then(() => {
         triggerNotification("Details copied!");
         infoModal.show = false;
-    }).catch(() => triggerNotification("Failed to copy."));
+    });
 };
 
 const hasStartedTyping = (vid, type) => rowSearch[type + 's'][vid] && rowSearch[type + 's'][vid].trim().length > 0;
@@ -293,6 +303,7 @@ const initiateAction = (vehicle, asset, type) => {
     rowSearch[type + 's'][vehicle.id] = '';
 };
 
+// --- NEW STATUS TOGGLE LOGIC ---
 const confirmMaintenance = (v) => {
     confirm.title = "Maintenance Mode";
     confirm.message = `Mark <strong>${v.plate_number}</strong> as Maintenance? This will unpair all current assignments.`;
@@ -301,11 +312,22 @@ const confirmMaintenance = (v) => {
     confirm.show = true;
 };
 
+const confirmDeactivation = (v) => {
+    confirm.title = "Deactivate Unit";
+    confirm.message = `Mark <strong>${v.plate_number}</strong> as Inactive? This will unpair all current assignments.`;
+    confirm.severity = 'danger'; confirm.icon = markRaw(XCircle);
+    confirm.payload = { vehicleId: v.id, action: 'inactive' };
+    confirm.show = true;
+};
+
 const proceedWithUpdate = async () => {
     const p = confirm.payload;
     if (p.action === 'maintenance') {
         await api.post('/portal/dispatch/maintenance', { vehicle_id: p.vehicleId });
         triggerNotification("Unit moved to Shop");
+    } else if (p.action === 'inactive') {
+        await api.post('/portal/dispatch/toggle-status', { vehicle_id: p.vehicleId, status: 'inactive' });
+        triggerNotification("Unit Deactivated");
     } else {
         await api.post('/portal/dispatch/pair', { vehicle_id: p.vehicleId, [p.type + '_id']: p.assetId });
         triggerNotification(`${p.type} Updated`);
@@ -315,7 +337,8 @@ const proceedWithUpdate = async () => {
 };
 
 const returnToService = async (v) => {
-    await api.post('/portal/dispatch/activate', { vehicle_id: v.id });
+    // We use the new toggle-status route to force it back to active
+    await api.post('/portal/dispatch/toggle-status', { vehicle_id: v.id, status: 'active' });
     triggerNotification("Unit Reactivated");
     loadData();
 };
@@ -339,16 +362,13 @@ const exportToExcel = async () => {
         const url = window.URL.createObjectURL(new Blob([response.data]));
         const link = document.createElement('a');
         link.href = url;
-        const filename = `fleet_dispatch_${dayjs().format('YYYY-MM-DD')}.xlsx`;
-        link.setAttribute('download', filename);
+        link.setAttribute('download', `fleet_dispatch_${dayjs().format('YYYY-MM-DD')}.xlsx`);
         document.body.appendChild(link);
         link.click();
         link.remove();
-        window.URL.revokeObjectURL(url);
         triggerNotification("Export Complete");
     } catch (error) {
-        console.error("Export failed", error);
-        triggerNotification("Export failed. Check console.");
+        triggerNotification("Export failed.");
     }
 };
 
@@ -368,10 +388,7 @@ const onFrameLoad = () => {
 
 const filteredVehicles = computed(() => {
     let list = vehicles.value;
-
-    // Strict status filtering (no 'all' option anymore)
     list = list.filter(v => v.status === statusFilter.value);
-
     const q = searchQuery.value.toLowerCase();
     if (q) {
         list = list.filter(v =>

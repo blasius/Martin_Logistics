@@ -130,6 +130,38 @@ class DispatchController extends Controller
         return response()->json(['message' => 'Vehicle moved to maintenance.']);
     }
 
+    public function toggleStatus(Request $request)
+    {
+        $request->validate([
+            'vehicle_id' => 'required|exists:vehicles,id',
+            'status' => 'required|in:active,inactive'
+        ]);
+
+        $vehicleId = $request->vehicle_id;
+        $newStatus = $request->status;
+
+        DB::transaction(function () use ($vehicleId, $newStatus) {
+            DB::table('vehicles')->where('id', $vehicleId)->update(['status' => $newStatus]);
+
+            // If moving to inactive, unpair current assignments (similar to maintenance)
+            if ($newStatus === 'inactive') {
+                DB::table('driver_vehicle_assignments')
+                    ->where('vehicle_id', $vehicleId)
+                    ->whereNull('end_date')
+                    ->update(['end_date' => now()]);
+
+                DB::table('trailer_assignments')
+                    ->where('vehicle_id', $vehicleId)
+                    ->whereNull('unassigned_at')
+                    ->update(['unassigned_at' => now()]);
+            }
+        });
+
+        return response()->json([
+            'message' => "Vehicle status updated to " . ucfirst($newStatus)
+        ]);
+    }
+
     public function activateVehicle(Request $request)
     {
         $request->validate(['vehicle_id' => 'required']);

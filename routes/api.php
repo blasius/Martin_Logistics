@@ -65,6 +65,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/dispatch/maintenance', [DispatchController::class, 'toggleMaintenance']);
         Route::post('/dispatch/activate', [DispatchController::class, 'activateVehicle']);
         Route::get('/dispatch/print-url', [DispatchController::class, 'getPrintUrl']);
+        Route::post('/dispatch/toggle-status', [DispatchController::class, 'toggleStatus']);
 
         Route::get('/insurances', [InsuranceController::class, 'index']);
         Route::post('/insurances', [InsuranceController::class, 'store']);
