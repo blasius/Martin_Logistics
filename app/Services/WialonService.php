@@ -203,7 +203,9 @@ class WialonService
                     'sortType' => 'sys_name',
                 ],
                 'force' => 1,
-                'flags' => 1025,
+                // Flag 4096 (Sensors) + 1024 (Custom Props) + 1 (Base) = 5121
+                // We need 4096 to see the 'sens' block for calibration
+                'flags' => 5121,
                 'from' => 0,
                 'to' => 0,
             ], $token);
@@ -213,11 +215,6 @@ class WialonService
             foreach ($result['items'] as $unitData) {
                 $wialonUnit = WialonUnit::where('wialon_id', $unitData['id'])->first();
 
-                // Retaining fixed concatenation (PHP uses "." not "+")
-                if ($wialonUnit) {
-                    // Log::info("Processing Vehicle: " . $wialonUnit->vehicle_id);
-                }
-
                 if (!$wialonUnit || !$wialonUnit->vehicle_id) continue;
 
                 $vehicleId = $wialonUnit->vehicle_id;
@@ -225,14 +222,16 @@ class WialonService
                 $params = $unitData['lmsg']['p'] ?? [];
                 if (!$pos) continue;
 
-                // 1. Calculations
+                // 1. DYNAMIC FUEL CALCULATION
+                $rawFuelValue = $params['io_270'] ?? 0;
+                $fuelLiters = $this->getCalibratedFuel($vehicleId, $rawFuelValue, $unitData['sens'] ?? []);
+
                 $lat = $pos['y'];
                 $lon = $pos['x'];
                 $speed = $pos['s'] ?? 0;
                 $odometer = ($unitData['cnm'] ?? 0) / 1000;
                 $ignition = (bool)($params['io_239'] ?? 0);
-                $rawFuel = $params['io_270'] ?? 0;
-                $fuelLiters = round(($rawFuel * 0.09770395701) - 0.09770395701, 2);
+
                 $recordedAt = isset($unitData['lmsg']['t'])
                     ? \Carbon\Carbon::createFromTimestamp($unitData['lmsg']['t'])
                     : $now;
@@ -240,26 +239,26 @@ class WialonService
                 try {
                     DB::transaction(function () use ($vehicleId, $recordedAt, $lat, $lon, $speed, $fuelLiters, $ignition, $odometer, $now) {
 
-                        // 2. Fetch current snapshot BEFORE updating it
                         $previousSnapshot = DB::table('vehicle_snapshots')
                             ->where('vehicle_id', $vehicleId)
                             ->first();
 
-                        // 3. Insert Raw Point (Essential for the 5-point window check)
                         DB::table('telemetry_points')->insert([
                             'vehicle_id' => $vehicleId,
                             'recorded_at' => $recordedAt,
                             'latitude' => $lat,
                             'longitude' => $lon,
                             'speed' => $speed,
-                            'fuel_level_raw' => $fuelLiters,
+                            'fuel_level_raw' => $fuelLiters, // Accurately calibrated liters
                             'ignition' => $ignition,
                             'odometer' => $odometer,
                             'created_at' => $now,
                             'updated_at' => $now,
                         ]);
 
-                        // 4. Update Snapshot
+                        // Don't flag low fuel if sensor is missing/invalid (-0.1)
+                        $isLowFuel = ($fuelLiters >= 0 && $fuelLiters < 20);
+
                         DB::table('vehicle_snapshots')->updateOrInsert(
                             ['vehicle_id' => $vehicleId],
                             [
@@ -270,22 +269,19 @@ class WialonService
                                 'fuel_level' => $fuelLiters,
                                 'ignition' => $ignition,
                                 'is_moving' => $speed > 2,
-                                'low_fuel' => $fuelLiters < 20,
+                                'low_fuel' => $isLowFuel,
                                 'updated_at' => $now,
                             ]
                         );
 
-                        // 5. Smart Event Detection (Refills/Drains)
-                        if ($previousSnapshot) {
+                        if ($previousSnapshot && $fuelLiters >= 0 && $previousSnapshot->fuel_level >= 0) {
                             $diff = $fuelLiters - $previousSnapshot->fuel_level;
                             $refillThreshold = 10;
-                            $drainThreshold = $ignition ? 12 : 5; // Stationary sensitivity
+                            $drainThreshold = $ignition ? 12 : 5;
 
-                            // Check for Refill
                             if ($diff >= $refillThreshold) {
                                 $this->logEvent($vehicleId, 'fuel_refill', $diff, $recordedAt);
                             }
-                            // Check for Drain (using dynamic threshold + Windowed Confirmation)
                             elseif ($diff <= ($drainThreshold * -1)) {
                                 if ($this->isPersistentDrain($vehicleId, $fuelLiters, $drainThreshold)) {
                                     $this->logEvent($vehicleId, 'fuel_drain', abs($diff), $recordedAt);
@@ -304,8 +300,67 @@ class WialonService
     }
 
     /**
-     * Helper: Confirms the fuel drop is not a temporary sensor spike.
+     * Accuracy Logic: Pulls calibration from DB or Updates from Wialon JSON if changed
      */
+    private function getCalibratedFuel($vehicleId, $rawX, $sensors): float
+    {
+        if ($rawX <= 0) return -0.1;
+
+        // Find the sensor of type "fuel level"
+        $fuelSensor = collect($sensors)->firstWhere('t', 'fuel level');
+        if (!$fuelSensor) return -0.1;
+
+        $wialonMt = $fuelSensor['mt'] ?? 0;
+
+        // Check if we have this cached locally
+        $local = DB::table('fuel_calibrations')->where('vehicle_id', $vehicleId)->first();
+
+        // If local is missing OR Wialon modification time is newer, update local table
+        if (!$local || (isset($local->last_wialon_mt) && $local->last_wialon_mt < $wialonMt)) {
+            $tableData = $fuelSensor['tbl'] ?? [];
+
+            DB::table('fuel_calibrations')->updateOrInsert(
+                ['vehicle_id' => $vehicleId],
+                [
+                    'calibration_table' => json_encode($tableData),
+                    'last_wialon_mt' => $wialonMt, // Assumes you added this column
+                    'updated_at' => now()
+                ]
+            );
+            $calibrationTbl = $tableData;
+        } else {
+            $calibrationTbl = json_decode($local->calibration_table, true);
+        }
+
+        if (empty($calibrationTbl)) return -0.1;
+
+        // Calculation Logic
+        $row = $calibrationTbl[0];
+
+        // CASE A: Linear Multiplier (Like your HOWO RAD 820Q)
+        if (isset($row['a']) && isset($row['b'])) {
+            $liters = ($rawX * $row['a']) + $row['b'];
+            return (float) round(max(0, $liters), 2);
+        }
+
+        // CASE B: XY Table (Non-linear tanks)
+        usort($calibrationTbl, fn($a, $b) => $a['x'] <=> $b['x']);
+        if ($rawX <= $calibrationTbl[0]['x']) return (float)$calibrationTbl[0]['y'];
+
+        for ($i = 0; $i < count($calibrationTbl) - 1; $i++) {
+            $p0 = $calibrationTbl[$i];
+            $p1 = $calibrationTbl[$i+1];
+            if ($rawX >= $p0['x'] && $rawX <= $p1['x']) {
+                $rangeX = $p1['x'] - $p0['x'];
+                if ($rangeX == 0) return (float)$p0['y'];
+                $val = $p0['y'] + ($rawX - $p0['x']) * ($p1['y'] - $p0['y']) / $rangeX;
+                return (float) round($val, 2);
+            }
+        }
+
+        return (float) round(end($calibrationTbl)['y'], 2);
+    }
+
     private function isPersistentDrain($vehicleId, $currentFuel, $threshold): bool
     {
         // Fetch last 5 points using the index on [vehicle_id, recorded_at]
