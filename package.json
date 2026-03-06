@@ -21,12 +21,14 @@
         "vite": "^7.1.12"
     },
     "dependencies": {
+        "@geoman-io/leaflet-geoman-free": "^2.19.2",
         "@tailwindcss/cli": "^4.1.13",
         "chart.js": "^4.5.1",
         "dayjs": "^1.11.19",
         "firebase": "^12.5.0",
         "fullcalendar": "^6.1.19",
         "laravel-echo": "^2.2.6",
+        "leaflet": "^1.9.4",
         "lucide-vue-next": "^0.554.0",
         "pinia": "^3.0.3",
         "pusher-js": "^8.4.0",
