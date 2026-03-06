@@ -9,6 +9,12 @@ class VehicleSnapshot extends Model
     protected $primaryKey = 'vehicle_id';
     public $incrementing = false;
 
+    // Hide the binary column to prevent UTF-8 errors
+    protected $hidden = ['location'];
+
+    // Add these to the JSON output automatically
+    protected $appends = ['coordinates'];
+
     protected $fillable = [
         'vehicle_id', 'last_seen_at', 'latitude', 'longitude',
         'speed', 'fuel_level', 'ignition', 'is_moving', 'low_fuel'
@@ -24,5 +30,14 @@ class VehicleSnapshot extends Model
     public function vehicle()
     {
         return $this->belongsTo(Vehicle::class);
+    }
+
+    public function getCoordinatesAttribute()
+    {
+        // Return a clean array for your Vue Google Maps/Leaflet component
+        return [
+            'lat' => (float) $this->latitude,
+            'lng' => (float) $this->longitude,
+        ];
     }
 }
