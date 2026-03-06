@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Api\VerificationController;
 use App\Http\Controllers\Api\WhatsAppVerificationController;
 use App\Http\Controllers\Api\SearchController;
+use App\Http\Controllers\Api\RoutesController;
 
 // Public Routes
 Route::post('/login', [AuthController::class, 'login']); // Token-based
@@ -71,6 +72,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/insurances', [InsuranceController::class, 'store']);
         Route::get('/inspections', [InsuranceController::class, 'index']);
         Route::post('/inspections', [InsuranceController::class, 'store']);
+
+        Route::post('/routes', [RoutesController::class, 'index']);
+        Route::post('/routes/store', [RoutesController::class, 'store']);
 
         Route::get('/compliance-summary', [ComplianceSummaryController::class, 'complianceSummary']);
         Route::get('/control-tower', [ControlTowerController::class, 'index']);
