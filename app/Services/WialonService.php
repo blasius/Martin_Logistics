@@ -248,6 +248,7 @@ class WialonService
                             'recorded_at' => $recordedAt,
                             'latitude' => $lat,
                             'longitude' => $lon,
+                            'location' => DB::raw("ST_GeomFromText('POINT($lon $lat)', 4326)"),
                             'speed' => $speed,
                             'fuel_level_raw' => $fuelLiters, // Accurately calibrated liters
                             'ignition' => $ignition,
@@ -265,6 +266,7 @@ class WialonService
                                 'last_seen_at' => $recordedAt,
                                 'latitude' => $lat,
                                 'longitude' => $lon,
+                                'location' => DB::raw("ST_GeomFromText('POINT($lon $lat)', 4326)"),
                                 'speed' => $speed,
                                 'fuel_level' => $fuelLiters,
                                 'ignition' => $ignition,
