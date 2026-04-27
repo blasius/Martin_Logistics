@@ -140,7 +140,7 @@ class FinesController extends Controller
             $query->where('plate_number', 'like', "%{$request->plate}%");
         }
 
-        return Excel::download(new FinesExport($query), 'fleet_debt_report_' . now()->format('Y-m-d') . '.xlsx');
+        return Excel::download(new FinesExport($query), 'fleet_debt_report_' . now()->format('Y-m-d_H-i-s_u') . '.xlsx');
     }
 
     public function stats()
