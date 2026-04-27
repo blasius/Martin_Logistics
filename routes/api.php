@@ -21,6 +21,8 @@ use App\Http\Controllers\Api\VerificationController;
 use App\Http\Controllers\Api\WhatsAppVerificationController;
 use App\Http\Controllers\Api\SearchController;
 use App\Http\Controllers\Api\RoutesController;
+use App\Http\Controllers\Api\TripController;
+use App\Http\Controllers\Api\MockDispatchController;
 
 // Public Routes
 Route::post('/login', [AuthController::class, 'login']); // Token-based
@@ -45,6 +47,8 @@ Route::middleware('auth')->group(function () {
 
         // Fines & Analytics
         Route::get('/fines', [FinesController::class, 'index']);
+        Route::get('/fines/export', [FinesController::class, 'export']);
+        Route::get('/fines/stats', [FinesController::class, 'stats']);
         Route::get('/fines/recent/{plate}', [FinesController::class, 'recent']);
         Route::post('/fines/check', [FinesController::class, 'forceCheck']);
         Route::get('/fines/analytics', [FinesAnalyticsController::class, 'index']);
@@ -52,10 +56,19 @@ Route::middleware('auth')->group(function () {
         Route::get('/fines/export-day', [FinesAnalyticsController::class, 'exportDay']);
         Route::get('/fines/by-violation', [FinesAnalyticsController::class, 'byViolation']);
 
+        //Mock data
+        Route::prefix('/mock')->group(function () {
+            Route::get('/clients', [MockDispatchController::class, 'searchClients']);
+            Route::get('/clients/{id}/order', [MockDispatchController::class, 'getClientOrder']);
+            Route::get('/routes', [MockDispatchController::class, 'getRoutes']);
+            Route::get('/assignments', [MockDispatchController::class, 'searchAssignments']);
+        });
+
         // Operations
         Route::get('/drivers', [DriverController::class, 'index']);
         Route::get('/drivers/search-users', [DriverController::class, 'searchUsers']);
         Route::post('/drivers', [DriverController::class, 'store']);
+        Route::post('/trips', [TripController::class, 'store']);
 
         Route::get('/vehicles', [VehicleController::class, 'index']);
 
@@ -82,7 +95,13 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/drivers/{driver}', [SearchController::class, 'showDriver']);
         Route::get('/vehicles/{vehicle}', [SearchController::class, 'showVehicle']);
-        Route::get('/orders/{order}', [SearchController::class, 'showOrder']);
+        Route::get('/orders/{order}', [TripController::class, 'showOrder']);
+
+        // Trip Lifecycle
+        Route::post('/trips', [TripController::class, 'store']);
+        Route::get('/trips/search-assignments', [TripController::class, 'searchAssignments']);
+        // Order Search (For the left sidebar)
+        Route::get('/orders/search', [SearchController::class, 'searchOrders']);
 
         // Support System Nested Group
         Route::prefix('support')->group(function () {

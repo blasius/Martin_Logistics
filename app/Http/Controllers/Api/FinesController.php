@@ -10,6 +10,8 @@ use App\Models\TrafficFine;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Exports\FinesExport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class FinesController extends Controller
 {
@@ -123,5 +125,36 @@ class FinesController extends Controller
 
         CheckPlateJob::dispatch($data['plate'], $data['type']);
         return response()->json(['status' => 'queued']);
+    }
+
+    public function export(Request $request)
+    {
+        $query = TrafficFine::with(['violations']);
+
+        if ($request->filled('type')) {
+            $typeClass = $request->type === 'vehicle' ? Vehicle::class : Trailer::class;
+            $query->where('fineable_type', $typeClass);
+        }
+
+        if ($request->filled('plate')) {
+            $query->where('plate_number', 'like', "%{$request->plate}%");
+        }
+
+        return Excel::download(new FinesExport($query), 'fleet_debt_report_' . now()->format('Y-m-d') . '.xlsx');
+    }
+
+    public function stats()
+    {
+        return response()->json([
+            'total_unpaid' => TrafficFine::where('status', 'PENDING')->sum('ticket_amount'),
+            'overdue_count' => TrafficFine::where('status', 'PENDING')
+                ->where('issued_at', '<', now()->subDays(14))
+                ->count(),
+            'top_violation' => DB::table('traffic_fine_violations') // Adjust table name accordingly
+            ->select('violation_name', DB::raw('count(*) as count'))
+                ->groupBy('violation_name')
+                ->orderByDesc('count')
+                ->first(),
+        ]);
     }
 }
