@@ -15,6 +15,25 @@
                 </select>
             </div>
 
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                    <p class="text-[10px] font-black text-slate-400 uppercase">Total Debt</p>
+                    <p class="text-2xl font-black text-rose-600">{{ formatAmount(stats.total_unpaid) }} FRW</p>
+                </div>
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                    <p class="text-[10px] font-black text-slate-400 uppercase">Overdue Tickets</p>
+                    <p class="text-2xl font-black text-slate-800">{{ stats.overdue_count }}</p>
+                </div>
+                <div v-if="stats.top_violation" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                    <p class="text-[10px] font-black text-slate-400 uppercase">Most Frequent Offense</p>
+                    <p class="text-sm font-bold text-slate-700 truncate">{{ stats.top_violation.violation_name }}</p>
+                </div>
+            </div>
+
+            <button @click="downloadExport" class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl text-xs font-black transition-all shadow-md active:scale-95">
+                EXPORT EXCEL
+            </button>
+
             <div class="flex flex-col gap-1 flex-1">
                 <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Search Database</label>
                 <input v-model="filters.plate" @input="debounced" type="text" placeholder="Search plate or driver name..."
@@ -153,6 +172,21 @@ const statusClass = (s) => {
     if (s === 'PENDING') return 'bg-amber-100 text-amber-700';
     return 'bg-slate-100 text-slate-500';
 };
+
+const stats = ref({ total_unpaid: 0, overdue_count: 0, top_violation: null });
+
+const fetchStats = async () => {
+    const res = await api.get('/portal/fines/stats');
+    stats.value = res.data;
+};
+
+const downloadExport = () => {
+    const params = new URLSearchParams(filters.value).toString();
+    window.location.href = `/api/portal/fines/export?${params}`;
+};
+
+// Call stats on load
+fetchStats();
 
 fetch();
 </script>
