@@ -14,8 +14,17 @@ class FinesExport implements WithMultipleSheets
     protected $query;
 
     public function __construct($query) {
-        // First Goal: Remove paid fines. Focus only on PENDING.
-        $this->query = $query->where('status', 'PENDING');
+        // 1. Only PENDING fines
+        // 2. Only where the parent vehicle/trailer is NOT 'inactive'
+        $this->query = $query->where('status', 'PENDING')
+            ->where(function($q) {
+                $q->whereHasMorph('fineable', [Vehicle::class], function($sub) {
+                    $sub->whereIn('status', ['active', 'maintenance']);
+                })
+                    ->orWhereHasMorph('fineable', [Trailer::class], function($sub) {
+                        $sub->whereIn('status', ['active', 'maintenance']);
+                    });
+            });
     }
 
     public function sheets(): array {
@@ -32,7 +41,7 @@ class ActiveDebtSheet implements FromCollection, WithHeadings, WithMapping, With
 
     public function __construct($query) { $this->query = $query; }
 
-    public function title(): string { return 'Active Debt (Unpaid)'; }
+    public function title(): string { return 'Operational Debt'; }
 
     public function collection() { return $this->query->get(); }
 
@@ -40,7 +49,7 @@ class ActiveDebtSheet implements FromCollection, WithHeadings, WithMapping, With
         return [
             'Urgency',
             'Plate Number',
-            'Unit Type',
+            'Unit Status',
             'Current Driver',
             'Linked Trailer',
             'Amount (FRW)',
@@ -52,19 +61,19 @@ class ActiveDebtSheet implements FromCollection, WithHeadings, WithMapping, With
     public function map($fine): array {
         $days = \Carbon\Carbon::parse($fine->issued_at)->diffInDays(now());
 
-        // Second Goal: Build Associations (Logic inspired by DispatchController)
-        $driverName = 'No Driver Assigned';
-        $linkedTrailer = 'N/A';
+        // Get status and associations
+        $status = $fine->fineable->status ?? 'Unknown';
+        $driverName = 'No Driver';
+        $linkedTrailer = 'None';
 
         if ($fine->fineable_type === Vehicle::class) {
-            // Find who is currently driving this truck
+            // Who is currently assigned?
             $driverName = DB::table('users')
                 ->join('driver_vehicle_assignments', 'users.id', '=', 'driver_vehicle_assignments.driver_id')
                 ->where('vehicle_id', $fine->fineable_id)
                 ->whereNull('end_date')
                 ->value('name') ?? 'Standby';
 
-            // Find what is currently attached to this truck
             $linkedTrailer = DB::table('trailers')
                 ->join('trailer_assignments', 'trailers.id', '=', 'trailer_assignments.trailer_id')
                 ->where('vehicle_id', $fine->fineable_id)
@@ -75,7 +84,7 @@ class ActiveDebtSheet implements FromCollection, WithHeadings, WithMapping, With
         return [
             $days > 14 ? 'CRITICAL' : 'PENDING',
             $fine->plate_number,
-            str_replace('App\\Models\\', '', $fine->fineable_type),
+            strtoupper($status),
             $driverName,
             $linkedTrailer,
             $fine->ticket_amount,
@@ -85,13 +94,14 @@ class ActiveDebtSheet implements FromCollection, WithHeadings, WithMapping, With
     }
 
     public function styles(Worksheet $sheet) {
-        $sheet->setAutoFilter('A1:H1'); // Third Goal: Offer Filters
+        $sheet->setAutoFilter('A1:H1');
         $sheet->getStyle('A1:H1')->getFont()->setBold(true);
 
         foreach ($sheet->getRowIterator(2) as $row) {
             $rowIndex = $row->getRowIndex();
             $urgency = $sheet->getCell('A' . $rowIndex)->getValue();
 
+            // Highlight critical debt
             if ($urgency === 'CRITICAL') {
                 $sheet->getStyle("A{$rowIndex}:H{$rowIndex}")->applyFromArray([
                     'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => 'FFC7CE']],
