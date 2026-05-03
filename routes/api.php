@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\MobileAuthController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Api\ComplianceSummaryController;
@@ -31,6 +32,14 @@ Route::get('/dispatch/secure-print', [DispatchController::class, 'printStatus'])
     ->name('dispatch.print.secure')
     ->middleware('signed'); // Laravel 12 handles this alias automatically
 Route::get('/search/global', [SearchController::class, 'search']);
+
+// Mobile Auth Routes
+Route::prefix('mobile/auth')->group(function () {
+    Route::post('/request-whatsapp-otp', [MobileAuthController::class, 'requestWhatsAppOtp']);
+    Route::post('/verify-whatsapp-otp', [MobileAuthController::class, 'verifyWhatsAppOtp']);
+    Route::post('/verify-firebase-phone', [MobileAuthController::class, 'verifyFirebasePhone']);
+    Route::post('/logout', [MobileAuthController::class, 'logout'])->middleware('auth:sanctum');
+});
 
 // Protected Routes
 Route::middleware('auth')->group(function () {
