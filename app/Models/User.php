@@ -86,4 +86,9 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
         return $this->verifiedContacts()->exists();
     }
 
+    public function driver()
+    {
+        return $this->hasOne(Driver::class);
+    }
+
 }

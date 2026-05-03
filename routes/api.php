@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\MobileAuthController;
+use App\Http\Controllers\Api\MobileTripController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Api\ComplianceSummaryController;
@@ -39,6 +40,14 @@ Route::prefix('mobile/auth')->group(function () {
     Route::post('/verify-whatsapp-otp', [MobileAuthController::class, 'verifyWhatsAppOtp']);
     Route::post('/verify-firebase-phone', [MobileAuthController::class, 'verifyFirebasePhone']);
     Route::post('/logout', [MobileAuthController::class, 'logout'])->middleware('auth:sanctum');
+});
+
+// Mobile App Routes (Protected)
+Route::prefix('mobile')->middleware('auth:sanctum')->group(function () {
+    Route::prefix('trips')->group(function () {
+        Route::get('/current', [MobileTripController::class, 'current']);
+        Route::post('/{trip}/status', [MobileTripController::class, 'updateStatus']);
+    });
 });
 
 // Protected Routes
