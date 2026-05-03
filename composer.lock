@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "19ffbb0c506d4d64bc45f650e717ef9a",
+    "content-hash": "8b28c80bed29935389b4601eb58282be",
     "packages": [
         {
             "name": "anourvalar/eloquent-serialize",
@@ -11055,16 +11055,16 @@
         },
         {
             "name": "twilio/sdk",
-            "version": "8.8.5",
+            "version": "8.11.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/twilio/twilio-php",
-                "reference": "248dce83f5a0a21905cd4bf445080252cb04a8a6"
+                "reference": "969d7f399599cb69177c1938562f8fe4e114e426"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/twilio/twilio-php/zipball/248dce83f5a0a21905cd4bf445080252cb04a8a6",
-                "reference": "248dce83f5a0a21905cd4bf445080252cb04a8a6",
+                "url": "https://api.github.com/repos/twilio/twilio-php/zipball/969d7f399599cb69177c1938562f8fe4e114e426",
+                "reference": "969d7f399599cb69177c1938562f8fe4e114e426",
                 "shasum": ""
             },
             "require": {
@@ -11101,7 +11101,7 @@
                 "sms",
                 "twilio"
             ],
-            "time": "2025-10-28T10:01:47+00:00"
+            "time": "2026-04-14T09:35:43+00:00"
         },
         {
             "name": "ueberdosis/tiptap-php",
@@ -13752,5 +13752,5 @@
         "php": "^8.2"
     },
     "platform-dev": {},
-    "plugin-api-version": "2.6.0"
+    "plugin-api-version": "2.9.0"
 }
