@@ -14,17 +14,7 @@ class FinesExport implements WithMultipleSheets
     protected $query;
 
     public function __construct($query) {
-        // 1. Only PENDING fines
-        // 2. Only where the parent vehicle/trailer is NOT 'inactive'
-        $this->query = $query->where('status', 'PENDING')
-            ->where(function($q) {
-                $q->whereHasMorph('fineable', [Vehicle::class], function($sub) {
-                    $sub->whereIn('status', ['active', 'maintenance']);
-                })
-                    ->orWhereHasMorph('fineable', [Trailer::class], function($sub) {
-                        $sub->whereIn('status', ['active', 'maintenance']);
-                    });
-            });
+        $this->query = $query;
     }
 
     public function sheets(): array {
@@ -39,63 +29,110 @@ class ActiveDebtSheet implements FromCollection, WithHeadings, WithMapping, With
 {
     protected $query;
 
-    public function __construct($query) { $this->query = $query; }
+    public function __construct($query) {
+        $this->query = clone $query;
+    }
 
     public function title(): string { return 'Operational Debt'; }
 
-    public function collection() { return $this->query->get(); }
+    public function collection() {
+        // Get all active/maintenance vehicles
+        $vehicles = Vehicle::whereIn('status', ['active', 'maintenance'])->get();
+        $exportData = collect();
+
+        foreach ($vehicles as $vehicle) {
+            // Get current drivers
+            $drivers = DB::table('users')
+                ->join('driver_vehicle_assignments', 'users.id', '=', 'driver_vehicle_assignments.driver_id')
+                ->where('vehicle_id', $vehicle->id)
+                ->whereNull('end_date')
+                ->pluck('name')
+                ->implode(', ');
+            $driverName = $drivers ?: 'No Driver';
+
+            // Get current trailer
+            $linkedTrailer = DB::table('trailers')
+                ->join('trailer_assignments', 'trailers.id', '=', 'trailer_assignments.trailer_id')
+                ->where('vehicle_id', $vehicle->id)
+                ->whereNull('unassigned_at')
+                ->first();
+
+            $trailerPlate = $linkedTrailer ? $linkedTrailer->plate_number : 'None';
+            $plateDisplay = $trailerPlate !== 'None' ? "{$vehicle->plate_number}/{$trailerPlate}" : $vehicle->plate_number;
+
+            // Get pending fines for the vehicle
+            $vehicleFines = TrafficFine::with('violations')
+                ->where('status', 'PENDING')
+                ->where('fineable_type', Vehicle::class)
+                ->where('fineable_id', $vehicle->id)
+                ->get();
+
+            // Get pending fines for the trailer
+            $trailerFines = collect();
+            if ($linkedTrailer) {
+                $trailerFines = TrafficFine::with('violations')
+                    ->where('status', 'PENDING')
+                    ->where('fineable_type', Trailer::class)
+                    ->where('fineable_id', $linkedTrailer->trailer_id)
+                    ->get();
+            }
+
+            $allFines = $vehicleFines->merge($trailerFines);
+
+            if ($allFines->isNotEmpty()) {
+                $totalAmount = $allFines->sum('ticket_amount');
+                $oldestFineDate = $allFines->min('issued_at');
+                $days = $oldestFineDate ? \Carbon\Carbon::parse($oldestFineDate)->diffInDays(now()) : 0;
+
+                $descriptions = $allFines->flatMap(function ($fine) {
+                    $prefix = $fine->fineable_type === Vehicle::class ? '[Vehicle] ' : '[Trailer] ';
+                    return $fine->violations->map(function ($violation) use ($prefix) {
+                        return $prefix . $violation->violation_name;
+                    });
+                })->implode(' | ');
+
+                $exportData->push([
+                    'urgency' => $days > 14 ? 'CRITICAL' : 'PENDING',
+                    'plateDisplay' => $plateDisplay,
+                    'status' => strtoupper($vehicle->status),
+                    'driverName' => $driverName,
+                    'totalAmount' => $totalAmount,
+                    'days' => $days,
+                    'descriptions' => $descriptions
+                ]);
+            }
+        }
+
+        return $exportData;
+    }
 
     public function headings(): array {
         return [
             'Urgency',
-            'Plate Number',
+            'Plate (Vehicle/Trailer)',
             'Unit Status',
-            'Current Driver',
-            'Linked Trailer',
-            'Amount (FRW)',
-            'Days Unpaid',
+            'Current Driver(s)',
+            'Total Amount (FRW)',
+            'Oldest Fine Days',
             'Offense Details'
         ];
     }
 
-    public function map($fine): array {
-        $days = \Carbon\Carbon::parse($fine->issued_at)->diffInDays(now());
-
-        // Get status and associations
-        $status = $fine->fineable->status ?? 'Unknown';
-        $driverName = 'No Driver';
-        $linkedTrailer = 'None';
-
-        if ($fine->fineable_type === Vehicle::class) {
-            // Who is currently assigned?
-            $driverName = DB::table('users')
-                ->join('driver_vehicle_assignments', 'users.id', '=', 'driver_vehicle_assignments.driver_id')
-                ->where('vehicle_id', $fine->fineable_id)
-                ->whereNull('end_date')
-                ->value('name') ?? 'Standby';
-
-            $linkedTrailer = DB::table('trailers')
-                ->join('trailer_assignments', 'trailers.id', '=', 'trailer_assignments.trailer_id')
-                ->where('vehicle_id', $fine->fineable_id)
-                ->whereNull('unassigned_at')
-                ->value('plate_number') ?? 'None';
-        }
-
+    public function map($row): array {
         return [
-            $days > 14 ? 'CRITICAL' : 'PENDING',
-            $fine->plate_number,
-            strtoupper($status),
-            $driverName,
-            $linkedTrailer,
-            $fine->ticket_amount,
-            $days,
-            $fine->violations->pluck('violation_name')->implode(', ')
+            $row['urgency'],
+            $row['plateDisplay'],
+            $row['status'],
+            $row['driverName'],
+            $row['totalAmount'],
+            $row['days'],
+            $row['descriptions']
         ];
     }
 
     public function styles(Worksheet $sheet) {
-        $sheet->setAutoFilter('A1:H1');
-        $sheet->getStyle('A1:H1')->getFont()->setBold(true);
+        $sheet->setAutoFilter('A1:G1');
+        $sheet->getStyle('A1:G1')->getFont()->setBold(true);
 
         foreach ($sheet->getRowIterator(2) as $row) {
             $rowIndex = $row->getRowIndex();
@@ -103,7 +140,7 @@ class ActiveDebtSheet implements FromCollection, WithHeadings, WithMapping, With
 
             // Highlight critical debt
             if ($urgency === 'CRITICAL') {
-                $sheet->getStyle("A{$rowIndex}:H{$rowIndex}")->applyFromArray([
+                $sheet->getStyle("A{$rowIndex}:G{$rowIndex}")->applyFromArray([
                     'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => 'FFC7CE']],
                     'font' => ['color' => ['rgb' => '9C0006']]
                 ]);
@@ -118,7 +155,7 @@ class AnalyticsSheet implements WithTitle, WithStyles {
     public function title(): string { return 'Management Charts'; }
 
     public function styles(Worksheet $sheet) {
-        $fines = $this->query->get();
+        $fines = $this->query->where('status', 'PENDING')->get();
 
         // Header
         $sheet->setCellValue('A1', 'DEBT INSIGHTS');
