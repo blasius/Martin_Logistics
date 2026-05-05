@@ -104,8 +104,11 @@ Route::middleware('auth')->group(function () {
         Route::get('/inspections', [InsuranceController::class, 'index']);
         Route::post('/inspections', [InsuranceController::class, 'store']);
 
-        Route::post('/routes', [RoutesController::class, 'index']);
+        // Routes
+        Route::get('/routes', [RoutesController::class, 'index']);
         Route::post('/routes/store', [RoutesController::class, 'store']);
+        Route::put('/routes/{route}', [RoutesController::class, 'update']);
+        Route::delete('/routes/{route}', [RoutesController::class, 'destroy']);
 
         Route::get('/compliance-summary', [ComplianceSummaryController::class, 'complianceSummary']);
         Route::get('/control-tower', [ControlTowerController::class, 'index']);
