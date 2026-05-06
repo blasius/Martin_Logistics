@@ -106,6 +106,7 @@ Route::middleware('auth')->group(function () {
 
         // Routes
         Route::get('/routes', [RoutesController::class, 'index']);
+        Route::get('/routes/{route}', [RoutesController::class, 'show']);
         Route::post('/routes/store', [RoutesController::class, 'store']);
         Route::put('/routes/{route}', [RoutesController::class, 'update']);
         Route::delete('/routes/{route}', [RoutesController::class, 'destroy']);
