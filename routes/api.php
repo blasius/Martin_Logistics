@@ -117,13 +117,17 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/drivers/{driver}', [SearchController::class, 'showDriver']);
         Route::get('/vehicles/{vehicle}', [SearchController::class, 'showVehicle']);
+
+        // ** MOVED THIS ROUTE HIGHER **
+        // Order Search (For the left sidebar)
+        Route::get('/orders/search', [SearchController::class, 'searchOrders']);
+
         Route::get('/orders/{order}', [TripController::class, 'showOrder']);
 
         // Trip Lifecycle
         Route::post('/trips', [TripController::class, 'store']);
         Route::get('/trips/search-assignments', [TripController::class, 'searchAssignments']);
-        // Order Search (For the left sidebar)
-        Route::get('/orders/search', [SearchController::class, 'searchOrders']);
+
 
         // Support System Nested Group
         Route::prefix('support')->group(function () {

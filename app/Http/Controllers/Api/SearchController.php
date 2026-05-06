@@ -117,6 +117,38 @@ class SearchController extends Controller
         ]);
     }
 
+    public function searchOrders(Request $request)
+    {
+        $q = $request->query('q');
+        if (strlen($q) < 2) return response()->json([]);
+
+        // Search active orders by reference or client name
+        $orders = Order::with('client')
+            ->where('status', '!=', 'dispatched') // Only un-dispatched orders
+            ->where(function($query) use ($q) {
+                $query->where('reference', 'LIKE', "%{$q}%")
+                      ->orWhereHas('client', function($clientQuery) use ($q) {
+                          $clientQuery->where('name', 'LIKE', "%{$q}%");
+                      });
+            })
+            ->limit(10)
+            ->get()
+            ->map(function ($order) {
+                return [
+                    'id' => $order->id,
+                    'reference' => $order->reference,
+                    'client_name' => $order->client ? $order->client->name : 'Unknown Client',
+                    'goods_type' => $order->goods_type ?? 'General Cargo', // Assuming this field exists, modify if needed
+                    'tonnage' => $order->tonnage ?? 0, // Assuming this field exists
+                    'remaining_tonnage' => $order->remaining_tonnage ?? 0, // Assuming this field exists
+                    'origin' => $order->origin,
+                    'destination' => $order->destination,
+                ];
+            });
+
+        return response()->json($orders);
+    }
+
     // app/Http/Controllers/Api/DriverController.php
     public function showDriver(Driver $driver)
     {
