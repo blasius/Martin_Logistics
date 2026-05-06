@@ -22,7 +22,7 @@ class TripController extends Controller
             'order_id'       => 'required|exists:orders,id',
             'assignment'     => 'required|string', // e.g., "vehicle-5" or "driver-12"
             'route_id'       => 'nullable|exists:routes,id',
-            'departure_time' => 'nullable|date',
+            'allocated_weight' => 'nullable|numeric',
             'status'         => 'required|in:pending,assigned,on_route',
         ]);
 
@@ -44,15 +44,23 @@ class TripController extends Controller
                 'driver_id'      => $driverId,
                 'route_id'       => $validated['route_id'],
                 'status'         => $validated['status'],
-                'departure_time' => $validated['departure_time'],
-                'created_by'     => Auth::id(),
+                // Add allocated weight logic here if you have a field for it in trips, or update order remaining tonnage
+                'created_by'     => Auth::id() ?? 1, // Fallback for testing without auth
             ]);
 
             // 3. Update the Order Status
             // This prevents the order from appearing in the "Pending" list again.
-            Order::where('id', $validated['order_id'])->update([
-                'status' => 'dispatched'
-            ]);
+            $order = Order::find($validated['order_id']);
+            if ($order) {
+                $remaining = max(0, ($order->remaining_tonnage ?? $order->tonnage) - ($validated['allocated_weight'] ?? 0));
+
+                $orderUpdate = ['remaining_tonnage' => $remaining];
+                if ($remaining == 0) {
+                    $orderUpdate['status'] = 'in_transit'; // changed from 'dispatched'
+                }
+
+                $order->update($orderUpdate);
+            }
 
             return response()->json([
                 'message' => 'Trip successfully dispatched.',
@@ -70,7 +78,7 @@ class TripController extends Controller
         if (strlen($q) < 2) return response()->json([]);
 
         $vehicles = Vehicle::where('plate_number', 'like', "%{$q}%")
-            ->limit(5)->get(['id', 'plate_number']);
+            ->limit(5)->get(['id', 'plate_number', 'capacity']);
 
         $drivers = Driver::whereHas('user', fn($query) => $query->where('name', 'like', "%{$q}%"))
             ->with('user:id,name')
@@ -78,10 +86,24 @@ class TripController extends Controller
 
         $results = [];
         foreach ($vehicles as $v) {
-            $results[] = ['id' => "vehicle-{$v->id}", 'label' => "Vehicle: {$v->plate_number}", 'type' => 'vehicle'];
+            $results[] = [
+                'id' => "vehicle-{$v->id}",
+                'label' => "Vehicle: {$v->plate_number}",
+                'type' => 'vehicle',
+                'capacity' => $v->capacity, // Send capacity for frontend autopopulation
+                // Mocking ratio and age for the UI calculations since they aren't in the model yet
+                'ratio' => 35.0,
+                'age' => 5
+            ];
         }
         foreach ($drivers as $d) {
-            $results[] = ['id' => "driver-{$d->id}", 'label' => "Driver: {$d->user->name}", 'type' => 'driver'];
+            $results[] = [
+                'id' => "driver-{$d->id}",
+                'label' => "Driver: {$d->user->name}",
+                'type' => 'driver',
+                'ratio' => 0,
+                'age' => 0
+            ];
         }
 
         return response()->json($results);
