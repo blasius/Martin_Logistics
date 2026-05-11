@@ -10,6 +10,9 @@ export const tripsApi = {
     getAllRoutes() {
         return api.get('/portal/routes'); // Re-use the existing routes endpoint
     },
+    getRoute(id) {
+        return api.get(`/portal/routes/${id}`); // Needed to fetch full geometry for map drawing
+    },
     createTrip(data) {
         return api.post('/portal/trips', data);
     }

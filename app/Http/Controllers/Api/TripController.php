@@ -80,27 +80,47 @@ class TripController extends Controller
         $vehicles = Vehicle::where('plate_number', 'like', "%{$q}%")
             ->limit(5)->get(['id', 'plate_number', 'capacity']);
 
-        $drivers = Driver::whereHas('user', fn($query) => $query->where('name', 'like', "%{$q}%"))
-            ->with('user:id,name')
-            ->limit(5)->get();
-
         $results = [];
         foreach ($vehicles as $v) {
+
+            // Fetch current driver
+            $driverName = DB::table('users')
+                ->join('driver_vehicle_assignments', 'users.id', '=', 'driver_vehicle_assignments.driver_id')
+                ->where('driver_vehicle_assignments.vehicle_id', $v->id)
+                ->whereNull('driver_vehicle_assignments.end_date')
+                ->value('users.name');
+
+            // Fetch current trailer
+            $trailerPlate = DB::table('trailers')
+                ->join('trailer_assignments', 'trailers.id', '=', 'trailer_assignments.trailer_id')
+                ->where('trailer_assignments.vehicle_id', $v->id)
+                ->whereNull('trailer_assignments.unassigned_at')
+                ->value('trailers.plate_number');
+
             $results[] = [
                 'id' => "vehicle-{$v->id}",
-                'label' => "Vehicle: {$v->plate_number}",
+                'label' => $v->plate_number, // User requested just plate number for label
+                'driver_name' => $driverName, // Pass driver name for banner
+                'trailer_plate' => $trailerPlate, // Pass trailer for banner
                 'type' => 'vehicle',
-                'capacity' => $v->capacity, // Send capacity for frontend autopopulation
-                // Mocking ratio and age for the UI calculations since they aren't in the model yet
+                'capacity' => (float) $v->capacity, // Cast to float
                 'ratio' => 35.0,
                 'age' => 5
             ];
         }
+
+        $drivers = Driver::whereHas('user', fn($query) => $query->where('name', 'like', "%{$q}%"))
+            ->with('user:id,name')
+            ->limit(5)->get();
+
         foreach ($drivers as $d) {
             $results[] = [
                 'id' => "driver-{$d->id}",
                 'label' => "Driver: {$d->user->name}",
+                'driver_name' => $d->user->name,
+                'trailer_plate' => null,
                 'type' => 'driver',
+                'capacity' => null,
                 'ratio' => 0,
                 'age' => 0
             ];
