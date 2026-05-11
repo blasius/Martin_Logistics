@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\SearchController;
 use App\Http\Controllers\Api\RoutesController;
 use App\Http\Controllers\Api\TripController;
 use App\Http\Controllers\Api\MockDispatchController;
+use App\Http\Controllers\Api\DashboardController;
 
 // Public Routes
 Route::post('/login', [AuthController::class, 'login']); // Token-based
@@ -114,6 +115,11 @@ Route::middleware('auth')->group(function () {
         Route::get('/compliance-summary', [ComplianceSummaryController::class, 'complianceSummary']);
         Route::get('/control-tower', [ControlTowerController::class, 'index']);
         Route::get('/report/{type}', [FleetDashboardController::class, 'getDetailedReport']);
+
+        // Dashboard
+        Route::get('/dashboard/overview', [DashboardController::class, 'getOverview']);
+        Route::get('/dashboard/analytics', [DashboardController::class, 'getAnalytics']);
+        Route::get('/dashboard/operational-status', [DashboardController::class, 'getOperationalStatus']);
 
         Route::get('/drivers/{driver}', [SearchController::class, 'showDriver']);
         Route::get('/vehicles/{vehicle}', [SearchController::class, 'showVehicle']);
