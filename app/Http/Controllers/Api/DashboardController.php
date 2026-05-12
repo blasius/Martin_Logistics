@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Vehicle;
 use App\Models\Driver;
 use App\Models\Order;
+use App\Models\SupportTicket;
 use App\Models\Trip;
 use App\Models\TrafficFine;
 use App\Models\Trailer;
@@ -228,11 +229,82 @@ class DashboardController extends Controller
             ]
         ];
 
+        // Support System Data
+        $supportStats = DB::table('support_tickets')
+            ->selectRaw("
+                COUNT(*) as total_tickets,
+                SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open_tickets,
+                SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress_tickets,
+                SUM(CASE WHEN status = 'waiting' THEN 1 ELSE 0 END) as waiting_tickets,
+                SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) as resolved_tickets,
+                SUM(CASE WHEN priority = 'urgent' THEN 1 ELSE 0 END) as urgent_tickets,
+                SUM(CASE WHEN priority = 'high' THEN 1 ELSE 0 END) as high_priority_tickets,
+                AVG(TIMESTAMPDIFF(HOUR, created_at, NOW())) as avg_resolution_hours
+            ")
+            ->whereDate('created_at', $today)
+            ->first();
+
+        $recentSupportTickets = DB::table('support_tickets')
+            ->join('support_categories', 'support_tickets.support_category_id', '=', 'support_categories.id')
+            ->leftJoin('users', 'support_tickets.assigned_to', '=', 'users.id')
+            ->select([
+                'support_tickets.id',
+                'support_tickets.reference',
+                'support_tickets.title',
+                'support_tickets.priority',
+                'support_tickets.status',
+                'support_tickets.created_at',
+                'support_categories.name as category_name',
+                'users.name as assigned_to_name'
+            ])
+            ->orderBy('support_tickets.created_at', 'desc')
+            ->take(5)
+            ->get()
+            ->map(function($ticket) {
+                return [
+                    'id' => $ticket->id,
+                    'reference' => $ticket->reference,
+                    'title' => $ticket->title,
+                    'priority' => $ticket->priority,
+                    'status' => $ticket->status,
+                    'category_name' => $ticket->category_name,
+                    'assigned_to' => $ticket->assigned_to_name,
+                    'time_ago' => \Carbon\Carbon::parse($ticket->created_at)->diffForHumans()
+                ];
+            });
+
+        $supportCategories = DB::table('support_categories')
+            ->select('name', DB::raw('COUNT(support_tickets.id) as ticket_count'))
+            ->leftJoin('support_tickets', 'support_categories.id', '=', 'support_tickets.support_category_id')
+            ->where('support_categories.is_active', true)
+            ->groupBy('support_categories.id', 'support_categories.name')
+            ->get()
+            ->map(function($category) {
+                return [
+                    'name' => $category->name,
+                    'count' => $category->ticket_count
+                ];
+            });
+
+        $supportOverview = [
+            'total_tickets' => (int) ($supportStats->total_tickets ?? 0),
+            'open_tickets' => (int) ($supportStats->open_tickets ?? 0),
+            'in_progress_tickets' => (int) ($supportStats->in_progress_tickets ?? 0),
+            'waiting_tickets' => (int) ($supportStats->waiting_tickets ?? 0),
+            'resolved_tickets' => (int) ($supportStats->resolved_tickets ?? 0),
+            'urgent_tickets' => (int) ($supportStats->urgent_tickets ?? 0),
+            'high_priority_tickets' => (int) ($supportStats->high_priority_tickets ?? 0),
+            'avg_resolution_hours' => round($supportStats->avg_resolution_hours ?? 0, 1),
+            'categories' => $supportCategories,
+            'recent_tickets' => $recentSupportTickets
+        ];
+
         return response()->json([
             'fleet_status' => $fleetStatus,
             'driver_status' => $driverStatus,
             'fleet_utilization' => $fleetUtilization,
             'fuel_management' => $fuelManagement,
+            'support_overview' => $supportOverview,
             'order_stats' => $orderStats,
             'trip_stats' => $tripStats,
             'fine_stats' => $fineStats,
