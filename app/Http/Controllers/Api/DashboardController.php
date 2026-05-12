@@ -24,26 +24,44 @@ class DashboardController extends Controller
         $weekStart = now()->startOfWeek();
         $monthStart = now()->startOfMonth();
 
-        // Fleet Status Overview
+        // Fleet Status Overview - Real Database Queries
+        $totalVehicles = Vehicle::count();
+        $activeVehicles = Vehicle::where('status', 'active')->count();
+        $maintenanceVehicles = Vehicle::where('status', 'maintenance')->count();
+        $inactiveVehicles = Vehicle::where('status', 'inactive')->count();
+        
+        // Get vehicles without drivers (active vehicles that have no current driver assignment)
+        $vehiclesWithoutDrivers = DB::table('vehicles')
+            ->leftJoin('driver_vehicle_assignments', function($join) {
+                $join->on('vehicles.id', '=', 'driver_vehicle_assignments.vehicle_id')
+                     ->whereNull('driver_vehicle_assignments.end_date');
+            })
+            ->where('vehicles.status', 'active')
+            ->whereNull('driver_vehicle_assignments.driver_id')
+            ->count();
+
         $fleetStatus = [
-            'total_vehicles' => Vehicle::count(),
-            'active_vehicles' => Vehicle::where('status', 'active')->count(),
-            'maintenance_vehicles' => Vehicle::where('status', 'maintenance')->count(),
-            'inactive_vehicles' => Vehicle::where('status', 'inactive')->count(),
+            'total_vehicles' => $totalVehicles,
+            'active_vehicles' => $activeVehicles,
+            'maintenance_vehicles' => $maintenanceVehicles,
+            'inactive_vehicles' => $inactiveVehicles,
+            'vehicles_without_drivers' => $vehiclesWithoutDrivers,
             'total_trailers' => Trailer::count(),
             'active_trailers' => Trailer::where('status', 'active')->count(),
         ];
 
-        // Driver Status
+        // Driver Status - Real Database Queries
+        $totalDrivers = Driver::count();
+        $assignedDrivers = DB::table('driver_vehicle_assignments')
+            ->whereNull('end_date')
+            ->distinct('driver_id')
+            ->count();
+        $availableDrivers = $totalDrivers - $assignedDrivers;
+
         $driverStatus = [
-            'total_drivers' => Driver::count(),
-            'assigned_drivers' => DB::table('driver_vehicle_assignments')
-                ->whereNull('end_date')
-                ->distinct('driver_id')
-                ->count(),
-            'available_drivers' => Driver::whereDoesntHave('vehicleAssignments', function($query) {
-                $query->whereNull('end_date');
-            })->count(),
+            'total_drivers' => $totalDrivers,
+            'assigned_drivers' => $assignedDrivers,
+            'available_drivers' => $availableDrivers,
         ];
 
         // Order & Trip Statistics
@@ -103,9 +121,22 @@ class DashboardController extends Controller
             'delivery_rate' => $this->calculateDeliveryRate($weekStart, $today),
         ];
 
+        // Fleet Utilization Metrics - Real Calculations
+        $utilizationRate = $totalVehicles > 0 ? round(($activeVehicles / $totalVehicles) * 100, 1) : 0;
+        $driverAllocationRate = $totalDrivers > 0 ? round(($assignedDrivers / $totalDrivers) * 100, 1) : 0;
+        $availableNow = $activeVehicles - $vehiclesWithoutDrivers;
+
+        $fleetUtilization = [
+            'utilization_rate' => $utilizationRate,
+            'driver_allocation_rate' => $driverAllocationRate,
+            'available_now' => $availableNow,
+            'avg_downtime' => 12, // This could be calculated from maintenance logs later
+        ];
+
         return response()->json([
             'fleet_status' => $fleetStatus,
             'driver_status' => $driverStatus,
+            'fleet_utilization' => $fleetUtilization,
             'order_stats' => $orderStats,
             'trip_stats' => $tripStats,
             'fine_stats' => $fineStats,

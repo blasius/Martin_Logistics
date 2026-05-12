@@ -4,8 +4,8 @@
         <header class="bg-white border-b border-slate-200 px-8 py-6">
             <div class="flex items-center justify-between">
                 <div>
-                    <h1 class="text-3xl font-black text-slate-800 uppercase tracking-tight">Fleet Command Center</h1>
-                    <p class="text-slate-500 mt-1">Real-time logistics operations overview</p>
+                    <h1 class="text-3xl font-black text-slate-800 uppercase tracking-tight">Fleet overview</h1>
+                    <p class="text-slate-500 mt-1">Real-time operations overview</p>
                 </div>
                 <div class="flex items-center gap-4">
                     <div class="text-right">
@@ -31,7 +31,7 @@
                     </div>
                     <div class="text-right">
                         <p class="text-xs text-slate-400 font-medium uppercase tracking-wider">Total Fleet</p>
-                        <p class="text-3xl font-black text-white">{{ mockFleetData.total_vehicles }}</p>
+                        <p class="text-3xl font-black text-white">{{ fleetUtilizationData.total_vehicles }}</p>
                     </div>
                 </div>
 
@@ -45,13 +45,13 @@
                             </div>
                             <span class="text-xs font-medium text-emerald-400 bg-emerald-500/20 px-2 py-1 rounded-full">OPERATIONAL</span>
                         </div>
-                        <h3 class="text-3xl font-black text-white">{{ mockFleetData.active_vehicles }}</h3>
+                        <h3 class="text-3xl font-black text-white">{{ fleetUtilizationData.active_vehicles }}</h3>
                         <p class="text-sm text-emerald-300 mt-1">Active Trucks</p>
                         <div class="mt-4">
                             <div class="w-full bg-emerald-500/20 rounded-full h-2">
-                                <div class="bg-emerald-400 h-2 rounded-full transition-all duration-500" :style="{ width: `${(mockFleetData.active_vehicles / mockFleetData.total_vehicles) * 100}%` }"></div>
+                                <div class="bg-emerald-400 h-2 rounded-full transition-all duration-500" :style="{ width: `${(fleetUtilizationData.active_vehicles / fleetUtilizationData.total_vehicles) * 100}%` }"></div>
                             </div>
-                            <p class="text-xs text-emerald-400 mt-2">{{ Math.round((mockFleetData.active_vehicles / mockFleetData.total_vehicles) * 100) }}% of fleet</p>
+                            <p class="text-xs text-emerald-400 mt-2">{{ Math.round((fleetUtilizationData.active_vehicles / fleetUtilizationData.total_vehicles) * 100) }}% of fleet</p>
                         </div>
                     </div>
 
@@ -63,13 +63,13 @@
                             </div>
                             <span class="text-xs font-medium text-rose-400 bg-rose-500/20 px-2 py-1 rounded-full">OFFLINE</span>
                         </div>
-                        <h3 class="text-3xl font-black text-white">{{ mockFleetData.inactive_vehicles }}</h3>
+                        <h3 class="text-3xl font-black text-white">{{ fleetUtilizationData.inactive_vehicles }}</h3>
                         <p class="text-sm text-rose-300 mt-1">Inactive Trucks</p>
                         <div class="mt-4">
                             <div class="w-full bg-rose-500/20 rounded-full h-2">
-                                <div class="bg-rose-400 h-2 rounded-full transition-all duration-500" :style="{ width: `${(mockFleetData.inactive_vehicles / mockFleetData.total_vehicles) * 100}%` }"></div>
+                                <div class="bg-rose-400 h-2 rounded-full transition-all duration-500" :style="{ width: `${(fleetUtilizationData.inactive_vehicles / fleetUtilizationData.total_vehicles) * 100}%` }"></div>
                             </div>
-                            <p class="text-xs text-rose-400 mt-2">{{ Math.round((mockFleetData.inactive_vehicles / mockFleetData.total_vehicles) * 100) }}% of fleet</p>
+                            <p class="text-xs text-rose-400 mt-2">{{ Math.round((fleetUtilizationData.inactive_vehicles / fleetUtilizationData.total_vehicles) * 100) }}% of fleet</p>
                         </div>
                     </div>
 
@@ -81,13 +81,13 @@
                             </div>
                             <span class="text-xs font-medium text-amber-400 bg-amber-500/20 px-2 py-1 rounded-full">WORKSHOP</span>
                         </div>
-                        <h3 class="text-3xl font-black text-white">{{ mockFleetData.maintenance_vehicles }}</h3>
+                        <h3 class="text-3xl font-black text-white">{{ fleetUtilizationData.maintenance_vehicles }}</h3>
                         <p class="text-sm text-amber-300 mt-1">In Maintenance</p>
                         <div class="mt-4">
                             <div class="w-full bg-amber-500/20 rounded-full h-2">
-                                <div class="bg-amber-400 h-2 rounded-full transition-all duration-500" :style="{ width: `${(mockFleetData.maintenance_vehicles / mockFleetData.total_vehicles) * 100}%` }"></div>
+                                <div class="bg-amber-400 h-2 rounded-full transition-all duration-500" :style="{ width: `${(fleetUtilizationData.maintenance_vehicles / fleetUtilizationData.total_vehicles) * 100}%` }"></div>
                             </div>
-                            <p class="text-xs text-amber-400 mt-2">{{ Math.round((mockFleetData.maintenance_vehicles / mockFleetData.total_vehicles) * 100) }}% of fleet</p>
+                            <p class="text-xs text-amber-400 mt-2">{{ Math.round((fleetUtilizationData.maintenance_vehicles / fleetUtilizationData.total_vehicles) * 100) }}% of fleet</p>
                         </div>
                     </div>
 
@@ -99,13 +99,13 @@
                             </div>
                             <span class="text-xs font-medium text-purple-400 bg-purple-500/20 px-2 py-1 rounded-full">UNASSIGNED</span>
                         </div>
-                        <h3 class="text-3xl font-black text-white">{{ mockFleetData.vehicles_without_drivers }}</h3>
+                        <h3 class="text-3xl font-black text-white">{{ fleetUtilizationData.vehicles_without_drivers }}</h3>
                         <p class="text-sm text-purple-300 mt-1">No Driver Assigned</p>
                         <div class="mt-4">
                             <div class="w-full bg-purple-500/20 rounded-full h-2">
-                                <div class="bg-purple-400 h-2 rounded-full transition-all duration-500" :style="{ width: `${(mockFleetData.vehicles_without_drivers / mockFleetData.total_vehicles) * 100}%` }"></div>
+                                <div class="bg-purple-400 h-2 rounded-full transition-all duration-500" :style="{ width: `${(fleetUtilizationData.vehicles_without_drivers / fleetUtilizationData.total_vehicles) * 100}%` }"></div>
                             </div>
-                            <p class="text-xs text-purple-400 mt-2">{{ Math.round((mockFleetData.vehicles_without_drivers / mockFleetData.total_vehicles) * 100) }}% of fleet</p>
+                            <p class="text-xs text-purple-400 mt-2">{{ Math.round((fleetUtilizationData.vehicles_without_drivers / fleetUtilizationData.total_vehicles) * 100) }}% of fleet</p>
                         </div>
                     </div>
                 </div>
@@ -123,7 +123,7 @@
                                 </div>
                                 <div class="flex items-center gap-3">
                                     <span class="text-lg font-black text-white">{{ item.count }}</span>
-                                    <span class="text-sm text-slate-400">({{ Math.round((item.count / mockFleetData.total_vehicles) * 100) }}%)</span>
+                                    <span class="text-sm text-slate-400">({{ Math.round((item.count / fleetUtilizationData.total_vehicles) * 100) }}%)</span>
                                 </div>
                             </div>
                         </div>
@@ -134,19 +134,19 @@
                         <h3 class="text-lg font-black text-white uppercase tracking-tight mb-6">Quick Stats</h3>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <p class="text-3xl font-black text-emerald-400">{{ mockFleetData.utilization_rate }}%</p>
+                                <p class="text-3xl font-black text-emerald-400">{{ fleetUtilizationData.utilization_rate }}%</p>
                                 <p class="text-sm text-slate-300">Fleet Utilization</p>
                             </div>
                             <div>
-                                <p class="text-3xl font-black text-blue-400">{{ mockFleetData.driver_allocation_rate }}%</p>
+                                <p class="text-3xl font-black text-blue-400">{{ fleetUtilizationData.driver_allocation_rate }}%</p>
                                 <p class="text-sm text-slate-300">Driver Allocation</p>
                             </div>
                             <div>
-                                <p class="text-3xl font-black text-amber-400">{{ mockFleetData.avg_downtime }}hrs</p>
+                                <p class="text-3xl font-black text-amber-400">{{ fleetUtilizationData.avg_downtime }}hrs</p>
                                 <p class="text-sm text-slate-300">Avg Downtime</p>
                             </div>
                             <div>
-                                <p class="text-3xl font-black text-purple-400">{{ mockFleetData.available_now }}</p>
+                                <p class="text-3xl font-black text-purple-400">{{ fleetUtilizationData.available_now }}</p>
                                 <p class="text-sm text-slate-300">Available Now</p>
                             </div>
                         </div>
@@ -290,67 +290,6 @@
                     </div>
                 </div>
             </div>
-
-                <!-- Active Trips -->
-                <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="p-3 bg-blue-100 rounded-lg">
-                            <MapPin class="w-6 h-6 text-blue-600" />
-                        </div>
-                        <span class="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">Live</span>
-                    </div>
-                    <h3 class="text-2xl font-black text-slate-800">{{ overview.trip_stats?.active_trips || 0 }}</h3>
-                    <p class="text-sm text-slate-600 mt-1">Active Trips</p>
-                    <div class="mt-4 flex items-center gap-4 text-xs">
-                        <div class="flex items-center gap-1">
-                            <div class="w-2 h-2 bg-green-400 rounded-full"></div>
-                            <span class="text-slate-500">{{ overview.trip_stats?.on_route_trips || 0 }} On Route</span>
-                        </div>
-                        <div class="flex items-center gap-1">
-                            <div class="w-2 h-2 bg-blue-400 rounded-full"></div>
-                            <span class="text-slate-500">{{ overview.trip_stats?.assigned_trips || 0 }} Assigned</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Driver Availability -->
-                <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="p-3 bg-purple-100 rounded-lg">
-                            <Users class="w-6 h-6 text-purple-600" />
-                        </div>
-                        <span class="text-xs font-medium text-purple-600 bg-purple-50 px-2 py-1 rounded-full">Staff</span>
-                    </div>
-                    <h3 class="text-2xl font-black text-slate-800">{{ overview.driver_status?.available_drivers || 0 }}</h3>
-                    <p class="text-sm text-slate-600 mt-1">Available Drivers</p>
-                    <div class="mt-4 flex items-center gap-4 text-xs">
-                        <div class="flex items-center gap-1">
-                            <div class="w-2 h-2 bg-green-400 rounded-full"></div>
-                            <span class="text-slate-500">{{ overview.driver_status?.assigned_drivers || 0 }} Assigned</span>
-                        </div>
-                        <div class="flex items-center gap-1">
-                            <div class="w-2 h-2 bg-slate-400 rounded-full"></div>
-                            <span class="text-slate-500">{{ overview.driver_status?.total_drivers || 0 }} Total</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Pending Fines -->
-                <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="p-3 bg-rose-100 rounded-lg">
-                            <AlertTriangle class="w-6 h-6 text-rose-600" />
-                        </div>
-                        <span v-if="overview.fine_stats?.overdue_fines > 0" class="text-xs font-medium text-rose-600 bg-rose-50 px-2 py-1 rounded-full">Urgent</span>
-                        <span v-else class="text-xs font-medium text-slate-600 bg-slate-50 px-2 py-1 rounded-full">Normal</span>
-                    </div>
-                    <h3 class="text-2xl font-black text-slate-800">{{ overview.fine_stats?.pending_fines || 0 }}</h3>
-                    <p class="text-sm text-slate-600 mt-1">Pending Fines</p>
-                    <div class="mt-4">
-                        <p class="text-xs text-slate-500">Amount Due: <span class="font-bold text-rose-600">RWF{{ formatCurrency(overview.fine_stats?.total_amount_due) }}</span></p>
-                        <p v-if="overview.fine_stats?.overdue_fines > 0" class="text-xs text-rose-600 font-medium mt-1">{{ overview.fine_stats?.overdue_fines }} Overdue</p>
-                    </div>
-                </div>
             </div>
 
             <!-- Weekly Performance & Recent Activity -->
@@ -467,7 +406,7 @@
                                 <p class="text-xs text-slate-500">{{ fine.ticket_number || 'No #' }}</p>
                             </div>
                             <div class="text-right">
-                                <p class="text-sm font-bold text-rose-600">${{ formatCurrency(fine.ticket_amount) }}</p>
+                                <p class="text-sm font-bold text-rose-600">RWF{{ formatCurrency(fine.ticket_amount) }}</p>
                                 <span class="text-xs font-medium px-2 py-1 rounded-full" :class="getFineStatusColor(fine.status)">
                                     {{ fine.status }}
                                 </span>
@@ -483,7 +422,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { Truck, MapPin, Users, AlertTriangle, Plus, FileText, RefreshCw, XCircle, Wrench, UserX, Fuel, TrendingUp, Zap } from 'lucide-vue-next';
 import { api } from '../../plugins/axios';
 import dayjs from 'dayjs';
@@ -501,25 +440,34 @@ const overview = ref({
     weekly_performance: {}
 });
 
-// Mock Fleet Data for Utilization View
-const mockFleetData = ref({
-    total_vehicles: 48,
-    active_vehicles: 32,
-    inactive_vehicles: 8,
-    maintenance_vehicles: 5,
-    vehicles_without_drivers: 3,
-    utilizations_rate: 67,
-    driver_allocation_rate: 94,
-    avg_downtime: 12,
-    available_now: 24
+// Fleet utilization data will come from API
+const fleetUtilizationData = computed(() => {
+    const fleet = overview.value.fleet_status || {};
+    const drivers = overview.value.driver_status || {};
+    const utilization = overview.value.fleet_utilization || {};
+    
+    return {
+        total_vehicles: fleet.total_vehicles || 0,
+        active_vehicles: fleet.active_vehicles || 0,
+        inactive_vehicles: fleet.inactive_vehicles || 0,
+        maintenance_vehicles: fleet.maintenance_vehicles || 0,
+        vehicles_without_drivers: fleet.vehicles_without_drivers || 0,
+        utilization_rate: utilization.utilization_rate || 0,
+        driver_allocation_rate: utilization.driver_allocation_rate || 0,
+        avg_downtime: utilization.avg_downtime || 0,
+        available_now: utilization.available_now || 0
+    };
 });
 
-const utilizationBreakdown = ref([
-    { status: 'Active & Operational', count: 32, color: '#10b981' },
-    { status: 'Available No Driver', count: 3, color: '#8b5cf6' },
-    { status: 'In Maintenance', count: 5, color: '#f59e0b' },
-    { status: 'Inactive', count: 8, color: '#ef4444' }
-]);
+const utilizationBreakdown = computed(() => {
+    const data = fleetUtilizationData.value;
+    return [
+        { status: 'Active & Operational', count: data.active_vehicles, color: '#10b981' },
+        { status: 'Available No Driver', count: data.vehicles_without_drivers, color: '#8b5cf6' },
+        { status: 'In Maintenance', count: data.maintenance_vehicles, color: '#f59e0b' },
+        { status: 'Inactive', count: data.inactive_vehicles, color: '#ef4444' }
+    ];
+});
 
 // Mock Fuel Data for Fuel Management View
 const mockFuelData = ref({
