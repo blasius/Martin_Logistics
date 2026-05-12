@@ -292,6 +292,135 @@
             </div>
             </div>
 
+            <!-- Support System Overview -->
+            <div class="bg-gradient-to-br from-indigo-900 to-purple-900 rounded-2xl p-8 mb-8 border border-indigo-700 shadow-2xl">
+                <div class="flex items-center justify-between mb-8">
+                    <div>
+                        <h2 class="text-2xl font-black text-white uppercase tracking-tight">Support System</h2>
+                        <p class="text-indigo-200 mt-2">Active support tickets and issue tracking</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs text-indigo-300 font-medium uppercase tracking-wider">Active Issues</p>
+                        <p class="text-3xl font-black text-white">{{ overview.support_overview?.open_tickets || 0 }}</p>
+                    </div>
+                </div>
+
+                <!-- Support Stats Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <!-- Open Tickets -->
+                    <div class="bg-blue-500/10 border border-blue-500/20 rounded-xl p-6 backdrop-blur-sm">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="p-3 bg-blue-500 rounded-lg">
+                                <FileText class="w-6 h-6 text-white" />
+                            </div>
+                            <span class="text-xs font-medium text-blue-400 bg-blue-500/20 px-2 py-1 rounded-full">OPEN</span>
+                        </div>
+                        <h3 class="text-3xl font-black text-white">{{ overview.support_overview?.open_tickets || 0 }}</h3>
+                        <p class="text-sm text-blue-300 mt-1">Open Tickets</p>
+                        <div class="mt-4">
+                            <div class="flex items-center gap-2 text-xs text-blue-200">
+                                <span>{{ Math.round(((overview.support_overview?.open_tickets || 0) / (overview.support_overview?.total_tickets || 1)) * 100) }}%</span>
+                                <span>of total</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- In Progress -->
+                    <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-6 backdrop-blur-sm">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="p-3 bg-amber-500 rounded-lg">
+                                <AlertTriangle class="w-6 h-6 text-white" />
+                            </div>
+                            <span class="text-xs font-medium text-amber-400 bg-amber-500/20 px-2 py-1 rounded-full">IN PROGRESS</span>
+                        </div>
+                        <h3 class="text-3xl font-black text-white">{{ overview.support_overview?.in_progress_tickets || 0 }}</h3>
+                        <p class="text-sm text-amber-300 mt-1">In Progress</p>
+                    </div>
+
+                    <!-- Urgent Tickets -->
+                    <div class="bg-rose-500/10 border border-rose-500/20 rounded-xl p-6 backdrop-blur-sm">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="p-3 bg-rose-500 rounded-lg">
+                                <AlertTriangle class="w-6 h-6 text-white" />
+                            </div>
+                            <span class="text-xs font-medium text-rose-400 bg-rose-500/20 px-2 py-1 rounded-full">URGENT</span>
+                        </div>
+                        <h3 class="text-3xl font-black text-white">{{ overview.support_overview?.urgent_tickets || 0 }}</h3>
+                        <p class="text-sm text-rose-300 mt-1">Urgent Issues</p>
+                    </div>
+
+                    <!-- Resolved Today -->
+                    <div class="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-6 backdrop-blur-sm">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="p-3 bg-emerald-500 rounded-lg">
+                                <Plus class="w-6 h-6 text-white" />
+                            </div>
+                            <span class="text-xs font-medium text-emerald-400 bg-emerald-500/20 px-2 py-1 rounded-full">RESOLVED</span>
+                        </div>
+                        <h3 class="text-3xl font-black text-white">{{ overview.support_overview?.resolved_tickets || 0 }}</h3>
+                        <p class="text-sm text-emerald-300 mt-1">Resolved Today</p>
+                        <div class="mt-4">
+                            <div class="text-xs text-emerald-200">
+                                Avg: {{ overview.support_overview?.avg_resolution_hours || 0 }}hrs
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Support Tickets -->
+                <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Recent Tickets List -->
+                    <div class="bg-white/10 border border-white/20 rounded-xl p-6 backdrop-blur-sm">
+                        <h3 class="text-lg font-black text-white uppercase tracking-tight mb-6">Recent Support Tickets</h3>
+                        <div class="space-y-3">
+                            <div v-for="ticket in overview.support_overview?.recent_tickets" :key="ticket.id" 
+                                 class="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-3">
+                                        <span class="text-xs font-black text-indigo-600 bg-indigo-100 px-2 py-1 rounded-lg uppercase tracking-widest">
+                                            {{ ticket.reference }}
+                                        </span>
+                                        <div>
+                                            <p class="text-sm font-black text-white">{{ ticket.title }}</p>
+                                            <p class="text-xs text-indigo-300">{{ ticket.category_name }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-right ml-4">
+                                    <span :class="[
+                                        'text-[9px] font-black px-2 py-1 rounded-lg uppercase tracking-widest',
+                                        ticket.priority === 'urgent' ? 'bg-rose-100 text-rose-700' :
+                                        ticket.priority === 'high' ? 'bg-amber-100 text-amber-700' :
+                                        'bg-slate-100 text-slate-700'
+                                    ]">
+                                        {{ ticket.priority }}
+                                    </span>
+                                    <p class="text-xs text-indigo-300 mt-1">{{ ticket.time_ago }}</p>
+                                </div>
+                            </div>
+                            <div v-if="!overview.support_overview?.recent_tickets?.length" class="text-center py-8 text-indigo-300 text-sm">
+                                No recent support tickets
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Categories Breakdown -->
+                    <div class="bg-white/10 border border-white/20 rounded-xl p-6 backdrop-blur-sm">
+                        <h3 class="text-lg font-black text-white uppercase tracking-tight mb-6">Categories</h3>
+                        <div class="space-y-3">
+                            <div v-for="category in overview.support_overview?.categories" :key="category.name" 
+                                 class="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-3 h-3 rounded-full bg-indigo-500"></div>
+                                    <span class="text-sm font-medium text-white">{{ category.name }}</span>
+                                </div>
+                                <span class="text-lg font-black text-indigo-400">{{ category.count }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Weekly Performance & Recent Activity -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
                 <!-- Weekly Performance -->
@@ -423,7 +552,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue';
-import { Truck, MapPin, Users, AlertTriangle, Plus, FileText, RefreshCw, XCircle, Wrench, UserX, Fuel, TrendingUp, Zap } from 'lucide-vue-next';
+import { Truck, MapPin, Users, AlertTriangle, Plus, FileText, RefreshCw, XCircle, Wrench, UserX, Fuel, TrendingUp, Zap, FileText as FileTextIcon } from 'lucide-vue-next';
 import { api } from '../../plugins/axios';
 import dayjs from 'dayjs';
 
@@ -433,6 +562,8 @@ const lastUpdated = ref(new Date());
 const overview = ref({
     fleet_status: {},
     driver_status: {},
+    fuel_management: {},
+    support_overview: {},
     order_stats: {},
     trip_stats: {},
     fine_stats: {},
