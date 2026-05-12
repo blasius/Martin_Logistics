@@ -133,10 +133,106 @@ class DashboardController extends Controller
             'avg_downtime' => 12, // This could be calculated from maintenance logs later
         ];
 
+        // Fuel Management Data - Using ControlTower patterns
+        $dailyFuel = DB::table('telemetry_events')
+            ->whereDate('occurred_at', $today)
+            ->selectRaw("SUM(CASE WHEN type = 'fuel_refill' THEN value ELSE 0 END) as total_refilled")
+            ->selectRaw("SUM(CASE WHEN type = 'fuel_drain' THEN value ELSE 0 END) as total_stolen")
+            ->first();
+
+        // Get vehicles with critical fuel levels
+        $criticalFuelVehicles = DB::table('vehicle_snapshots')
+            ->join('vehicles', 'vehicle_snapshots.vehicle_id', '=', 'vehicles.id')
+            ->where('vehicle_snapshots.low_fuel', true)
+            ->where('vehicle_snapshots.fuel_level', '>', 0)
+            ->where('vehicles.status', 'active')
+            ->select(
+                'vehicles.plate_number',
+                'vehicle_snapshots.fuel_level as fuel_percentage'
+            )
+            ->get();
+
+        // Get recent fuel thefts/drainage
+        $fuelDrainageVehicles = DB::table('telemetry_events')
+            ->join('vehicles', 'telemetry_events.vehicle_id', '=', 'vehicles.id')
+            ->where('telemetry_events.type', 'fuel_drain')
+            ->whereDate('telemetry_events.occurred_at', $today)
+            ->select(
+                'vehicles.plate_number',
+                'telemetry_events.value as drained_amount'
+            )
+            ->get();
+
+        // Calculate vehicles with high consumption (simplified - could be enhanced with historical data)
+        $highConsumptionVehicles = DB::table('vehicle_snapshots')
+            ->join('vehicles', 'vehicle_snapshots.vehicle_id', '=', 'vehicles.id')
+            ->where('vehicle_snapshots.fuel_level', '<', 25) // Less than 25% fuel
+            ->where('vehicles.status', 'active')
+            ->where('vehicle_snapshots.last_seen_at', '>', now()->subHours(2)) // Active in last 2 hours
+            ->select(
+                'vehicles.plate_number',
+                DB::raw('ROUND((100 - vehicle_snapshots.fuel_level) * 1.5) as consumption_rate')
+            )
+            ->get();
+
+        // Calculate fuel status distribution
+        $fuelStatusDistribution = DB::table('vehicle_snapshots')
+            ->join('vehicles', 'vehicle_snapshots.vehicle_id', '=', 'vehicles.id')
+            ->where('vehicles.status', 'active')
+            ->selectRaw("
+                SUM(CASE WHEN fuel_level <= 10 THEN 1 ELSE 0 END) as critical_count,
+                SUM(CASE WHEN fuel_level > 10 AND fuel_level <= 25 THEN 1 ELSE 0 END) as low_count,
+                SUM(CASE WHEN fuel_level > 25 AND fuel_level <= 50 THEN 1 ELSE 0 END) as medium_count,
+                SUM(CASE WHEN fuel_level > 50 AND fuel_level <= 75 THEN 1 ELSE 0 END) as good_count,
+                SUM(CASE WHEN fuel_level > 75 THEN 1 ELSE 0 END) as full_count,
+                AVG(fuel_level) as avg_fuel_level
+            ")
+            ->first();
+
+        $fuelManagement = [
+            'total_fuel_capacity' => $totalVehicles * 50, // Assuming 50L average capacity
+            'total_vehicles' => $totalVehicles,
+            'vehicles_critical_fuel' => $criticalFuelVehicles->count(),
+            'vehicles_high_consumption' => $highConsumptionVehicles->count(),
+            'vehicles_fuel_drainage' => $fuelDrainageVehicles->count(),
+            'vehicles_efficient' => $activeVehicles - $highConsumptionVehicles->count() - $criticalFuelVehicles->count(),
+            'total_consumed' => $dailyFuel->total_stolen ?? 0,
+            'total_filled' => $dailyFuel->total_refilled ?? 0,
+            'net_consumption' => ($dailyFuel->total_stolen ?? 0),
+            'avg_fuel_level' => round($fuelStatusDistribution->avg_fuel_level ?? 0),
+            'avg_efficiency' => 28, // Could be calculated from trip data
+            'critical_fuel_vehicles' => $criticalFuelVehicles->take(4)->map(function($vehicle) {
+                return [
+                    'plate' => $vehicle->plate_number,
+                    'fuel_percentage' => round($vehicle->fuel_percentage)
+                ];
+            })->toArray(),
+            'high_consumption_vehicles' => $highConsumptionVehicles->take(7)->map(function($vehicle) {
+                return [
+                    'plate' => $vehicle->plate_number,
+                    'consumption_rate' => round($vehicle->consumption_rate)
+                ];
+            })->toArray(),
+            'fuel_drainage_vehicles' => $fuelDrainageVehicles->take(2)->map(function($vehicle) {
+                return [
+                    'plate' => $vehicle->plate_number,
+                    'drained_amount' => round($vehicle->drained_amount)
+                ];
+            })->toArray(),
+            'fuel_status_distribution' => [
+                ['label' => 'Critical (<10%)', 'count' => $fuelStatusDistribution->critical_count, 'color' => '#ef4444'],
+                ['label' => 'Low (10-25%)', 'count' => $fuelStatusDistribution->low_count, 'color' => '#f59e0b'],
+                ['label' => 'Medium (25-50%)', 'count' => $fuelStatusDistribution->medium_count, 'color' => '#3b82f6'],
+                ['label' => 'Good (50-75%)', 'count' => $fuelStatusDistribution->good_count, 'color' => '#10b981'],
+                ['label' => 'Full (>75%)', 'count' => $fuelStatusDistribution->full_count, 'color' => '#059669']
+            ]
+        ];
+
         return response()->json([
             'fleet_status' => $fleetStatus,
             'driver_status' => $driverStatus,
             'fleet_utilization' => $fleetUtilization,
+            'fuel_management' => $fuelManagement,
             'order_stats' => $orderStats,
             'trip_stats' => $tripStats,
             'fine_stats' => $fineStats,

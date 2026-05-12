@@ -163,7 +163,7 @@
                     </div>
                     <div class="text-right">
                         <p class="text-xs text-orange-300 font-medium uppercase tracking-wider">Total Fleet</p>
-                        <p class="text-3xl font-black text-white">{{ mockFuelData.total_fuel_capacity.toLocaleString() }}L</p>
+                        <p class="text-3xl font-black text-white">{{ fuelManagementData.total_fuel_capacity.toLocaleString() }}L</p>
                     </div>
                 </div>
 
@@ -177,10 +177,10 @@
                             </div>
                             <span class="text-xs font-medium text-red-400 bg-red-500/20 px-2 py-1 rounded-full">CRITICAL</span>
                         </div>
-                        <h3 class="text-3xl font-black text-white">{{ mockFuelData.vehicles_critical_fuel }}</h3>
+                        <h3 class="text-3xl font-black text-white">{{ fuelManagementData.vehicles_critical_fuel }}</h3>
                         <p class="text-sm text-red-300 mt-1">&lt; 10% Fuel Reserve</p>
                         <div class="mt-4 space-y-2">
-                            <div v-for="vehicle in mockFuelData.critical_fuel_vehicles" :key="vehicle.plate" class="flex items-center justify-between text-xs">
+                            <div v-for="vehicle in fuelManagementData.critical_fuel_vehicles" :key="vehicle.plate" class="flex items-center justify-between text-xs">
                                 <span class="text-red-200 font-medium">{{ vehicle.plate }}</span>
                                 <span class="text-red-400">{{ vehicle.fuel_percentage }}%</span>
                             </div>
@@ -195,10 +195,10 @@
                             </div>
                             <span class="text-xs font-medium text-amber-400 bg-amber-500/20 px-2 py-1 rounded-full">ALERT</span>
                         </div>
-                        <h3 class="text-3xl font-black text-white">{{ mockFuelData.vehicles_high_consumption }}</h3>
+                        <h3 class="text-3xl font-black text-white">{{ fuelManagementData.vehicles_high_consumption }}</h3>
                         <p class="text-sm text-amber-300 mt-1">Over Normal Rate</p>
                         <div class="mt-4 space-y-2">
-                            <div v-for="vehicle in mockFuelData.high_consumption_vehicles" :key="vehicle.plate" class="flex items-center justify-between text-xs">
+                            <div v-for="vehicle in fuelManagementData.high_consumption_vehicles" :key="vehicle.plate" class="flex items-center justify-between text-xs">
                                 <span class="text-amber-200 font-medium">{{ vehicle.plate }}</span>
                                 <span class="text-amber-400">+{{ vehicle.consumption_rate }}%</span>
                             </div>
@@ -213,10 +213,10 @@
                             </div>
                             <span class="text-xs font-medium text-purple-400 bg-purple-500/20 px-2 py-1 rounded-full">DRAINAGE</span>
                         </div>
-                        <h3 class="text-3xl font-black text-white">{{ mockFuelData.vehicles_fuel_drainage }}</h3>
+                        <h3 class="text-3xl font-black text-white">{{ fuelManagementData.vehicles_fuel_drainage }}</h3>
                         <p class="text-sm text-purple-300 mt-1">Fuel Drained</p>
                         <div class="mt-4 space-y-2">
-                            <div v-for="vehicle in mockFuelData.fuel_drainage_vehicles" :key="vehicle.plate" class="flex items-center justify-between text-xs">
+                            <div v-for="vehicle in fuelManagementData.fuel_drainage_vehicles" :key="vehicle.plate" class="flex items-center justify-between text-xs">
                                 <span class="text-purple-200 font-medium">{{ vehicle.plate }}</span>
                                 <span class="text-purple-400">{{ vehicle.drained_amount }}L</span>
                             </div>
@@ -231,10 +231,10 @@
                             </div>
                             <span class="text-xs font-medium text-emerald-400 bg-emerald-500/20 px-2 py-1 rounded-full">EFFICIENT</span>
                         </div>
-                        <h3 class="text-3xl font-black text-white">{{ mockFuelData.vehicles_efficient }}</h3>
+                        <h3 class="text-3xl font-black text-white">{{ fuelManagementData.vehicles_efficient }}</h3>
                         <p class="text-sm text-emerald-300 mt-1">Good Efficiency</p>
                         <div class="mt-4">
-                            <p class="text-xs text-emerald-200">Avg: {{ mockFuelData.avg_efficiency }}L/100km</p>
+                            <p class="text-xs text-emerald-200">Avg: {{ fuelManagementData.avg_efficiency }}L/100km</p>
                             <p class="text-xs text-emerald-400 mt-1">Within normal range</p>
                         </div>
                     </div>
@@ -248,19 +248,19 @@
                         <div class="space-y-4">
                             <div class="flex items-center justify-between">
                                 <span class="text-sm font-medium text-orange-200">Total Consumed Today</span>
-                                <span class="text-2xl font-black text-orange-400">{{ mockFuelData.total_consumed.toLocaleString() }}L</span>
+                                <span class="text-2xl font-black text-orange-400">{{ fuelManagementData.total_consumed.toLocaleString() }}L</span>
                             </div>
                             <div class="flex items-center justify-between">
                                 <span class="text-sm font-medium text-emerald-200">Total Filled Today</span>
-                                <span class="text-2xl font-black text-emerald-400">{{ mockFuelData.total_filled.toLocaleString() }}L</span>
+                                <span class="text-2xl font-black text-emerald-400">{{ fuelManagementData.total_filled.toLocaleString() }}L</span>
                             </div>
                             <div class="border-t border-white/20 pt-4">
                                 <div class="flex items-center justify-between">
                                     <span class="text-sm font-medium text-white">Net Consumption</span>
-                                    <span class="text-2xl font-black text-white">{{ mockFuelData.net_consumption.toLocaleString() }}L</span>
+                                    <span class="text-2xl font-black text-white">{{ fuelManagementData.net_consumption.toLocaleString() }}L</span>
                                 </div>
                                 <div class="mt-2 w-full bg-white/20 rounded-full h-3">
-                                    <div class="bg-gradient-to-r from-emerald-400 to-orange-400 h-3 rounded-full transition-all duration-500" :style="{ width: `${(mockFuelData.net_consumption / mockFuelData.total_filled) * 100}%` }"></div>
+                                    <div class="bg-gradient-to-r from-emerald-400 to-orange-400 h-3 rounded-full transition-all duration-500" :style="{ width: `${(fuelManagementData.net_consumption / fuelManagementData.total_filled) * 100}%` }"></div>
                                 </div>
                             </div>
                         </div>
@@ -277,13 +277,13 @@
                                 </div>
                                 <div class="flex items-center gap-3">
                                     <span class="text-lg font-black text-white">{{ status.count }}</span>
-                                    <span class="text-sm text-orange-300">({{ Math.round((status.count / mockFuelData.total_vehicles) * 100) }}%)</span>
+                                    <span class="text-sm text-orange-300">({{ Math.round((status.count / fuelManagementData.total_vehicles) * 100) }}%)</span>
                                 </div>
                             </div>
                             <div class="mt-4 pt-4 border-t border-white/20">
                                 <div class="flex items-center justify-between text-sm">
                                     <span class="text-orange-200">Average Fuel Level</span>
-                                    <span class="font-black text-white">{{ mockFuelData.avg_fuel_level }}%</span>
+                                    <span class="font-black text-white">{{ fuelManagementData.avg_fuel_level }}%</span>
                                 </div>
                             </div>
                         </div>
@@ -470,37 +470,26 @@ const utilizationBreakdown = computed(() => {
 });
 
 // Mock Fuel Data for Fuel Management View
-const mockFuelData = ref({
-    total_fuel_capacity: 2400, // Total fleet capacity in liters
-    total_vehicles: 48,
-    vehicles_critical_fuel: 4,
-    vehicles_high_consumption: 7,
-    vehicles_fuel_drainage: 2,
-    vehicles_efficient: 35,
-    total_consumed: 850,
-    total_filled: 920,
-    net_consumption: 850,
-    avg_fuel_level: 68,
-    avg_efficiency: 28,
-    critical_fuel_vehicles: [
-        { plate: 'RAA-231', fuel_percentage: 8 },
-        { plate: 'RBB-456', fuel_percentage: 6 },
-        { plate: 'RCC-789', fuel_percentage: 9 },
-        { plate: 'RDD-012', fuel_percentage: 7 }
-    ],
-    high_consumption_vehicles: [
-        { plate: 'REE-345', consumption_rate: 25 },
-        { plate: 'RFF-678', consumption_rate: 18 },
-        { plate: 'RGG-901', consumption_rate: 22 },
-        { plate: 'RHH-234', consumption_rate: 20 },
-        { plate: 'RII-567', consumption_rate: 15 },
-        { plate: 'RJJ-890', consumption_rate: 17 },
-        { plate: 'RKK-123', consumption_rate: 19 }
-    ],
-    fuel_drainage_vehicles: [
-        { plate: 'RLL-456', drained_amount: 15 },
-        { plate: 'RMM-789', drained_amount: 8 }
-    ]
+// Fuel management data will come from API
+const fuelManagementData = computed(() => {
+    const fuel = overview.value.fuel_management || {};
+    
+    return {
+        total_fuel_capacity: fuel.total_fuel_capacity || 0,
+        total_vehicles: fuel.total_vehicles || 0,
+        vehicles_critical_fuel: fuel.vehicles_critical_fuel || 0,
+        vehicles_high_consumption: fuel.vehicles_high_consumption || 0,
+        vehicles_fuel_drainage: fuel.vehicles_fuel_drainage || 0,
+        vehicles_efficient: fuel.vehicles_efficient || 0,
+        total_consumed: fuel.total_consumed || 0,
+        total_filled: fuel.total_filled || 0,
+        net_consumption: fuel.net_consumption || 0,
+        avg_fuel_level: fuel.avg_fuel_level || 0,
+        avg_efficiency: fuel.avg_efficiency || 0,
+        critical_fuel_vehicles: fuel.critical_fuel_vehicles || [],
+        high_consumption_vehicles: fuel.high_consumption_vehicles || [],
+        fuel_drainage_vehicles: fuel.fuel_drainage_vehicles || []
+    };
 });
 
 const fuelStatusDistribution = ref([
