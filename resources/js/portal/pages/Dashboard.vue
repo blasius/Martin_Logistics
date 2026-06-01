@@ -178,7 +178,7 @@
                             <span class="text-xs font-medium text-red-400 bg-red-500/20 px-2 py-1 rounded-full">CRITICAL</span>
                         </div>
                         <h3 class="text-3xl font-black text-white">{{ fuelManagementData.vehicles_critical_fuel }}</h3>
-                        <p class="text-sm text-red-300 mt-1">&lt; 10% Fuel Reserve</p>
+                        <p class="text-sm text-red-300 mt-1">Below 10% Fuel Reserve</p>
                         <div class="mt-4 space-y-2">
                             <div v-for="vehicle in fuelManagementData.critical_fuel_vehicles" :key="vehicle.plate" class="flex items-center justify-between text-xs">
                                 <span class="text-red-200 font-medium">{{ vehicle.plate }}</span>
@@ -373,7 +373,7 @@
                     <div class="bg-white/10 border border-white/20 rounded-xl p-6 backdrop-blur-sm">
                         <h3 class="text-lg font-black text-white uppercase tracking-tight mb-6">Recent Support Tickets</h3>
                         <div class="space-y-3">
-                            <div v-for="ticket in overview.support_overview?.recent_tickets" :key="ticket.id" 
+                            <div v-for="ticket in overview.support_overview?.recent_tickets" :key="ticket.id"
                                  class="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors">
                                 <div class="flex-1">
                                     <div class="flex items-center gap-3">
@@ -408,7 +408,7 @@
                     <div class="bg-white/10 border border-white/20 rounded-xl p-6 backdrop-blur-sm">
                         <h3 class="text-lg font-black text-white uppercase tracking-tight mb-6">Categories</h3>
                         <div class="space-y-3">
-                            <div v-for="category in overview.support_overview?.categories" :key="category.name" 
+                            <div v-for="category in overview.support_overview?.categories" :key="category.name"
                                  class="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10">
                                 <div class="flex items-center gap-3">
                                     <div class="w-3 h-3 rounded-full bg-indigo-500"></div>
@@ -576,7 +576,7 @@ const fleetUtilizationData = computed(() => {
     const fleet = overview.value.fleet_status || {};
     const drivers = overview.value.driver_status || {};
     const utilization = overview.value.fleet_utilization || {};
-    
+
     return {
         total_vehicles: fleet.total_vehicles || 0,
         active_vehicles: fleet.active_vehicles || 0,
@@ -604,7 +604,7 @@ const utilizationBreakdown = computed(() => {
 // Fuel management data will come from API
 const fuelManagementData = computed(() => {
     const fuel = overview.value.fuel_management || {};
-    
+
     return {
         total_fuel_capacity: fuel.total_fuel_capacity || 0,
         total_vehicles: fuel.total_vehicles || 0,
@@ -624,11 +624,11 @@ const fuelManagementData = computed(() => {
 });
 
 const fuelStatusDistribution = ref([
-    { label: 'Critical (&lt;10%)', count: 4, color: '#ef4444' },
+    { label: 'Critical (below 10%)', count: 4, color: '#ef4444' },
     { label: 'Low (10-25%)', count: 8, color: '#f59e0b' },
     { label: 'Medium (25-50%)', count: 12, color: '#3b82f6' },
     { label: 'Good (50-75%)', count: 16, color: '#10b981' },
-    { label: 'Full (&gt;75%)', count: 8, color: '#059669' }
+    { label: 'Full (above 75%)', count: 8, color: '#059669' }
 ]);
 
 // Methods

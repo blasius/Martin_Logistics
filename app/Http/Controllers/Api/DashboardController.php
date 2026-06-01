@@ -141,6 +141,12 @@ class DashboardController extends Controller
             ->selectRaw("SUM(CASE WHEN type = 'fuel_drain' THEN value ELSE 0 END) as total_stolen")
             ->first();
 
+        $totalFleetFuelLiters = DB::table('vehicle_snapshots')
+            ->join('vehicles', 'vehicle_snapshots.vehicle_id', '=', 'vehicles.id')
+            ->where('vehicles.status', 'active')
+            ->where('vehicle_snapshots.fuel_level', '>=', 0)
+            ->sum('vehicle_snapshots.fuel_level');
+
         // Get vehicles with critical fuel levels
         $criticalFuelVehicles = DB::table('vehicle_snapshots')
             ->join('vehicles', 'vehicle_snapshots.vehicle_id', '=', 'vehicles.id')
@@ -191,7 +197,7 @@ class DashboardController extends Controller
             ->first();
 
         $fuelManagement = [
-            'total_fuel_capacity' => $totalVehicles * 50, // Assuming 50L average capacity
+            'total_fuel_capacity' => round($totalFleetFuelLiters),
             'total_vehicles' => $totalVehicles,
             'vehicles_critical_fuel' => $criticalFuelVehicles->count(),
             'vehicles_high_consumption' => $highConsumptionVehicles->count(),
