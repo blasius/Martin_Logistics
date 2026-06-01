@@ -11,6 +11,12 @@ use Illuminate\Support\Facades\DB;
 
 class WialonService
 {
+    private const MOVEMENT_DISTANCE_METERS = 50;
+    private const SPEED_DELTA_KPH = 5;
+    private const FUEL_DELTA_LITERS = 2;
+    private const ODOMETER_DELTA_KM = 0.1;
+    private const HEARTBEAT_INTERVAL_MINUTES = 60;
+
     public string $url;
     /** @var array Keyed array of API tokens from config */
     public array $tokens;
@@ -212,8 +218,27 @@ class WialonService
 
             if (!isset($result['items'])) continue;
 
+            $unitIds = collect($result['items'])
+                ->pluck('id')
+                ->filter()
+                ->values();
+
+            $wialonUnits = WialonUnit::whereIn('wialon_id', $unitIds)
+                ->get()
+                ->keyBy('wialon_id');
+
+            $vehicleIds = $wialonUnits
+                ->pluck('vehicle_id')
+                ->filter()
+                ->values();
+
+            $snapshots = DB::table('vehicle_snapshots')
+                ->whereIn('vehicle_id', $vehicleIds)
+                ->get()
+                ->keyBy('vehicle_id');
+
             foreach ($result['items'] as $unitData) {
-                $wialonUnit = WialonUnit::where('wialon_id', $unitData['id'])->first();
+                $wialonUnit = $wialonUnits->get($unitData['id']);
 
                 if (!$wialonUnit || !$wialonUnit->vehicle_id) continue;
 
@@ -236,26 +261,60 @@ class WialonService
                     ? \Carbon\Carbon::createFromTimestamp($unitData['lmsg']['t'])
                     : $now;
 
-                try {
-                    DB::transaction(function () use ($vehicleId, $recordedAt, $lat, $lon, $speed, $fuelLiters, $ignition, $odometer, $now) {
+                $previousSnapshot = $snapshots->get($vehicleId);
 
-                        $previousSnapshot = DB::table('vehicle_snapshots')
+                if (
+                    $previousSnapshot &&
+                    $previousSnapshot->last_seen_at &&
+                    Carbon::parse($previousSnapshot->last_seen_at)->greaterThanOrEqualTo($recordedAt)
+                ) {
+                    continue;
+                }
+
+                try {
+                    $processed = DB::transaction(function () use ($vehicleId, $recordedAt, $lat, $lon, $speed, $fuelLiters, $ignition, $odometer, $now, $previousSnapshot) {
+
+                        $currentSnapshot = DB::table('vehicle_snapshots')
                             ->where('vehicle_id', $vehicleId)
                             ->first();
 
-                        DB::table('telemetry_points')->insert([
-                            'vehicle_id' => $vehicleId,
-                            'recorded_at' => $recordedAt,
-                            'latitude' => $lat,
-                            'longitude' => $lon,
-                            'location' => DB::raw("ST_GeomFromText('POINT($lon $lat)', 4326)"),
-                            'speed' => $speed,
-                            'fuel_level_raw' => $fuelLiters, // Accurately calibrated liters
-                            'ignition' => $ignition,
-                            'odometer' => $odometer,
-                            'created_at' => $now,
-                            'updated_at' => $now,
-                        ]);
+                        if (
+                            $currentSnapshot &&
+                            $currentSnapshot->last_seen_at &&
+                            Carbon::parse($currentSnapshot->last_seen_at)->greaterThanOrEqualTo($recordedAt)
+                        ) {
+                            return false;
+                        }
+
+                        $baselineSnapshot = $currentSnapshot ?? $previousSnapshot;
+
+                        $shouldStorePoint = $this->shouldStoreTelemetryPoint(
+                            $baselineSnapshot,
+                            $vehicleId,
+                            $recordedAt,
+                            $lat,
+                            $lon,
+                            $speed,
+                            $fuelLiters,
+                            $ignition,
+                            $odometer
+                        );
+
+                        if ($shouldStorePoint) {
+                            DB::table('telemetry_points')->insertOrIgnore([
+                                'vehicle_id' => $vehicleId,
+                                'recorded_at' => $recordedAt,
+                                'latitude' => $lat,
+                                'longitude' => $lon,
+                                'location' => DB::raw("ST_GeomFromText('POINT($lon $lat)', 4326)"),
+                                'speed' => $speed,
+                                'fuel_level_raw' => $fuelLiters, // Accurately calibrated liters
+                                'ignition' => $ignition,
+                                'odometer' => $odometer,
+                                'created_at' => $now,
+                                'updated_at' => $now,
+                            ]);
+                        }
 
                         // Don't flag low fuel if sensor is missing/invalid (-0.1)
                         $isLowFuel = ($fuelLiters >= 0 && $fuelLiters < 20);
@@ -276,8 +335,8 @@ class WialonService
                             ]
                         );
 
-                        if ($previousSnapshot && $fuelLiters >= 0 && $previousSnapshot->fuel_level >= 0) {
-                            $diff = $fuelLiters - $previousSnapshot->fuel_level;
+                        if ($baselineSnapshot && $fuelLiters >= 0 && $baselineSnapshot->fuel_level >= 0) {
+                            $diff = $fuelLiters - $baselineSnapshot->fuel_level;
                             $refillThreshold = 10;
                             $drainThreshold = $ignition ? 12 : 5;
 
@@ -290,9 +349,13 @@ class WialonService
                                 }
                             }
                         }
+
+                        return true;
                     });
 
-                    $processedCount++;
+                    if ($processed) {
+                        $processedCount++;
+                    }
                 } catch (\Exception $e) {
                     Log::error("Sync Error for Vehicle $vehicleId: " . $e->getMessage());
                 }
@@ -361,6 +424,91 @@ class WialonService
         }
 
         return (float) round(end($calibrationTbl)['y'], 2);
+    }
+
+    private function shouldStoreTelemetryPoint(
+        $previousSnapshot,
+        int $vehicleId,
+        Carbon $recordedAt,
+        float $lat,
+        float $lon,
+        float $speed,
+        float $fuelLiters,
+        bool $ignition,
+        float $odometer
+    ): bool {
+        if (!$previousSnapshot || $previousSnapshot->latitude === null || $previousSnapshot->longitude === null) {
+            return true;
+        }
+
+        if ((bool) $previousSnapshot->ignition !== $ignition) {
+            return true;
+        }
+
+        $wasMoving = ((float) $previousSnapshot->speed) > 2;
+        $isMoving = $speed > 2;
+
+        if ($wasMoving !== $isMoving || abs($speed - (float) $previousSnapshot->speed) >= self::SPEED_DELTA_KPH) {
+            return true;
+        }
+
+        $previousFuel = (float) $previousSnapshot->fuel_level;
+
+        if ($fuelLiters >= 0 && $previousFuel >= 0) {
+            $isLowFuel = $fuelLiters < 20;
+
+            if (
+                abs($fuelLiters - $previousFuel) >= self::FUEL_DELTA_LITERS ||
+                (bool) $previousSnapshot->low_fuel !== $isLowFuel
+            ) {
+                return true;
+            }
+        }
+
+        $distanceMeters = $this->distanceMeters(
+            (float) $previousSnapshot->latitude,
+            (float) $previousSnapshot->longitude,
+            $lat,
+            $lon
+        );
+
+        if ($distanceMeters >= self::MOVEMENT_DISTANCE_METERS) {
+            return true;
+        }
+
+        $lastStoredPoint = DB::table('telemetry_points')
+            ->where('vehicle_id', $vehicleId)
+            ->orderBy('recorded_at', 'desc')
+            ->select('recorded_at', 'odometer')
+            ->first();
+
+        if (!$lastStoredPoint) {
+            return true;
+        }
+
+        if (
+            $lastStoredPoint->odometer !== null &&
+            $odometer > 0 &&
+            abs($odometer - (float) $lastStoredPoint->odometer) >= self::ODOMETER_DELTA_KM
+        ) {
+            return true;
+        }
+
+        return Carbon::parse($lastStoredPoint->recorded_at)
+            ->lessThanOrEqualTo($recordedAt->copy()->subMinutes(self::HEARTBEAT_INTERVAL_MINUTES));
+    }
+
+    private function distanceMeters(float $fromLat, float $fromLon, float $toLat, float $toLon): float
+    {
+        $earthRadiusMeters = 6371000;
+
+        $latDelta = deg2rad($toLat - $fromLat);
+        $lonDelta = deg2rad($toLon - $fromLon);
+
+        $a = sin($latDelta / 2) ** 2
+            + cos(deg2rad($fromLat)) * cos(deg2rad($toLat)) * sin($lonDelta / 2) ** 2;
+
+        return $earthRadiusMeters * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 
     private function isPersistentDrain($vehicleId, $currentFuel, $threshold): bool
