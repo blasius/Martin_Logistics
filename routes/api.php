@@ -15,7 +15,6 @@ use App\Http\Controllers\Api\FineCheckController;
 use App\Http\Controllers\Api\FinesAnalyticsController;
 use App\Http\Controllers\Api\FinesController;
 use App\Http\Controllers\Api\FirebaseVerificationController;
-use App\Http\Controllers\Api\FleetDashboardController;
 use App\Http\Controllers\Api\InspectionController;
 use App\Http\Controllers\Api\InsuranceController;
 use App\Http\Controllers\Api\VehicleController;
@@ -114,7 +113,7 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/compliance-summary', [ComplianceSummaryController::class, 'complianceSummary']);
         Route::get('/control-tower', [ControlTowerController::class, 'index']);
-        Route::get('/report/{type}', [FleetDashboardController::class, 'getDetailedReport']);
+        Route::get('/report/{type}', [ControlTowerController::class, 'report']);
 
         // Dashboard
         Route::get('/dashboard/overview', [DashboardController::class, 'getOverview']);
