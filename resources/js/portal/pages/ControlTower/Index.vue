@@ -55,8 +55,8 @@
                         <span class="text-4xl font-black block leading-none mb-1 text-rose-600 group-hover:animate-pulse">{{ stats.thefts.length }}</span>
                         <p class="text-[11px] font-black uppercase tracking-widest text-slate-400 leading-tight">Thefts/Drains</p>
                         <div class="mt-4 space-y-1.5 pt-4 border-t border-slate-800/50">
-                            <div v-for="(v, i) in stats.thefts.slice(0, 5)" :key="i" class="flex justify-between text-[10px] font-bold uppercase tracking-tighter">
-                                <span class="text-slate-500">{{ v.plate }}</span><span class="text-rose-500">-{{ v.val }}L</span>
+                            <div v-for="v in stats.thefts.slice(0, 5)" :key="v.id" class="flex justify-between text-[10px] font-bold uppercase tracking-tighter">
+                                <span class="text-slate-500">{{ v.plate }}</span><span class="text-rose-500">-{{ Math.round(v.val) }}L</span>
                             </div>
                         </div>
                     </div>
@@ -65,7 +65,7 @@
                          class="bg-slate-900/40 border border-slate-800 p-5 rounded-[2rem] cursor-pointer hover:bg-slate-800/60 hover:border-emerald-500/50 transition-all duration-300 group">
                         <span class="text-4xl font-black block leading-none mb-1 text-emerald-500">{{ stats.fillings.length }}</span>
                         <p class="text-[11px] font-black uppercase tracking-widest text-slate-400 leading-tight">Recent Refills</p>
-                        <div v-for="(v, i) in stats.fillings" :key="i" class="flex justify-between items-center text-[10px] font-bold uppercase tracking-tighter">
+                        <div v-for="v in stats.fillings.slice(0, 5)" :key="v.id" class="flex justify-between items-center text-[10px] font-bold uppercase tracking-tighter">
                             <div class="flex flex-col">
                                 <span class="text-slate-300">{{ v.plate }}</span>
                                 <span class="text-[8px] text-slate-600 lowercase italic">{{ v.driver_name || 'unassigned' }}</span>
@@ -110,12 +110,14 @@
 
                     <div class="flex flex-wrap gap-4 mb-8">
                         <div class="flex-1 flex gap-2">
-                            <div class="bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 flex gap-4 items-center">
-                                <input type="date" v-model="filters.date" class="bg-transparent text-xs text-white outline-none">
+                            <div class="bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 flex gap-3 items-center">
+                                <input type="date" v-model="filters.startDate" class="bg-transparent text-xs text-white outline-none">
+                                <span class="text-slate-600 text-xs font-black">TO</span>
+                                <input type="date" v-model="filters.endDate" class="bg-transparent text-xs text-white outline-none">
                             </div>
                             <button @click="fetchReport" class="bg-indigo-600 px-6 rounded-2xl text-[10px] font-black uppercase tracking-widest">Update View</button>
                         </div>
-                        <input type="text" placeholder="Search plate or driver..." class="bg-slate-900 border border-slate-800 rounded-2xl px-6 py-4 text-sm outline-none w-full md:w-64">
+                        <input v-model="filters.search" @keyup.enter="fetchReport" type="text" placeholder="Search plate or driver..." class="bg-slate-900 border border-slate-800 rounded-2xl px-6 py-4 text-sm outline-none w-full md:w-64">
                     </div>
 
                     <div class="bg-black/40 rounded-[2rem] border border-slate-800/50 p-6 overflow-y-auto flex-1">
@@ -130,11 +132,14 @@
                             </tr>
                             </thead>
                             <tbody>
-                            <tr v-for="row in modalData" :key="row.time" class="bg-slate-900/40 hover:bg-slate-800 transition-colors">
+                            <tr v-for="row in modalData" :key="row.id || `${row.plate_number}-${row.time}`" class="bg-slate-900/40 hover:bg-slate-800 transition-colors">
                                 <td class="p-4 rounded-l-2xl font-black text-white">{{ row.plate_number }}</td>
                                 <td class="p-4 text-xs font-bold text-slate-400">{{ row.driver_name || 'Unassigned' }}</td>
-                                <td class="p-4 font-black text-indigo-400">{{ row.val }}L</td>
+                                <td class="p-4 font-black text-indigo-400">{{ formatDetail(row) }}</td>
                                 <td class="p-4 rounded-r-2xl text-[10px] text-slate-500">{{ new Date(row.time).toLocaleString() }}</td>
+                            </tr>
+                            <tr v-if="modalData.length === 0">
+                                <td colspan="4" class="p-10 text-center text-xs font-black uppercase tracking-widest text-slate-600">No records found for the selected filters.</td>
                             </tr>
                             </tbody>
                         </table>
@@ -155,7 +160,8 @@ const activeModal = ref(null);
 const activeModalTitle = ref('');
 const modalData = ref([]);
 const loading = ref(false);
-const filters = reactive({ date: new Date().toISOString().split('T')[0] });
+const today = new Date().toISOString().split('T')[0];
+const filters = reactive({ startDate: today, endDate: today, search: '' });
 
 const stats = ref({
     criticalFuel: [], thefts: [], fillings: [],
@@ -163,7 +169,7 @@ const stats = ref({
 });
 
 const loadSnapshot = async () => {
-    const { data } = await axios.get('portal/control-tower');
+    const { data } = await api.get('/portal/control-tower');
     totalUnits.value = data.totalUnits;
     stats.value = data.stats;
 };
@@ -177,11 +183,33 @@ const openModal = (title, type) => {
 const fetchReport = async () => {
     loading.value = true;
     try {
-        const { data } = await axios.get(`/portal/report/${activeModal.value}`, {
-            params: { start: filters.date + ' 00:00:00', end: filters.date + ' 23:59:59' }
+        const { data } = await api.get(`/portal/report/${activeModal.value}`, {
+            params: {
+                start: filters.startDate + ' 00:00:00',
+                end: filters.endDate + ' 23:59:59',
+                search: filters.search
+            }
         });
         modalData.value = data;
     } finally { loading.value = false; }
+};
+
+const formatDetail = (row) => {
+    const value = Number(row.val);
+
+    if (activeModal.value === 'critical-fuel' && Number.isFinite(value)) {
+        return `${Math.round(value)}%`;
+    }
+
+    if (activeModal.value === 'thefts' && Number.isFinite(value)) {
+        return `-${Math.round(value)}L`;
+    }
+
+    if (activeModal.value === 'fillings' && Number.isFinite(value)) {
+        return `+${Math.round(value)}L`;
+    }
+
+    return row.val || '-';
 };
 
 onMounted(loadSnapshot);

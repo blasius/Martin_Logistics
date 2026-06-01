@@ -40,23 +40,9 @@ class ControlTowerController extends Controller
             ->selectRaw("SUM(CASE WHEN type = 'fuel_drain' THEN value ELSE 0 END) as total_stolen")
             ->first();
 
-        // 4. Fetch Lists for Dashboard Cards
-        $recentThefts = TelemetryEvent::where('type', 'fuel_drain')
-            ->join('vehicles', 'telemetry_events.vehicle_id', '=', 'vehicles.id')
-            ->orderBy('occurred_at', 'desc')
-            ->take(5)
-            ->get(['vehicles.plate_number as plate', 'telemetry_events.value as val']);
-
-        $recentFillings = TelemetryEvent::where('type', 'fuel_refill')
-            ->join('vehicles', 'telemetry_events.vehicle_id', '=', 'vehicles.id')
-            ->leftJoin('driver_vehicle_assignments', function($join) {
-                $join->on('vehicles.id', '=', 'driver_vehicle_assignments.vehicle_id')
-                    ->whereNull('driver_vehicle_assignments.end_date');
-            })
-            ->leftJoin('users', 'driver_vehicle_assignments.driver_id', '=', 'users.id')
-            ->orderBy('occurred_at', 'desc')
-            ->take(5)
-            ->get(['vehicles.plate_number as plate', 'users.name as driver_name', 'telemetry_events.value as val']);
+        // 4. Fetch per-vehicle totals for Dashboard Cards
+        $recentThefts = $this->aggregateFuelEventsForToday('fuel_drain');
+        $recentFillings = $this->aggregateFuelEventsForToday('fuel_refill');
 
         return response()->json([
             'totalUnits' => $totalUnits,
@@ -88,8 +74,68 @@ class ControlTowerController extends Controller
 
     public function report(Request $request, $type)
     {
-        $start = $request->input('start');
-        $end   = $request->input('end');
+        $start = $request->input('start', Carbon::today()->startOfDay()->toDateTimeString());
+        $end = $request->input('end', Carbon::today()->endOfDay()->toDateTimeString());
+        $search = trim((string) $request->input('search', ''));
+
+        if ($type === 'critical-fuel') {
+            return VehicleSnapshot::where('low_fuel', true)
+                ->where('fuel_level', '>', 0)
+                ->join('vehicles', 'vehicle_snapshots.vehicle_id', '=', 'vehicles.id')
+                ->leftJoin('driver_vehicle_assignments', function($join) {
+                    $join->on('vehicles.id', '=', 'driver_vehicle_assignments.vehicle_id')
+                        ->whereNull('driver_vehicle_assignments.end_date');
+                })
+                ->leftJoin('users', 'driver_vehicle_assignments.driver_id', '=', 'users.id')
+                ->when($search !== '', function ($query) use ($search) {
+                    $query->where(function ($query) use ($search) {
+                        $query->where('vehicles.plate_number', 'like', "%{$search}%")
+                            ->orWhere('users.name', 'like', "%{$search}%");
+                    });
+                })
+                ->orderBy('vehicle_snapshots.fuel_level')
+                ->get([
+                    'vehicles.plate_number',
+                    'users.name as driver_name',
+                    'vehicle_snapshots.fuel_level as val',
+                    'vehicle_snapshots.last_seen_at as time'
+                ]);
+        }
+
+        if ($type === 'breakdowns') {
+            return Vehicle::where('status', 'inactive')
+                ->when($search !== '', fn ($query) => $query->where('plate_number', 'like', "%{$search}%"))
+                ->orderBy('plate_number')
+                ->get([
+                    'plate_number',
+                    DB::raw("'Unassigned' as driver_name"),
+                    DB::raw("'Inactive' as val"),
+                    'updated_at as time'
+                ]);
+        }
+
+        if ($type === 'long-stops') {
+            return VehicleSnapshot::join('vehicles', 'vehicle_snapshots.vehicle_id', '=', 'vehicles.id')
+                ->leftJoin('driver_vehicle_assignments', function($join) {
+                    $join->on('vehicles.id', '=', 'driver_vehicle_assignments.vehicle_id')
+                        ->whereNull('driver_vehicle_assignments.end_date');
+                })
+                ->leftJoin('users', 'driver_vehicle_assignments.driver_id', '=', 'users.id')
+                ->where('vehicle_snapshots.last_seen_at', '<', Carbon::now()->subHours(24))
+                ->when($search !== '', function ($query) use ($search) {
+                    $query->where(function ($query) use ($search) {
+                        $query->where('vehicles.plate_number', 'like', "%{$search}%")
+                            ->orWhere('users.name', 'like', "%{$search}%");
+                    });
+                })
+                ->orderBy('vehicle_snapshots.last_seen_at')
+                ->get([
+                    'vehicles.plate_number',
+                    'users.name as driver_name',
+                    DB::raw("'24h+ stationary' as val"),
+                    'vehicle_snapshots.last_seen_at as time'
+                ]);
+        }
 
         // Base query using the current assignment logic
         $query = TelemetryEvent::join('vehicles', 'telemetry_events.vehicle_id', '=', 'vehicles.id')
@@ -99,6 +145,7 @@ class ControlTowerController extends Controller
             })
             ->leftJoin('users', 'driver_vehicle_assignments.driver_id', '=', 'users.id')
             ->select([
+                'telemetry_events.id',
                 'vehicles.plate_number',
                 'users.name as driver_name',
                 'telemetry_events.value as val',
@@ -109,31 +156,41 @@ class ControlTowerController extends Controller
             $query->where('type', 'fuel_drain');
         } elseif ($type === 'fillings') {
             $query->where('type', 'fuel_refill');
-        } elseif ($type === 'breakdowns') {
-            $query->where('type', 'breakdown');
+        } else {
+            return response()->json([]);
         }
 
-        if ($start && $end) {
+        if (in_array($type, ['thefts', 'fillings'], true)) {
             $query->whereBetween('occurred_at', [$start, $end]);
         }
 
-        // Special handling for the Critical Fuel modal
-        if ($type === 'critical-fuel') {
-            return VehicleSnapshot::where('low_fuel', true)
-                ->join('vehicles', 'vehicle_snapshots.vehicle_id', '=', 'vehicles.id')
-                ->leftJoin('driver_vehicle_assignments', function($join) {
-                    $join->on('vehicles.id', '=', 'driver_vehicle_assignments.vehicle_id')
-                        ->whereNull('driver_vehicle_assignments.end_date');
-                })
-                ->leftJoin('users', 'driver_vehicle_assignments.driver_id', '=', 'users.id')
-                ->get([
-                    'vehicles.plate_number',
-                    'users.name as driver_name',
-                    'vehicle_snapshots.fuel_level as val',
-                    'vehicle_snapshots.last_seen_at as time'
-                ]);
+        if ($search !== '') {
+            $query->where(function ($query) use ($search) {
+                $query->where('vehicles.plate_number', 'like', "%{$search}%")
+                    ->orWhere('users.name', 'like', "%{$search}%");
+            });
         }
 
         return response()->json($query->orderBy('occurred_at', 'desc')->get());
+    }
+
+    private function aggregateFuelEventsForToday(string $type)
+    {
+        return TelemetryEvent::where('type', $type)
+            ->whereDate('occurred_at', Carbon::today())
+            ->join('vehicles', 'telemetry_events.vehicle_id', '=', 'vehicles.id')
+            ->leftJoin('driver_vehicle_assignments', function($join) {
+                $join->on('vehicles.id', '=', 'driver_vehicle_assignments.vehicle_id')
+                    ->whereNull('driver_vehicle_assignments.end_date');
+            })
+            ->leftJoin('users', 'driver_vehicle_assignments.driver_id', '=', 'users.id')
+            ->groupBy('telemetry_events.vehicle_id', 'vehicles.plate_number', 'users.name')
+            ->orderByDesc(DB::raw('SUM(telemetry_events.value)'))
+            ->get([
+                'telemetry_events.vehicle_id as id',
+                'vehicles.plate_number as plate',
+                'users.name as driver_name',
+                DB::raw('SUM(telemetry_events.value) as val')
+            ]);
     }
 }
