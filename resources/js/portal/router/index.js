@@ -21,6 +21,7 @@ const router = createRouter({
                 { path: "trips", component: () => import("../pages/Trips/Index.vue") },
                 { path: "vehicles", component: () => import("../pages/Vehicles/Index.vue") },
                 { path: "routes", component: () => import("../pages/Routes/Index.vue") },
+                { path: "places", component: () => import("../pages/Places/Index.vue") },
                 { path: "reports", component: () => import("../pages/Reports/Index.vue") },
                 { path: "support", component: () => import("../pages/Support/Index.vue") },
                 { path: "settings", component: () => import("../pages/Settings.vue") },
