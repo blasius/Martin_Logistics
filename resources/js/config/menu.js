@@ -8,6 +8,7 @@ import {
     User,
     Car,
     Route,
+    MapPin,
     FileText,
     Settings,
     HelpCircle,
@@ -67,6 +68,11 @@ export const menu = [
         label: "Routes",
         icon: Route,
         to: "/routes",
+    },
+    {
+        label: "Places",
+        icon: MapPin,
+        to: "/places",
     },
     {
         label: "Billing",

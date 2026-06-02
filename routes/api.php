@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\VerificationController;
 use App\Http\Controllers\Api\WhatsAppVerificationController;
 use App\Http\Controllers\Api\SearchController;
 use App\Http\Controllers\Api\RoutesController;
+use App\Http\Controllers\Api\PlacesController;
 use App\Http\Controllers\Api\TripController;
 use App\Http\Controllers\Api\MockDispatchController;
 use App\Http\Controllers\Api\DashboardController;
@@ -110,6 +111,13 @@ Route::middleware('auth')->group(function () {
         Route::post('/routes/store', [RoutesController::class, 'store']);
         Route::put('/routes/{route}', [RoutesController::class, 'update']);
         Route::delete('/routes/{route}', [RoutesController::class, 'destroy']);
+
+        // Places
+        Route::get('/places', [PlacesController::class, 'index']);
+        Route::get('/places/{place}', [PlacesController::class, 'show']);
+        Route::post('/places/store', [PlacesController::class, 'store']);
+        Route::put('/places/{place}', [PlacesController::class, 'update']);
+        Route::delete('/places/{place}', [PlacesController::class, 'destroy']);
 
         Route::get('/compliance-summary', [ComplianceSummaryController::class, 'complianceSummary']);
         Route::get('/control-tower', [ControlTowerController::class, 'index']);
