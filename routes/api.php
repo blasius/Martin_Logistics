@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\PlacesController;
 use App\Http\Controllers\Api\TripController;
 use App\Http\Controllers\Api\MockDispatchController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\TrackerController;
 
 // Public Routes
 Route::post('/login', [AuthController::class, 'login']); // Token-based
@@ -122,6 +123,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/compliance-summary', [ComplianceSummaryController::class, 'complianceSummary']);
         Route::get('/control-tower', [ControlTowerController::class, 'index']);
         Route::get('/report/{type}', [ControlTowerController::class, 'report']);
+
+        // Tracker
+        Route::get('/tracker/search', [TrackerController::class, 'search']);
+        Route::get('/tracker/{vehicle}', [TrackerController::class, 'show']);
 
         // Dashboard
         Route::get('/dashboard/overview', [DashboardController::class, 'getOverview']);

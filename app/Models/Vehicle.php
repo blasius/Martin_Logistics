@@ -92,6 +92,11 @@ class Vehicle extends Model
         return $this->morphMany(VehicleInsurance::class, 'insurable');
     }
 
+    public function snapshot()
+    {
+        return $this->hasOne(VehicleSnapshot::class, 'vehicle_id', 'id');
+    }
+
     public function drivers()
     {
         return $this->belongsToMany(Driver::class, 'driver_vehicle_assignments')

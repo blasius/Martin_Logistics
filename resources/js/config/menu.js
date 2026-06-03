@@ -13,7 +13,8 @@ import {
     Settings,
     HelpCircle,
     Radar,
-    Zap
+    Zap,
+    Crosshair
 } from "lucide-vue-next";
 
 export const menu = [
@@ -73,6 +74,11 @@ export const menu = [
         label: "Places",
         icon: MapPin,
         to: "/places",
+    },
+    {
+        label: "Tracker",
+        icon: Crosshair,
+        to: "/tracker",
     },
     {
         label: "Billing",
