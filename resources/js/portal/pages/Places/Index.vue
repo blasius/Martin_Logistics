@@ -144,13 +144,13 @@
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="text-[10px] font-black text-slate-400 uppercase ml-1 block mb-2 tracking-wide">Latitude</label>
-                                <input :value="form.latitude" readonly
-                                       class="border-slate-200 px-4 py-3.5 rounded-xl text-sm font-bold bg-slate-100 text-slate-500 cursor-not-allowed w-full border" />
+                                <input v-model="form.latitude" type="number" step="any" placeholder="-1.9441"
+                                       class="border-slate-200 px-4 py-3.5 rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50 w-full transition-all" />
                             </div>
                             <div>
                                 <label class="text-[10px] font-black text-slate-400 uppercase ml-1 block mb-2 tracking-wide">Longitude</label>
-                                <input :value="form.longitude" readonly
-                                       class="border-slate-200 px-4 py-3.5 rounded-xl text-sm font-bold bg-slate-100 text-slate-500 cursor-not-allowed w-full border" />
+                                <input v-model="form.longitude" type="number" step="any" placeholder="30.0619"
+                                       class="border-slate-200 px-4 py-3.5 rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50 w-full transition-all" />
                             </div>
                         </div>
 
@@ -191,7 +191,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, nextTick } from 'vue';
+import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { placesApi } from "../../api/places";
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -222,6 +222,7 @@ const editingMode = computed(() => !!selectedPlace.value);
 let map = null;
 let currentMarker = null;
 let currentCircle = null;
+let isUpdatingFromMap = false;
 
 const typeBadgeClass = (type) => {
     const classes = {
@@ -261,8 +262,17 @@ const initMap = () => {
 };
 
 const placeMarker = (latlng) => {
+    isUpdatingFromMap = true;
     form.value.latitude = parseFloat(latlng.lat.toFixed(7));
     form.value.longitude = parseFloat(latlng.lng.toFixed(7));
+    isUpdatingFromMap = false;
+
+    updateMarkerVisual(latlng);
+    map.setView(latlng, map.getZoom() < 13 ? 13 : map.getZoom());
+};
+
+const updateMarkerVisual = (latlng) => {
+    if (!map) return;
 
     if (currentMarker) {
         currentMarker.setLatLng(latlng);
@@ -285,9 +295,18 @@ const placeMarker = (latlng) => {
             weight: 2,
         }).addTo(map);
     }
-
-    map.setView(latlng, map.getZoom() < 13 ? 13 : map.getZoom());
 };
+
+watch([() => form.value.latitude, () => form.value.longitude], ([lat, lng]) => {
+    if (isUpdatingFromMap || !map || currentView.value !== 'form') return;
+    lat = parseFloat(lat);
+    lng = parseFloat(lng);
+    if (isNaN(lat) || isNaN(lng)) return;
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
+    const latlng = L.latLng(lat, lng);
+    updateMarkerVisual(latlng);
+    map.setView(latlng, map.getZoom() < 13 ? 13 : map.getZoom());
+});
 
 const updateCircleRadius = () => {
     if (currentCircle && form.value.latitude && form.value.longitude) {
