@@ -31,6 +31,8 @@ use App\Http\Controllers\Api\TrackerController;
 // Public Routes
 Route::post('/login', [AuthController::class, 'login']); // Token-based
 Route::post('/portal/login', [AuthController::class, 'portalLogin']); // Session-based
+Route::post('/portal/2fa/verify', [AuthController::class, 'verifyTwoFactor']);
+Route::post('/portal/2fa/recovery', [AuthController::class, 'verifyRecoveryCode']);
 Route::get('/dispatch/secure-print', [DispatchController::class, 'printStatus'])
     ->name('dispatch.print.secure')
     ->middleware('signed'); // Laravel 12 handles this alias automatically
@@ -127,6 +129,14 @@ Route::middleware('auth')->group(function () {
         // Tracker
         Route::get('/tracker/search', [TrackerController::class, 'search']);
         Route::get('/tracker/{vehicle}', [TrackerController::class, 'show']);
+
+        // 2FA Management
+        Route::get('/2fa/qr', [AuthController::class, 'getTwoFactorQrCode']);
+        Route::post('/2fa/enable', [AuthController::class, 'enableTwoFactor']);
+        Route::post('/2fa/confirm', [AuthController::class, 'confirmTwoFactor']);
+        Route::post('/2fa/disable', [AuthController::class, 'disableTwoFactor']);
+        Route::get('/2fa/recovery-codes', [AuthController::class, 'getRecoveryCodes']);
+        Route::post('/2fa/recovery-codes/regenerate', [AuthController::class, 'regenerateRecoveryCodes']);
 
         // Dashboard
         Route::get('/dashboard/overview', [DashboardController::class, 'getOverview']);
