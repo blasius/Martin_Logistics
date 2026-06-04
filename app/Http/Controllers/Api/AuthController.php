@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
-use PragmaRX\Google2FA\Google2FA;
+
 class AuthController extends Controller
 {
     public function portalLogin(Request $request)
@@ -32,7 +32,7 @@ class AuthController extends Controller
 
         $user = Auth::user();
 
-        if ($user->two_factor_secret) {
+        if ($user->hasEnabledTwoFactorAuthentication()) {
             Auth::guard('web')->logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
@@ -73,7 +73,7 @@ class AuthController extends Controller
         }
 
         $user = \App\Models\User::find($payload['user_id']);
-        if (! $user || ! $user->two_factor_secret) {
+        if (! $user || ! $user->hasEnabledTwoFactorAuthentication()) {
             return response()->json(['message' => 'Invalid token or 2FA not configured.'], 422);
         }
 
@@ -111,8 +111,8 @@ class AuthController extends Controller
         }
 
         $user = \App\Models\User::find($payload['user_id']);
-        if (! $user || ! $user->two_factor_recovery_codes) {
-            return response()->json(['message' => 'Invalid token or no recovery codes.'], 422);
+        if (! $user || ! $user->hasEnabledTwoFactorAuthentication()) {
+            return response()->json(['message' => 'Invalid token or 2FA not configured.'], 422);
         }
 
         $recoveryCodes = json_decode(decrypt($user->two_factor_recovery_codes), true);
@@ -147,25 +147,18 @@ class AuthController extends Controller
     {
         $user = $request->user();
 
-        $google2fa = app('pragmarx.google2fa');
-        $secret = $user->two_factor_secret ? decrypt($user->two_factor_secret) : $google2fa->generateSecretKey();
-
-        $qrCodeUrl = $google2fa->getQRCodeUrl(
-            config('app.name'),
-            $user->email,
-            $secret
-        );
-
-        $svg = $google2fa->getQRCodeSvg(
-            config('app.name'),
-            $user->email,
-            $secret
-        );
+        if (! $user->two_factor_secret) {
+            $secret = app('pragmarx.google2fa')->generateSecretKey();
+            $user->forceFill([
+                'two_factor_secret' => encrypt($secret),
+                'two_factor_confirmed_at' => null,
+            ])->save();
+        }
 
         return response()->json([
-            'secret' => $secret,
-            'qr_code' => $svg,
-            'qr_code_url' => $qrCodeUrl,
+            'secret' => decrypt($user->two_factor_secret),
+            'qr_code' => $user->twoFactorQrCodeSvg(),
+            'qr_code_url' => $user->twoFactorQrCodeUrl(),
         ]);
     }
 
@@ -184,22 +177,10 @@ class AuthController extends Controller
             'two_factor_confirmed_at' => null,
         ])->save();
 
-        $qrCodeUrl = $google2fa->getQRCodeUrl(
-            config('app.name'),
-            $user->email,
-            $secret
-        );
-
-        $svg = $google2fa->getQRCodeSvg(
-            config('app.name'),
-            $user->email,
-            $secret
-        );
-
         return response()->json([
             'secret' => $secret,
-            'qr_code' => $svg,
-            'qr_code_url' => $qrCodeUrl,
+            'qr_code' => $user->twoFactorQrCodeSvg(),
+            'qr_code_url' => $user->twoFactorQrCodeUrl(),
             'recovery_codes' => $recoveryCodes,
             'message' => 'Scan the QR code with your authenticator app, then confirm by entering a code.',
         ]);

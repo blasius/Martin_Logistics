@@ -165,7 +165,7 @@ const notify = (msg) => {
 const checkStatus = async () => {
     try {
         const { data } = await api.get('user');
-        twoFactorEnabled.value = !!data.two_factor_secret;
+        twoFactorEnabled.value = !!data.two_factor_secret && !!data.two_factor_confirmed_at;
     } catch (e) {
         console.error('Failed to check 2FA status', e);
     }
