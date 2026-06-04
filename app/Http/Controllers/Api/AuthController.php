@@ -8,42 +8,274 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Crypt;
 
 class AuthController extends Controller
 {
     public function portalLogin(Request $request)
     {
-        // 1. Validate the incoming request
         $credentials = $request->validate([
-            'identifier' => 'required|email', // Assuming 'identifier' is the email
+            'identifier' => 'required|email',
             'password'   => 'required|string',
         ]);
 
-        // 2. Map 'identifier' to the 'email' column for Auth::attempt
         $attemptCredentials = [
             'email'    => $credentials['identifier'],
             'password' => $credentials['password'],
         ];
 
-        // 3. Attempt to log the user in using the 'web' guard
-        if (Auth::guard('web')->attempt($attemptCredentials, $request->boolean('remember'))) {
-
-            // Regenerate session to prevent fixation attacks
-            $request->session()->regenerate();
-
-            return response()->json([
-                'user'    => Auth::user(),
-                'message' => 'Authenticated via session'
+        if (! Auth::guard('web')->attempt($attemptCredentials, $request->boolean('remember'))) {
+            throw ValidationException::withMessages([
+                'identifier' => [__('auth.failed')],
             ]);
         }
 
-        // 4. If authentication fails, throw the standard error
-        throw ValidationException::withMessages([
-            'identifier' => [__('auth.failed')],
+        $user = Auth::user();
+
+        if ($user->two_factor_secret) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            $tempToken = Crypt::encrypt([
+                'user_id' => $user->id,
+                'expires_at' => now()->addMinutes(5)->timestamp,
+            ]);
+
+            return response()->json([
+                'requires_2fa' => true,
+                'temp_token' => $tempToken,
+            ]);
+        }
+
+        $request->session()->regenerate();
+        return response()->json([
+            'user'    => $user,
+            'message' => 'Authenticated via session',
         ]);
     }
 
-    public function login(Request $request) // Token-based for Mobile/API
+    public function verifyTwoFactor(Request $request)
+    {
+        $request->validate([
+            'temp_token' => 'required|string',
+            'code'       => 'required|string',
+        ]);
+
+        try {
+            $payload = Crypt::decrypt($request->temp_token);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Invalid or expired token.'], 422);
+        }
+
+        if (now()->timestamp > ($payload['expires_at'] ?? 0)) {
+            return response()->json(['message' => 'Token expired. Please login again.'], 422);
+        }
+
+        $user = \App\Models\User::find($payload['user_id']);
+        if (! $user || ! $user->two_factor_secret) {
+            return response()->json(['message' => 'Invalid token or 2FA not configured.'], 422);
+        }
+
+        $google2fa = app('pragmarx.google2fa');
+        $valid = $google2fa->verifyKey(decrypt($user->two_factor_secret), $request->code);
+
+        if (! $valid) {
+            return response()->json(['message' => 'Invalid verification code.'], 422);
+        }
+
+        Auth::guard('web')->loginUsingId($user->id);
+        $request->session()->regenerate();
+
+        return response()->json([
+            'user'    => $user,
+            'message' => 'Authenticated via 2FA',
+        ]);
+    }
+
+    public function verifyRecoveryCode(Request $request)
+    {
+        $request->validate([
+            'temp_token' => 'required|string',
+            'code'       => 'required|string',
+        ]);
+
+        try {
+            $payload = Crypt::decrypt($request->temp_token);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Invalid or expired token.'], 422);
+        }
+
+        if (now()->timestamp > ($payload['expires_at'] ?? 0)) {
+            return response()->json(['message' => 'Token expired. Please login again.'], 422);
+        }
+
+        $user = \App\Models\User::find($payload['user_id']);
+        if (! $user || ! $user->two_factor_recovery_codes) {
+            return response()->json(['message' => 'Invalid token or no recovery codes.'], 422);
+        }
+
+        $recoveryCodes = json_decode(decrypt($user->two_factor_recovery_codes), true);
+
+        $foundIndex = false;
+        foreach ($recoveryCodes as $i => $rc) {
+            if (hash_equals($rc, $request->code)) {
+                $foundIndex = $i;
+                break;
+            }
+        }
+
+        if ($foundIndex === false) {
+            return response()->json(['message' => 'Invalid recovery code.'], 422);
+        }
+
+        unset($recoveryCodes[$foundIndex]);
+        $user->forceFill([
+            'two_factor_recovery_codes' => encrypt(json_encode(array_values($recoveryCodes))),
+        ])->save();
+
+        Auth::guard('web')->loginUsingId($user->id);
+        $request->session()->regenerate();
+
+        return response()->json([
+            'user'    => $user,
+            'message' => 'Authenticated via recovery code',
+        ]);
+    }
+
+    public function getTwoFactorQrCode(Request $request)
+    {
+        $user = $request->user();
+
+        $google2fa = app('pragmarx.google2fa');
+        $secret = $user->two_factor_secret ? decrypt($user->two_factor_secret) : $google2fa->generateSecretKey();
+
+        $qrCodeUrl = $google2fa->getQRCodeUrl(
+            config('app.name'),
+            $user->email,
+            $secret
+        );
+
+        $svg = $google2fa->getQRCodeSvg(
+            config('app.name'),
+            $user->email,
+            $secret
+        );
+
+        return response()->json([
+            'secret' => $secret,
+            'qr_code' => $svg,
+            'qr_code_url' => $qrCodeUrl,
+        ]);
+    }
+
+    public function enableTwoFactor(Request $request)
+    {
+        $user = $request->user();
+
+        $google2fa = app('pragmarx.google2fa');
+        $secret = $google2fa->generateSecretKey();
+
+        $recoveryCodes = collect(range(1, 8))->map(fn () => \Illuminate\Support\Str::random(10))->all();
+
+        $user->forceFill([
+            'two_factor_secret' => encrypt($secret),
+            'two_factor_recovery_codes' => encrypt(json_encode($recoveryCodes)),
+            'two_factor_confirmed_at' => null,
+        ])->save();
+
+        $qrCodeUrl = $google2fa->getQRCodeUrl(
+            config('app.name'),
+            $user->email,
+            $secret
+        );
+
+        $svg = $google2fa->getQRCodeSvg(
+            config('app.name'),
+            $user->email,
+            $secret
+        );
+
+        return response()->json([
+            'secret' => $secret,
+            'qr_code' => $svg,
+            'qr_code_url' => $qrCodeUrl,
+            'recovery_codes' => $recoveryCodes,
+            'message' => 'Scan the QR code with your authenticator app, then confirm by entering a code.',
+        ]);
+    }
+
+    public function confirmTwoFactor(Request $request)
+    {
+        $request->validate(['code' => 'required|string']);
+
+        $user = $request->user();
+
+        if (! $user->two_factor_secret) {
+            return response()->json(['message' => '2FA not enabled yet. Call enable first.'], 422);
+        }
+
+        $google2fa = app('pragmarx.google2fa');
+        $valid = $google2fa->verifyKey(decrypt($user->two_factor_secret), $request->code);
+
+        if (! $valid) {
+            return response()->json(['message' => 'Invalid code. Ensure your authenticator app is set up correctly.'], 422);
+        }
+
+        $user->forceFill(['two_factor_confirmed_at' => now()])->save();
+
+        return response()->json(['message' => 'Two-factor authentication confirmed and active.']);
+    }
+
+    public function disableTwoFactor(Request $request)
+    {
+        $request->validate(['password' => 'required|string']);
+
+        $user = $request->user();
+
+        if (! Hash::check($request->password, $user->password)) {
+            return response()->json(['message' => 'Invalid password.'], 422);
+        }
+
+        $user->forceFill([
+            'two_factor_secret' => null,
+            'two_factor_recovery_codes' => null,
+            'two_factor_confirmed_at' => null,
+        ])->save();
+
+        return response()->json(['message' => 'Two-factor authentication disabled.']);
+    }
+
+    public function getRecoveryCodes(Request $request)
+    {
+        $user = $request->user();
+
+        if (! $user->two_factor_recovery_codes) {
+            return response()->json(['recovery_codes' => []]);
+        }
+
+        $codes = json_decode(decrypt($user->two_factor_recovery_codes), true);
+
+        return response()->json(['recovery_codes' => $codes]);
+    }
+
+    public function regenerateRecoveryCodes(Request $request)
+    {
+        $user = $request->user();
+
+        $codes = collect(range(1, 8))->map(fn () => \Illuminate\Support\Str::random(10))->all();
+
+        $user->forceFill([
+            'two_factor_recovery_codes' => encrypt(json_encode($codes)),
+        ])->save();
+
+        return response()->json([
+            'recovery_codes' => $codes,
+            'message' => 'Recovery codes regenerated.',
+        ]);
+    }
+
+    public function login(Request $request)
     {
         $request->validate([
             'identifier' => 'required|string',
@@ -68,12 +300,10 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        // 1. Kill current mobile token if it exists
         if ($request->user()->currentAccessToken()) {
             $request->user()->currentAccessToken()->delete();
         }
 
-        // 2. Kill the web session
         Auth::guard('web')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
