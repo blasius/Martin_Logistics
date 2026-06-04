@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
-import { useAuthStore } from "../store/authStore"; // Adjust path as needed
+import { useAuthStore } from "../store/authStore";
 import DashboardLayout from "../layouts/DashboardLayout.vue";
 
 const router = createRouter({
@@ -9,6 +9,12 @@ const router = createRouter({
             path: "/login",
             name: "Login",
             component: () => import("../pages/Auth/Login.vue"),
+            meta: { guestOnly: true }
+        },
+        {
+            path: "/2fa/setup",
+            name: "TwoFactorSetup",
+            component: () => import("../pages/Auth/TwoFactorSetup.vue"),
             meta: { guestOnly: true }
         },
         {
@@ -37,7 +43,7 @@ const router = createRouter({
                     path: "drivers/:id",
                     name: "drivers.show",
                     component: () => import("../pages/Drivers/Show.vue"),
-                    props: true // Allows the :id to be passed as a prop to the component
+                    props: true
                 },
                 {
                     path: "vehicles/:id",
@@ -57,27 +63,22 @@ const router = createRouter({
     ],
 });
 
-// The Gatekeeper
 router.beforeEach(async (to, from, next) => {
     const authStore = useAuthStore();
 
-    // 1. If we haven't checked the session yet, check it now
     if (!authStore.isInitialized) {
         await authStore.checkAuth();
     }
 
-    // 2. Check if the route requires authentication
-    // Assuming you add "meta: { requiresAuth: true }" to your protected routes
     const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
+    const guestOnly = to.matched.some(record => record.meta.guestOnly);
 
     if (requiresAuth && !authStore.user) {
-        // Redirect to login if trying to access a protected page while logged out
-        next({ name: 'Login' }); // Make sure this matches your login route name
-    } else if (to.name === 'Login' && authStore.user) {
-        // Redirect to dashboard if trying to access login while already logged in
+        next({ name: 'Login' });
+    } else if (guestOnly && authStore.user) {
         next({ name: 'Dashboard' });
     } else {
-        next(); // Carry on!
+        next();
     }
 });
 

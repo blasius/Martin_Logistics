@@ -7,6 +7,7 @@ export const useAuthStore = defineStore('auth', {
         isInitialized: false,
         requiresTwoFactor: false,
         tempToken: null,
+        requiresSetup: false,
     }),
     actions: {
         async login(identifier, password) {
@@ -21,15 +22,42 @@ export const useAuthStore = defineStore('auth', {
                     return data;
                 }
 
+                if (data.requires_2fa_setup) {
+                    this.requiresSetup = true;
+                    this.tempToken = data.temp_token;
+                    this.isInitialized = true;
+                    return data;
+                }
+
                 this.user = data.user;
                 this.isInitialized = true;
                 this.requiresTwoFactor = false;
+                this.requiresSetup = false;
                 this.tempToken = null;
                 return data;
             } catch (error) {
                 this.isInitialized = true;
                 throw error;
             }
+        },
+
+        async initSetup() {
+            const { data } = await api.post('portal/2fa/setup-init', {
+                temp_token: this.tempToken,
+            });
+            return data;
+        },
+
+        async confirmSetup(code) {
+            const { data } = await api.post('portal/2fa/setup-confirm', {
+                temp_token: this.tempToken,
+                code,
+            });
+            this.user = data.user;
+            this.requiresSetup = false;
+            this.requiresTwoFactor = false;
+            this.tempToken = null;
+            return data;
         },
 
         async verifyTwoFactor(code) {
@@ -56,6 +84,7 @@ export const useAuthStore = defineStore('auth', {
 
         cancelTwoFactor() {
             this.requiresTwoFactor = false;
+            this.requiresSetup = false;
             this.tempToken = null;
         },
 
