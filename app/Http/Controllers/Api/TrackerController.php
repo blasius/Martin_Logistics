@@ -24,26 +24,35 @@ class TrackerController extends Controller
             ->select('vehicles.id', 'vehicles.plate_number')
             ->where(function ($query) use ($q) {
                 $query->where('vehicles.plate_number', 'LIKE', "%{$q}%")
-                    ->orWhereHas('drivers.user', function ($q2) use ($q) {
-                        $q2->where('name', 'LIKE', "%{$q}%");
+                    ->orWhereExists(function ($sub) use ($q) {
+                        $sub->select(DB::raw(1))
+                            ->from('driver_vehicle_assignments')
+                            ->join('users', 'users.id', '=', 'driver_vehicle_assignments.driver_id')
+                            ->whereColumn('driver_vehicle_assignments.vehicle_id', 'vehicles.id')
+                            ->whereNull('driver_vehicle_assignments.end_date')
+                            ->where('users.name', 'LIKE', "%{$q}%");
                     })
                     ->orWhereHas('trailers', function ($q2) use ($q) {
                         $q2->where('trailers.plate_number', 'LIKE', "%{$q}%");
                     });
             })
-            ->with(['snapshot', 'drivers.user', 'currentTrailer.trailer'])
+            ->with(['snapshot', 'currentAssignment.trailer'])
             ->limit(10)
             ->get()
             ->map(function ($vehicle) {
-                $currentDriver = $vehicle->drivers
-                    ->sortByDesc(fn($d) => optional($d->pivot)->start_date)
+                $currentDriver = DB::table('users')
+                    ->join('driver_vehicle_assignments', 'users.id', '=', 'driver_vehicle_assignments.driver_id')
+                    ->join('drivers', 'users.id', '=', 'drivers.user_id')
+                    ->where('driver_vehicle_assignments.vehicle_id', $vehicle->id)
+                    ->whereNull('driver_vehicle_assignments.end_date')
+                    ->select('users.id', 'users.name')
                     ->first();
 
                 return [
                     'id' => $vehicle->id,
                     'plate_number' => $vehicle->plate_number,
-                    'driver_name' => $currentDriver?->user?->name,
-                    'trailer_plate' => optional($vehicle->currentTrailer?->trailer)->plate_number,
+                    'driver_name' => $currentDriver?->name,
+                    'trailer_plate' => optional($vehicle->currentAssignment?->trailer)->plate_number,
                     'snapshot' => $vehicle->snapshot ? [
                         'latitude' => (float) $vehicle->snapshot->latitude,
                         'longitude' => (float) $vehicle->snapshot->longitude,
@@ -60,11 +69,14 @@ class TrackerController extends Controller
 
     public function show(Request $request, $vehicleId)
     {
-        $vehicle = Vehicle::with(['drivers.user', 'currentTrailer.trailer'])
-            ->findOrFail($vehicleId);
+        $vehicle = Vehicle::with('currentAssignment.trailer')->findOrFail($vehicleId);
 
-        $currentDriver = $vehicle->drivers
-            ->sortByDesc(fn($d) => optional($d->pivot)->start_date)
+        $currentDriver = DB::table('users')
+            ->join('driver_vehicle_assignments', 'users.id', '=', 'driver_vehicle_assignments.driver_id')
+            ->join('drivers', 'users.id', '=', 'drivers.user_id')
+            ->where('driver_vehicle_assignments.vehicle_id', $vehicle->id)
+            ->whereNull('driver_vehicle_assignments.end_date')
+            ->select('users.id', 'users.name')
             ->first();
 
         $snapshot = VehicleSnapshot::where('vehicle_id', $vehicleId)->first();
@@ -143,8 +155,8 @@ class TrackerController extends Controller
             'vehicle' => [
                 'id' => $vehicle->id,
                 'plate_number' => $vehicle->plate_number,
-                'driver_name' => $currentDriver?->user?->name,
-                'trailer_plate' => optional($vehicle->currentTrailer?->trailer)->plate_number,
+                'driver_name' => $currentDriver?->name,
+                'trailer_plate' => optional($vehicle->currentAssignment?->trailer)->plate_number,
             ],
             'snapshot' => $snapshot ? [
                 'latitude' => (float) $snapshot->latitude,
