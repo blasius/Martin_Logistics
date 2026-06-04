@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
-
+use PragmaRX\Google2FA\Google2FA;
 class AuthController extends Controller
 {
     public function portalLogin(Request $request)
