@@ -120,6 +120,11 @@ const submit = async () => {
 
         if (store.requiresTwoFactor) return
 
+        if (store.requiresSetup) {
+            router.push('/2fa/setup')
+            return
+        }
+
         router.push('/dashboard')
     } catch (e) {
         if (e.response) {

@@ -48,6 +48,21 @@ class AuthController extends Controller
             ]);
         }
 
+        // Force 2FA setup if not configured
+        Auth::guard('web')->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        $tempToken = Crypt::encrypt([
+            'user_id' => $user->id,
+            'expires_at' => now()->addMinutes(10)->timestamp,
+        ]);
+
+        return response()->json([
+            'requires_2fa_setup' => true,
+            'temp_token' => $tempToken,
+        ]);
+
         $request->session()->regenerate();
         return response()->json([
             'user'    => $user,
@@ -253,6 +268,99 @@ class AuthController extends Controller
         return response()->json([
             'recovery_codes' => $codes,
             'message' => 'Recovery codes regenerated.',
+        ]);
+    }
+
+    public function initSetup(Request $request)
+    {
+        $request->validate(['temp_token' => 'required|string']);
+
+        try {
+            $payload = Crypt::decrypt($request->temp_token);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Invalid or expired token.'], 422);
+        }
+
+        if (now()->timestamp > ($payload['expires_at'] ?? 0)) {
+            return response()->json(['message' => 'Token expired. Please login again.'], 422);
+        }
+
+        $user = \App\Models\User::find($payload['user_id']);
+        if (! $user) {
+            return response()->json(['message' => 'Invalid token.'], 422);
+        }
+
+        if ($user->hasEnabledTwoFactorAuthentication()) {
+            Auth::guard('web')->loginUsingId($user->id);
+            $request->session()->regenerate();
+            return response()->json(['user' => $user, 'message' => '2FA already active.']);
+        }
+
+        if (! $user->two_factor_secret) {
+            $google2fa = app('pragmarx.google2fa');
+            $secret = $google2fa->generateSecretKey();
+            $recoveryCodes = collect(range(1, 8))->map(fn () => \Illuminate\Support\Str::random(10))->all();
+
+            $user->forceFill([
+                'two_factor_secret' => encrypt($secret),
+                'two_factor_recovery_codes' => encrypt(json_encode($recoveryCodes)),
+                'two_factor_confirmed_at' => null,
+            ])->save();
+        }
+
+        return response()->json([
+            'secret' => decrypt($user->two_factor_secret),
+            'qr_code' => $user->twoFactorQrCodeSvg(),
+            'qr_code_url' => $user->twoFactorQrCodeUrl(),
+            'recovery_codes' => $user->two_factor_recovery_codes
+                ? json_decode(decrypt($user->two_factor_recovery_codes), true)
+                : [],
+        ]);
+    }
+
+    public function confirmSetup(Request $request)
+    {
+        $request->validate([
+            'temp_token' => 'required|string',
+            'code' => 'required|string',
+        ]);
+
+        try {
+            $payload = Crypt::decrypt($request->temp_token);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Invalid or expired token.'], 422);
+        }
+
+        if (now()->timestamp > ($payload['expires_at'] ?? 0)) {
+            return response()->json(['message' => 'Token expired. Please login again.'], 422);
+        }
+
+        $user = \App\Models\User::find($payload['user_id']);
+        if (! $user || ! $user->two_factor_secret) {
+            return response()->json(['message' => 'Invalid token or 2FA not initialized.'], 422);
+        }
+
+        if ($user->hasEnabledTwoFactorAuthentication()) {
+            Auth::guard('web')->loginUsingId($user->id);
+            $request->session()->regenerate();
+            return response()->json(['user' => $user, 'message' => '2FA already active.']);
+        }
+
+        $google2fa = app('pragmarx.google2fa');
+        $valid = $google2fa->verifyKey(decrypt($user->two_factor_secret), $request->code);
+
+        if (! $valid) {
+            return response()->json(['message' => 'Invalid verification code. Try again.'], 422);
+        }
+
+        $user->forceFill(['two_factor_confirmed_at' => now()])->save();
+
+        Auth::guard('web')->loginUsingId($user->id);
+        $request->session()->regenerate();
+
+        return response()->json([
+            'user' => $user,
+            'message' => '2FA setup complete.',
         ]);
     }
 
