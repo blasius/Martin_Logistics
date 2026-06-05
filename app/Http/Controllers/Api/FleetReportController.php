@@ -65,17 +65,18 @@ class FleetReportController extends Controller
         $completedTrips = Trip::where('status', 'delivered')->count();
         $activeTrips = Trip::whereIn('status', ['assigned', 'on_route'])->count();
 
-        // Revenue from active orders
-        $totalRevenue = (float) Order::whereIn('status', $activeStatuses)->sum('price');
-        $monthRevenue = (float) Order::whereIn('status', $activeStatuses)
-            ->whereDate('created_at', '>=', $monthStart)
+        // Revenue from active orders — same logic as top clients below
+        $orderRevenueQuery = DB::table('orders')
+            ->whereIn('orders.status', $activeStatuses);
+        $totalRevenue = (float) (clone $orderRevenueQuery)->sum('price');
+        $monthRevenue = (float) (clone $orderRevenueQuery)
+            ->whereDate('orders.created_at', '>=', $monthStart)
             ->sum('price');
 
         // Top profitable clients
-        $topClients = DB::table('orders')
+        $topClients = (clone $orderRevenueQuery)
             ->select('orders.client_id', 'clients.name', DB::raw('SUM(orders.price) as total_revenue'), DB::raw('COUNT(*) as order_count'))
             ->join('clients', 'orders.client_id', '=', 'clients.id')
-            ->whereIn('orders.status', $activeStatuses)
             ->groupBy('orders.client_id', 'clients.name')
             ->orderByDesc('total_revenue')
             ->take(10)
@@ -151,10 +152,10 @@ class FleetReportController extends Controller
         $netProfit = $totalRevenue - $totalExpenses - $totalFineCost;
         $profitMargin = $totalRevenue > 0 ? round(($netProfit / $totalRevenue) * 100, 1) : 0;
 
-        // Monthly revenue trend
-        $monthlyRevenue = Order::whereIn('status', $activeStatuses)
-            ->where('created_at', '>=', $twelveMonthsAgo)
-            ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as month, SUM(price) as value")
+        // Monthly revenue trend — same order base as top clients
+        $monthlyRevenue = (clone $orderRevenueQuery)
+            ->where('orders.created_at', '>=', $twelveMonthsAgo)
+            ->selectRaw("DATE_FORMAT(orders.created_at, '%Y-%m') as month, SUM(orders.price) as value")
             ->groupBy('month')
             ->orderBy('month')
             ->pluck('value', 'month');
