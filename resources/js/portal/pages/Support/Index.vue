@@ -7,33 +7,40 @@
                 </h1>
             </div>
             <div class="flex items-center gap-4">
-                <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Live Preview Mode</span>
+                <div class="relative">
+                    <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input v-model="search" placeholder="Search tickets..."
+                           class="pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 w-64" />
+                </div>
+                <button @click="refresh" :disabled="loading"
+                        class="text-[10px] font-black uppercase px-4 py-2 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 transition active:scale-95 disabled:opacity-40 flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    Refresh
+                </button>
             </div>
         </div>
 
         <div class="flex flex-wrap gap-3">
-            <button
-                @click="activeCategoryId = null"
-                :class="[!activeCategoryId ? 'bg-slate-900 text-white shadow-xl translate-y-[-2px]' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300']"
-                class="px-6 py-3 rounded-2xl border font-black text-xs uppercase transition-all flex items-center gap-2">
-                All Issues <span class="opacity-50 text-[10px]">{{ allTickets.length }}</span>
+            <button @click="activeCategoryId = null"
+                    :class="[!activeCategoryId ? 'bg-slate-900 text-white shadow-xl translate-y-[-2px]' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300']"
+                    class="px-6 py-3 rounded-2xl border font-black text-xs uppercase transition-all flex items-center gap-2">
+                All Issues <span class="opacity-50 text-[10px]">{{ tickets.length }}</span>
             </button>
-
-            <template v-for="cat in dynamicCategoryStats" :key="cat.id">
-                <button
-                    @click="activeCategoryId = cat.id"
-                    :class="[activeCategoryId === cat.id ? 'bg-indigo-600 text-white shadow-xl translate-y-[-2px] border-indigo-600' : 'bg-white text-slate-700 border-slate-200 shadow-sm hover:border-indigo-300']"
-                    class="px-6 py-3 rounded-2xl border font-black text-xs uppercase transition-all flex items-center gap-3">
+            <template v-for="cat in categories" :key="cat.id">
+                <button @click="activeCategoryId = cat.id"
+                        :class="[activeCategoryId === cat.id ? 'bg-indigo-600 text-white shadow-xl translate-y-[-2px] border-indigo-600' : 'bg-white text-slate-700 border-slate-200 shadow-sm hover:border-indigo-300']"
+                        class="px-6 py-3 rounded-2xl border font-black text-xs uppercase transition-all flex items-center gap-3">
                     {{ cat.name }}
-                    <span :class="activeCategoryId === cat.id ? 'bg-white text-indigo-600' : 'bg-rose-500 text-white'" class="px-2 py-0.5 rounded-lg text-[10px]">
-                        {{ cat.count }}
-                    </span>
+                    <span :class="activeCategoryId === cat.id ? 'bg-white text-indigo-600' : 'bg-rose-500 text-white'" class="px-2 py-0.5 rounded-lg text-[10px]">{{ cat.tickets_count }}</span>
                 </button>
             </template>
         </div>
 
         <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-            <table class="w-full text-left">
+            <div v-if="loading && !tickets.length" class="p-20 flex items-center justify-center">
+                <svg class="w-8 h-8 text-slate-300 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            </div>
+            <table v-else class="w-full text-left">
                 <thead class="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase border-b">
                 <tr>
                     <th class="p-5">Reference</th>
@@ -51,31 +58,30 @@
                     <td class="p-5">
                         <div class="flex items-center gap-3">
                             <div class="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-xs">
-                                {{ t.driver.substring(0,2).toUpperCase() }}
+                                {{ userName(t.user) }}
                             </div>
                             <div>
-                                <p class="font-black text-slate-800 text-sm tracking-tight">{{ t.driver }}</p>
-                                <p class="text-[10px] font-bold text-indigo-600 uppercase">{{ t.subject.plate }}</p>
+                                <p class="font-black text-slate-800 text-sm tracking-tight">{{ t.user?.name }}</p>
+                                <p class="text-[10px] font-bold text-indigo-600 uppercase">{{ subjectLabel(t.subject) }}</p>
                             </div>
                         </div>
                     </td>
                     <td class="p-5">
                         <p class="text-sm font-bold text-slate-700 leading-snug">{{ t.title }}</p>
-                        <p class="text-[10px] font-black text-slate-400 mt-1 uppercase">{{ t.category_name }}</p>
+                        <p class="text-[10px] font-black text-slate-400 mt-1 uppercase">{{ t.category?.name }}</p>
                     </td>
                     <td class="p-5">
-                            <span :class="t.priority === 'urgent' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'" class="text-[9px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest">
-                                {{ t.priority }}
-                            </span>
+                        <span :class="statusBadge(t.status)" class="text-[9px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest">{{ t.status }}</span>
+                        <span v-if="t.priority === 'urgent'" class="ml-1.5 text-[9px] font-black px-2 py-1 rounded-lg uppercase tracking-widest bg-rose-100 text-rose-700">URGENT</span>
                     </td>
                     <td class="p-5 text-right">
-                        <p class="text-xs font-black text-slate-600">{{ t.timeAgo }}</p>
-                        <span class="text-[9px] font-bold text-slate-400 uppercase italic">Pending Dispatch</span>
+                        <p class="text-xs font-black text-slate-600">{{ timeAgo(t.created_at) }}</p>
+                        <span class="text-[9px] font-bold text-slate-400 uppercase italic">{{ t.messages_count || 0 }} messages</span>
                     </td>
                 </tr>
-                <tr v-if="filteredTickets.length === 0">
+                <tr v-if="!filteredTickets.length">
                     <td colspan="5" class="p-20 text-center text-slate-400 font-black uppercase tracking-widest text-xs">
-                        No active issues in this category
+                        No tickets found
                     </td>
                 </tr>
                 </tbody>
@@ -84,76 +90,129 @@
 
         <Transition name="slide">
             <div v-if="activeTicket" class="fixed inset-0 z-[100] flex justify-end">
-                <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="activeTicket = null"></div>
+                <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="closeTicket"></div>
                 <div class="relative bg-white w-full max-w-4xl h-full shadow-2xl flex border-l-8 border-indigo-600">
-
                     <aside class="w-80 border-r border-slate-100 p-8 bg-slate-50/50 overflow-y-auto">
-                        <div class="space-y-8">
-                            <div>
-                                <h3 class="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-4">Trip Intelligence</h3>
-                                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                                    <div class="flex justify-between items-center mb-2">
-                                        <span class="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Progress</span>
-                                        <span class="text-xs font-black text-slate-800">{{ activeTicket.subject.progress }}%</span>
-                                    </div>
-                                    <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                                        <div :style="{width: activeTicket.subject.progress + '%'}" class="bg-indigo-600 h-full rounded-full"></div>
-                                    </div>
-                                    <div class="mt-4 flex justify-between text-[9px] font-black uppercase text-slate-400">
-                                        <span>{{ activeTicket.subject.origin }}</span>
-                                        <span>{{ activeTicket.subject.dest }}</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div>
-                                <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Telemetry</h3>
-                                <div class="grid grid-cols-2 gap-2">
-                                    <div class="bg-white p-3 rounded-xl border border-slate-200">
-                                        <p class="text-[8px] font-black text-slate-400 uppercase">Fuel</p>
-                                        <p class="text-sm font-black text-slate-800">{{ activeTicket.subject.fuel }}%</p>
-                                    </div>
-                                    <div class="bg-white p-3 rounded-xl border border-slate-200">
-                                        <p class="text-[8px] font-black text-slate-400 uppercase">Temp</p>
-                                        <p class="text-sm font-black text-emerald-600">Optimal</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <button @click="markResolved(activeTicket.id)" class="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all">
-                                Mark Resolved
-                            </button>
+                        <div v-if="loadingDetail" class="flex items-center justify-center py-12">
+                            <svg class="w-6 h-6 text-slate-300 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                         </div>
+                        <template v-if="!loadingDetail && ticketDetail">
+                            <div class="space-y-6">
+                                <div>
+                                    <h3 class="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-4">Details</h3>
+                                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
+                                        <div>
+                                            <p class="text-[9px] font-black text-slate-400 uppercase">Priority</p>
+                                            <p class="text-sm font-black mt-0.5" :class="ticketDetail.priority === 'urgent' ? 'text-rose-600' : 'text-slate-800'">{{ ticketDetail.priority }}</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-[9px] font-black text-slate-400 uppercase">Assigned To</p>
+                                            <p class="text-sm font-black mt-0.5 text-slate-800">{{ ticketDetail.assignee?.name || 'Unassigned' }}</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-[9px] font-black text-slate-400 uppercase">Category</p>
+                                            <p class="text-sm font-black mt-0.5 text-slate-800">{{ ticketDetail.category?.name }}</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-[9px] font-black text-slate-400 uppercase">Created</p>
+                                            <p class="text-sm font-black mt-0.5 text-slate-800">{{ formatDate(ticketDetail.created_at) }}</p>
+                                        </div>
+                                        <div v-if="ticketDetail.sla_resolution_due_at">
+                                            <p class="text-[9px] font-black text-slate-400 uppercase">SLA Due</p>
+                                            <p class="text-sm font-black mt-0.5" :class="slaBreached ? 'text-rose-600' : 'text-emerald-600'">{{ formatDate(ticketDetail.sla_resolution_due_at) }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h3 class="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-4">Subject</h3>
+                                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                                        <div v-if="subjectIsVehicle(ticketDetail.subject)">
+                                            <p class="text-lg font-black text-slate-800">{{ ticketDetail.subject.plate_number }}</p>
+                                            <p class="text-[10px] font-bold text-slate-400">{{ ticketDetail.subject.make }} {{ ticketDetail.subject.model }}</p>
+                                        </div>
+                                        <div v-else-if="ticketDetail.subject">
+                                            <p class="text-sm font-black text-slate-800">{{ subjectLabel(ticketDetail.subject) }}</p>
+                                        </div>
+                                        <p v-else class="text-[10px] font-bold text-slate-400">No subject linked</p>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h3 class="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-4">Contact</h3>
+                                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-2">
+                                        <p class="text-sm font-black text-slate-800">{{ ticketDetail.user?.name }}</p>
+                                        <p class="text-[10px] font-bold text-slate-400">{{ ticketDetail.user?.email }}</p>
+                                        <p v-if="ticketDetail.user?.driver?.phone" class="text-[10px] font-bold text-slate-400">{{ ticketDetail.user.driver.phone }}</p>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-2">
+                                    <select v-model="statusUpdate" @change="updateTicketStatus" class="w-full text-[10px] font-black bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 uppercase tracking-wider">
+                                        <option value="" disabled>Change Status</option>
+                                        <option value="open">Open</option>
+                                        <option value="in_progress">In Progress</option>
+                                        <option value="waiting">Waiting</option>
+                                        <option value="resolved">Resolved</option>
+                                        <option value="closed">Closed</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </template>
                     </aside>
 
                     <div class="flex-1 flex flex-col min-w-0">
                         <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
                             <div>
-                                <h2 class="text-xl font-black text-slate-900 uppercase tracking-tighter">{{ activeTicket.title }}</h2>
-                                <p class="text-[10px] font-black text-slate-400 uppercase">{{ activeTicket.driver }} • {{ activeTicket.subject.plate }}</p>
+                                <h2 class="text-xl font-black text-slate-900 uppercase tracking-tighter">{{ ticketDetail?.title || 'Loading...' }}</h2>
+                                <p v-if="ticketDetail" class="text-[10px] font-black text-slate-400 uppercase">{{ ticketDetail.user?.name }} • {{ subjectLabel(ticketDetail.subject) }}</p>
                             </div>
-                            <button @click="activeTicket = null" class="p-2 bg-slate-50 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-colors">
+                            <button @click="closeTicket" class="p-2 bg-slate-50 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-colors">
                                 <X class="w-6 h-6" />
                             </button>
                         </div>
 
+                        <div v-if="ticketDetail?.description" class="px-8 py-4 bg-slate-50/50 border-b border-slate-100">
+                            <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Description</p>
+                            <p class="text-sm font-medium text-slate-600">{{ ticketDetail.description }}</p>
+                        </div>
+
                         <div class="flex-1 overflow-y-auto p-8 space-y-6 bg-slate-50/30">
-                            <div v-for="(msg, idx) in activeTicket.messages" :key="idx"
-                                 :class="['flex flex-col max-w-[85%]', msg.is_me ? 'ml-auto items-end' : 'items-start']">
-                                <div :class="[
-                                    'p-4 rounded-3xl text-sm font-medium shadow-sm',
-                                    msg.is_me ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 text-slate-700'
-                                ]">
-                                    {{ msg.text }}
-                                </div>
-                                <span class="text-[9px] font-black text-slate-400 uppercase mt-2 px-2">{{ msg.time }}</span>
+                            <div v-if="loadingDetail" class="flex items-center justify-center py-12">
+                                <svg class="w-6 h-6 text-slate-300 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                             </div>
+                            <template v-if="!loadingDetail">
+                                <div v-for="msg in ticketDetail?.messages || []" :key="msg.id"
+                                     :class="['flex flex-col max-w-[85%]', msg.user_id === currentUserId ? 'ml-auto items-end' : 'items-start']">
+                                    <div :class="[
+                                        'p-4 rounded-3xl text-sm font-medium shadow-sm',
+                                        msg.user_id === currentUserId ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 text-slate-700'
+                                    ]">
+                                        {{ msg.message }}
+                                    </div>
+                                    <span class="text-[9px] font-black text-slate-400 uppercase mt-2 px-2">{{ msg.author?.name }} • {{ timeAgo(msg.created_at) }}</span>
+                                </div>
+                                <div v-if="!ticketDetail?.messages?.length" class="text-center text-slate-400 font-black uppercase tracking-widest text-xs py-12">
+                                    No messages yet
+                                </div>
+                                <div v-if="ticketDetail?.events?.length" class="border-t border-slate-200 pt-6 mt-8">
+                                    <p class="text-[10px] font-black text-slate-400 uppercase mb-4">Activity Log</p>
+                                    <div v-for="evt in ticketDetail.events" :key="evt.id" class="flex items-center gap-3 text-[10px] font-bold text-slate-400 mb-2.5">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0"></span>
+                                        <span>{{ evt.actor?.name || 'System' }}</span>
+                                        <span>{{ evt.type.replace(/_/g, ' ') }}</span>
+                                        <span class="ml-auto">{{ timeAgo(evt.created_at) }}</span>
+                                    </div>
+                                </div>
+                            </template>
                         </div>
 
                         <div class="p-6 bg-white border-t border-slate-100">
                             <div class="relative">
-                                <textarea v-model="replyText" placeholder="Type message..." class="w-full bg-slate-50 border-none rounded-3xl p-5 pr-16 text-sm focus:ring-1 focus:ring-indigo-500 min-h-[80px] font-medium"></textarea>
-                                <button @click="sendReply" class="absolute right-4 bottom-4 p-3 bg-indigo-600 text-white rounded-2xl shadow-xl">
+                                <textarea v-model="replyText" placeholder="Type message..." @keydown.enter.ctrl="sendReply"
+                                          class="w-full bg-slate-50 border-none rounded-3xl p-5 pr-16 text-sm focus:ring-1 focus:ring-indigo-500 min-h-[80px] font-medium resize-none"></textarea>
+                                <button @click="sendReply" :disabled="!replyText.trim() || sending"
+                                        class="absolute right-4 bottom-4 p-3 bg-indigo-600 text-white rounded-2xl shadow-xl disabled:opacity-40 transition">
                                     <Send class="w-5 h-5" />
                                 </button>
                             </div>
@@ -166,78 +225,193 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
-import { LifeBuoy, X, Send, Fuel, CheckCircle } from 'lucide-vue-next';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { api } from '../../../plugins/axios'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import { LifeBuoy, X, Send, Search } from 'lucide-vue-next'
 
-const activeCategoryId = ref(null);
-const activeTicket = ref(null);
-const replyText = ref('');
+dayjs.extend(relativeTime)
 
-// --- DUMMY SOURCE OF TRUTH ---
-// If you want a category badge to show 5, you must have 5 tickets here with that category_id.
-const allTickets = ref([
-    {
-        id: 1, reference: 'FL-991', category_id: 1, category_name: 'Fuel Issues', title: 'Fuel Card PIN Lock', priority: 'urgent', timeAgo: '2m ago',
-        driver: 'Munyagisenyi Moses',
-        subject: { plate: 'RAH476E/RL5949', progress: 65, fuel: 12, origin: 'Kigali', dest: 'MBARARA' },
-        messages: [
-            { is_me: false, text: 'The card is locked after 3 attempts.', time: '10:00 AM' },
-            { is_me: true, text: 'Resetting the PIN now. Check app in 1m.', time: '10:05 AM' }
-        ]
-    },
-    {
-        id: 2, reference: 'FL-992', category_id: 1, category_name: 'Fuel Issues', title: 'Station doesn\'t accept card', priority: 'normal', timeAgo: '15m ago',
-        driver: 'IRARISHIKIJE J. CLAUDE',
-        subject: { plate: 'RAI233W/RL3006', progress: 20, fuel: 5, origin: 'Kigali', dest: 'Kampala' },
-        messages: []
-    },
-    {
-        id: 3, reference: 'ME-101', category_id: 2, category_name: 'Breakdowns', title: 'Flat Tyre - Route A2', priority: 'urgent', timeAgo: '1h ago',
-        driver: 'KAVUTSE EMMANUEL',
-        subject: { plate: 'RAH602E/RL5948', progress: 85, fuel: 40, origin: 'Mombasa', dest: 'Kigali' },
-        messages: []
-    }
-]);
+const loading = ref(false)
+const loadingDetail = ref(false)
+const sending = ref(false)
+const search = ref('')
+const activeCategoryId = ref(null)
+const activeTicket = ref(null)
+const ticketDetail = ref(null)
+const categories = ref([])
+const tickets = ref([])
+const replyText = ref('')
+const statusUpdate = ref('')
+const currentUserId = ref(null)
 
-// --- DYNAMIC COMPUTATION ---
-// This handles your requirement: counts reflect actual data + hidden if 0.
-const dynamicCategoryStats = computed(() => {
-    const stats = [
-        { id: 1, name: 'Fuel Issues' },
-        { id: 2, name: 'Breakdowns' },
-        { id: 3, name: 'Customs' },
-        { id: 4, name: 'Safety' }
-    ];
-
-    return stats.map(cat => ({
-        ...cat,
-        count: allTickets.value.filter(t => t.category_id === cat.id).length
-    })).filter(cat => cat.count > 0); // ONLY SHOW IF COUNT > 0
-});
+watch(activeCategoryId, () => { fetchTickets() })
 
 const filteredTickets = computed(() => {
-    if (!activeCategoryId.value) return allTickets.value;
-    return allTickets.value.filter(t => t.category_id === activeCategoryId.value);
-});
+    let result = tickets.value
+    if (activeCategoryId.value) {
+        result = result.filter(t => t.support_category_id === activeCategoryId.value)
+    }
+    if (search.value) {
+        const s = search.value.toLowerCase()
+        result = result.filter(t =>
+            t.reference?.toLowerCase().includes(s) ||
+            t.title?.toLowerCase().includes(s) ||
+            t.user?.name?.toLowerCase().includes(s)
+        )
+    }
+    return result
+})
 
-// --- ACTIONS ---
-const openTicket = (t) => activeTicket.value = t;
+const slaBreached = computed(() => {
+    if (!ticketDetail.value?.sla_resolution_due_at) return false
+    if (['resolved', 'closed'].includes(ticketDetail.value.status)) return false
+    return new Date(ticketDetail.value.sla_resolution_due_at) < new Date()
+})
 
-const sendReply = () => {
-    if (!replyText.value) return;
-    activeTicket.value.messages.push({ is_me: true, text: replyText.value, time: 'Now' });
-    replyText.value = '';
-};
+const userName = (user) => {
+    if (!user?.name) return '??'
+    return user.name.substring(0, 2).toUpperCase()
+}
 
-const markResolved = (id) => {
-    allTickets.value = allTickets.value.filter(t => t.id !== id);
-    activeTicket.value = null;
-    // Because of Vue's reactivity, the badge will disappear automatically
-    // if that was the last ticket in that category.
-};
+const subjectLabel = (subj) => {
+    if (!subj) return '—'
+    if (subj.plate_number) return subj.plate_number
+    if (subj.origin && subj.dest) return `${subj.origin} → ${subj.dest}`
+    if (subj.name) return subj.name
+    return `#${subj.id}`
+}
+
+const subjectIsVehicle = (subj) => {
+    return subj?.plate_number || subj?.make
+}
+
+const statusBadge = (status) => {
+    const map = {
+        open: 'bg-blue-100 text-blue-700',
+        in_progress: 'bg-amber-100 text-amber-700',
+        waiting: 'bg-slate-100 text-slate-600',
+        resolved: 'bg-emerald-100 text-emerald-700',
+        closed: 'bg-slate-200 text-slate-500',
+    }
+    return map[status] || 'bg-slate-100 text-slate-600'
+}
+
+const timeAgo = (date) => {
+    if (!date) return ''
+    return dayjs(date).fromNow()
+}
+
+const formatDate = (date) => {
+    if (!date) return '—'
+    return dayjs(date).format('MMM D, YYYY h:mm A')
+}
+
+const fetchCategories = async () => {
+    try {
+        const { data } = await api.get('portal/support/categories')
+        categories.value = data
+    } catch (e) {
+        console.error('Failed to load categories', e)
+    }
+}
+
+const fetchTickets = async () => {
+    loading.value = true
+    try {
+        const params = {}
+        if (activeCategoryId.value) params.category_id = activeCategoryId.value
+        const { data } = await api.get('portal/support/tickets', { params })
+        tickets.value = data.data || []
+        if (!currentUserId.value && data.data?.length) {
+            currentUserId.value = data.data[0].user_id
+        }
+    } catch (e) {
+        console.error('Failed to load tickets', e)
+    } finally {
+        loading.value = false
+    }
+}
+
+const openTicket = async (ticket) => {
+    activeTicket.value = ticket
+    loadingDetail.value = true
+    ticketDetail.value = null
+    statusUpdate.value = ''
+    try {
+        const { data } = await api.get(`portal/support/tickets/${ticket.id}`)
+        ticketDetail.value = data
+        if (!currentUserId.value) {
+            try {
+                const { data: userData } = await api.get('user')
+                currentUserId.value = userData.id
+            } catch (_) {}
+        }
+    } catch (e) {
+        console.error('Failed to load ticket detail', e)
+    } finally {
+        loadingDetail.value = false
+    }
+}
+
+const closeTicket = () => {
+    activeTicket.value = null
+    ticketDetail.value = null
+    statusUpdate.value = ''
+    replyText.value = ''
+}
+
+const sendReply = async () => {
+    if (!replyText.value.trim() || !ticketDetail.value) return
+    sending.value = true
+    try {
+        const { data } = await api.post(`portal/support/tickets/${ticketDetail.value.id}/messages`, {
+            message: replyText.value,
+        })
+        ticketDetail.value.messages.push(data)
+        replyText.value = ''
+    } catch (e) {
+        console.error('Failed to send message', e)
+    } finally {
+        sending.value = false
+    }
+}
+
+const updateTicketStatus = async () => {
+    if (!statusUpdate.value || !ticketDetail.value) return
+    try {
+        await api.patch(`portal/support/tickets/${ticketDetail.value.id}/status`, {
+            status: statusUpdate.value,
+        })
+        ticketDetail.value.status = statusUpdate.value
+        const idx = tickets.value.findIndex(t => t.id === ticketDetail.value.id)
+        if (idx !== -1) tickets.value[idx].status = statusUpdate.value
+        fetchCategories()
+    } catch (e) {
+        console.error('Failed to update status', e)
+    }
+}
+
+const refresh = () => {
+    fetchTickets()
+    fetchCategories()
+}
+
+let interval
+onMounted(async () => {
+    await Promise.all([fetchCategories(), fetchTickets()])
+    interval = setInterval(refresh, 60000)
+})
+
+onUnmounted(() => {
+    clearInterval(interval)
+})
 </script>
 
 <style scoped>
 .slide-enter-active, .slide-leave-active { transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
 .slide-enter-from, .slide-leave-to { transform: translateX(100%); }
+.animate-spin { animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
