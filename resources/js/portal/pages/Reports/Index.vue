@@ -189,6 +189,8 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { api } from '../../../plugins/axios'
 import Chart from 'chart.js/auto'
+import StatCard from '../../components/ui/StatCard.vue'
+import MetricRow from '../../components/ui/MetricRow.vue'
 
 const loading = ref(false)
 const data = ref(null)
@@ -397,39 +399,6 @@ onUnmounted(() => {
     clearInterval(interval)
 })
 </script>
-
-<script>
-export default {
-    components: {
-        StatCard: {
-            template: `
-                <div class="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                    <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">{{ label }}</p>
-                    <p class="text-lg font-black" :class="'text-' + color + '-600'">{{ value ?? '—' }}</p>
-                </div>
-            `,
-            props: ['label', 'value', 'color']
-        },
-        MetricRow: {
-            template: `
-                <div class="flex items-center justify-between">
-                    <span class="text-[10px] font-bold text-slate-500">{{ label }}</span>
-                    <span class="text-xs font-black" :class="cls">{{ value ?? '—' }}</span>
-                </div>
-            `,
-            props: ['label', 'value', 'highlight', 'warning'],
-            computed: {
-                cls() {
-                    if (this.highlight) return 'text-emerald-600'
-                    if (this.warning) return 'text-red-500'
-                    return 'text-slate-700'
-                }
-            }
-        }
-    }
-}
-</script>
-
 <style scoped>
 .animate-spin {
     animation: spin 1s linear infinite;
