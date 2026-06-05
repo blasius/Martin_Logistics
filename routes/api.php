@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\TripController;
 use App\Http\Controllers\Api\MockDispatchController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\TrackerController;
+use App\Http\Controllers\Api\FleetReportController;
 
 // Public Routes
 Route::post('/login', [AuthController::class, 'login']); // Token-based
@@ -139,6 +140,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/2fa/disable', [AuthController::class, 'disableTwoFactor']);
         Route::get('/2fa/recovery-codes', [AuthController::class, 'getRecoveryCodes']);
         Route::post('/2fa/recovery-codes/regenerate', [AuthController::class, 'regenerateRecoveryCodes']);
+
+        // Reports
+        Route::get('/reports', [FleetReportController::class, 'index']);
 
         // Dashboard
         Route::get('/dashboard/overview', [DashboardController::class, 'getOverview']);
