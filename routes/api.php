@@ -28,6 +28,9 @@ use App\Http\Controllers\Api\MockDispatchController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\TrackerController;
 use App\Http\Controllers\Api\FleetReportController;
+use App\Http\Controllers\Api\SupportTicketController;
+use App\Http\Controllers\Api\Support\SupportCategoryController;
+use App\Http\Controllers\Api\Support\SupportTicketMessageController;
 
 // Public Routes
 Route::post('/login', [AuthController::class, 'login']); // Token-based
@@ -166,6 +169,7 @@ Route::middleware('auth')->group(function () {
         // Support System Nested Group
         Route::prefix('support')->group(function () {
             Route::get('categories', [SupportCategoryController::class, 'index']);
+            Route::get('categories/stats', [SupportTicketController::class, 'categoryStats']);
             Route::get('tickets', [SupportTicketController::class, 'index']);
             Route::post('tickets', [SupportTicketController::class, 'store']);
             Route::get('tickets/{ticket}', [SupportTicketController::class, 'show']);
