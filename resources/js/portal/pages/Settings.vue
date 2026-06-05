@@ -1,5 +1,5 @@
 <template>
-    <div class="max-w-3xl mx-auto space-y-8">
+    <form autocomplete="off" class="max-w-3xl mx-auto space-y-8">
         <div>
             <h1 class="text-3xl font-black text-slate-800 tracking-tight uppercase italic leading-none">Settings</h1>
             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Account &amp; Security</p>
@@ -62,6 +62,7 @@
                         <div class="flex gap-3 items-start">
                             <input v-model="confirmCode"
                                    type="text"
+                                   autocomplete="off"
                                    inputmode="numeric"
                                    maxlength="6"
                                    placeholder="000 000"
@@ -119,6 +120,7 @@
                             <div class="mt-4 flex gap-3 items-start">
                                 <input v-model="disablePassword"
                                        type="password"
+                                       autocomplete="new-password"
                                        placeholder="Enter your password to confirm"
                                        class="border-slate-200 px-4 py-3 rounded-xl text-sm font-bold focus:ring-2 focus:ring-red-500 outline-none bg-slate-50 w-64 transition-all" />
                                 <button @click="disable2FA"
@@ -137,7 +139,7 @@
             <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
             <span class="text-sm font-bold">{{ notification.message }}</span>
         </div>
-    </div>
+    </form>
 </template>
 
 <script setup>
