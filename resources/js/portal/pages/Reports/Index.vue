@@ -336,22 +336,37 @@ const renderCharts = () => {
         }))
     }
 
-    // Financial Chart
+    // Financial Chart — dual y-axis so revenue (~$18K) isn't crushed by fines (~$3M)
     if (financialChart.value && d.financial?.monthly_labels?.length) {
         charts.push(new Chart(financialChart.value, {
             type: 'bar',
             data: {
                 labels: d.financial.monthly_labels,
                 datasets: [
-                    { label: 'Revenue', data: d.financial.monthly_revenue, backgroundColor: '#10b981', borderRadius: 3 },
-                    { label: 'Expenses', data: d.financial.monthly_expenses, backgroundColor: '#ef4444', borderRadius: 3 },
-                    { label: 'Fines', data: d.financial.monthly_fines, backgroundColor: '#8b5cf6', borderRadius: 3 },
+                    { label: 'Revenue', data: d.financial.monthly_revenue, backgroundColor: '#10b981', borderRadius: 3, yAxisID: 'y' },
+                    { label: 'Expenses', data: d.financial.monthly_expenses, backgroundColor: '#ef4444', borderRadius: 3, yAxisID: 'y1' },
+                    { label: 'Fines', data: d.financial.monthly_fines, backgroundColor: '#8b5cf6', borderRadius: 3, yAxisID: 'y1' },
                 ]
             },
             options: {
                 responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
                 plugins: { legend: { position: 'top', labels: { font: { size: 9 }, boxWidth: 10 } } },
-                scales: { y: { beginAtZero: true } }
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        position: 'left',
+                        title: { display: true, text: 'Revenue ($)', font: { size: 9 } },
+                        ticks: { font: { size: 8 }, callback: (v) => '$' + (v / 1000).toFixed(0) + 'k' }
+                    },
+                    y1: {
+                        beginAtZero: true,
+                        position: 'right',
+                        grid: { drawOnChartArea: false },
+                        title: { display: true, text: 'Costs ($)', font: { size: 9 } },
+                        ticks: { font: { size: 8 }, callback: (v) => '$' + (v / 1000).toFixed(0) + 'k' }
+                    }
+                }
             }
         }))
     }
