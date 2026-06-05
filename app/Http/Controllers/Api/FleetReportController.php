@@ -58,16 +58,14 @@ class FleetReportController extends Controller
         ];
 
         // ── Business Metrics ──
-        $activeStatuses = ['confirmed', 'in_transit', 'delivered'];
         $totalOrders = Order::count();
         $deliveredOrders = Order::where('status', 'delivered')->count();
         $totalTrips = Trip::count();
         $completedTrips = Trip::where('status', 'delivered')->count();
         $activeTrips = Trip::whereIn('status', ['assigned', 'on_route'])->count();
 
-        // Revenue from active orders — same logic as top clients below
-        $orderRevenueQuery = DB::table('orders')
-            ->whereIn('orders.status', $activeStatuses);
+        // Revenue from all orders (no status filter) — matches profit logic below
+        $orderRevenueQuery = DB::table('orders');
         $totalRevenue = (float) (clone $orderRevenueQuery)->sum('price');
         $monthRevenue = (float) (clone $orderRevenueQuery)
             ->whereDate('orders.created_at', '>=', $monthStart)
