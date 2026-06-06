@@ -136,6 +136,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/report/{type}', [ControlTowerController::class, 'report']);
 
         // Tracker
+        Route::get('/tracker', [TrackerController::class, 'index']);
         Route::get('/tracker/search', [TrackerController::class, 'search']);
         Route::get('/tracker/{vehicle}', [TrackerController::class, 'show']);
 
