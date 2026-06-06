@@ -65,7 +65,9 @@ Route::middleware('auth')->group(function () {
 
     // Initial Session Check (Critical for UI protection on refresh)
     Route::get('/user', function (Request $request) {
-        return $request->user();
+        $user = $request->user()->toArray();
+        $user['roles_list'] = $request->user()->getRoleNames();
+        return $user;
     });
 
     Route::post('/logout', [AuthController::class, 'logout']);
