@@ -169,9 +169,11 @@ Route::middleware('auth')->group(function () {
         Route::get('/trips/search-assignments', [TripController::class, 'searchAssignments']);
 
 
-        // User Management (role-gated via controller middleware)
-        Route::get('roles', [UserManagementController::class, 'rolesList']);
-        Route::apiResource('users', UserManagementController::class);
+        // User Management
+        Route::get('roles', [UserManagementController::class, 'rolesList'])
+            ->middleware('role:super_admin|Admin');
+        Route::apiResource('users', UserManagementController::class)
+            ->middleware('role:super_admin|Admin');
 
         // Support System Nested Group
         Route::prefix('support')->group(function () {

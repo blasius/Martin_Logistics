@@ -11,11 +11,6 @@ use Spatie\Permission\Models\Role;
 
 class UserManagementController extends Controller
 {
-    public function __construct()
-    {
-        $this->middleware('role:super_admin|Admin');
-    }
-
     public function index(Request $request)
     {
         return User::query()
