@@ -161,16 +161,165 @@
                     </div>
                 </div>
 
+                <!-- User Management -->
+                <div v-if="activeSection === 'users'">
+                    <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between gap-4">
+                            <div>
+                                <h2 class="text-[10px] font-black text-slate-500 uppercase tracking-widest">User Management</h2>
+                                <p class="text-[9px] font-bold text-slate-400 mt-1">Manage users and their roles</p>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <input v-model="userSearch" placeholder="Search users..."
+                                       class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/30 w-48" />
+                                <button @click="openUserModal()"
+                                       class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all active:scale-95 flex items-center gap-1.5">
+                                    <Plus class="w-4 h-4" /> Add User
+                                </button>
+                            </div>
+                        </div>
+
+                        <div v-if="usersLoading" class="flex items-center justify-center py-16">
+                            <svg class="w-6 h-6 text-slate-300 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        </div>
+                        <table v-else class="w-full text-left">
+                            <thead class="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase border-b">
+                            <tr>
+                                <th class="p-5">User</th>
+                                <th class="p-5">Email</th>
+                                <th class="p-5">Roles</th>
+                                <th class="p-5 text-right">Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                            <tr v-for="u in filteredUsers" :key="u.id" class="hover:bg-slate-50/30 transition-colors">
+                                <td class="p-5">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-9 h-9 rounded-xl bg-slate-800 text-white flex items-center justify-center font-black text-xs">{{ userInitials(u) }}</div>
+                                        <span class="text-sm font-black text-slate-800">{{ u.name }}</span>
+                                    </div>
+                                </td>
+                                <td class="p-5 text-sm font-bold text-slate-500">{{ u.email }}</td>
+                                <td class="p-5">
+                                    <div class="flex flex-wrap gap-1.5">
+                                        <span v-for="r in u.roles" :key="r.id"
+                                              :class="roleBadge(r.name)"
+                                              class="text-[9px] font-black px-2 py-0.5 rounded-lg uppercase">{{ r.name }}</span>
+                                    </div>
+                                </td>
+                                <td class="p-5 text-right">
+                                    <div class="flex items-center justify-end gap-2">
+                                        <button @click="openUserModal(u)" class="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-indigo-600 transition-colors">
+                                            <Pencil class="w-4 h-4" />
+                                        </button>
+                                        <button @click="confirmDeleteUser(u)" class="p-2 rounded-xl hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors">
+                                            <Trash2 class="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr v-if="!filteredUsers.length">
+                                <td colspan="4" class="p-16 text-center text-slate-400 font-black uppercase tracking-widest text-xs">No users found</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
                 <!-- Coming Soon Placeholder -->
-                <div v-else class="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden">
+                <div v-else-if="currentSection?.comingSoon" class="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden">
                     <div class="flex flex-col items-center justify-center py-20 px-6">
-                        <component :is="currentSection?.icon" class="w-12 h-12 text-slate-200 mb-4" />
-                        <h2 class="text-lg font-black text-slate-400 uppercase tracking-tight">{{ currentSection?.label }}</h2>
+                        <component :is="currentSection.icon" class="w-12 h-12 text-slate-200 mb-4" />
+                        <h2 class="text-lg font-black text-slate-400 uppercase tracking-tight">{{ currentSection.label }}</h2>
                         <p class="text-xs font-bold text-slate-300 mt-2">Coming soon</p>
                     </div>
                 </div>
             </div>
         </div>
+
+        <!-- User Modal -->
+        <Transition name="fade">
+            <div v-if="showUserModal" class="fixed inset-0 z-[150] flex items-center justify-center">
+                <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="showUserModal = false"></div>
+                <div class="relative bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 w-full max-w-lg mx-4 overflow-hidden">
+                    <div class="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                        <h3 class="text-xs font-black text-slate-700 uppercase tracking-widest">{{ editingUser ? 'Edit User' : 'Add User' }}</h3>
+                        <button @click="showUserModal = false" class="p-1.5 rounded-xl hover:bg-slate-200 transition-colors text-slate-400">
+                            <X class="w-5 h-5" />
+                        </button>
+                    </div>
+                    <form @submit.prevent="saveUser" class="p-8 space-y-5">
+                        <div>
+                            <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5 block">Name</label>
+                            <input v-model="userForm.name" required
+                                   class="w-full border border-slate-200 px-4 py-3 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/30 outline-none transition-all" />
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5 block">Email</label>
+                            <input v-model="userForm.email" type="email" required
+                                   class="w-full border border-slate-200 px-4 py-3 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/30 outline-none transition-all" />
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5 block">Password{{ editingUser ? ' (leave blank to keep current)' : '' }}</label>
+                            <input v-model="userForm.password" type="password" autocomplete="new-password"
+                                   :required="!editingUser"
+                                   class="w-full border border-slate-200 px-4 py-3 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/30 outline-none transition-all" />
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-2 block">Roles</label>
+                            <div class="flex flex-wrap gap-2">
+                                <label v-for="role in availableRoles" :key="role"
+                                       :class="[
+                                           'px-4 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all',
+                                           userForm.roles.includes(role)
+                                               ? 'bg-indigo-600 text-white border-indigo-600'
+                                               : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'
+                                       ]">
+                                    <input type="checkbox" :value="role" v-model="userForm.roles" class="hidden" />
+                                    {{ role }}
+                                </label>
+                            </div>
+                        </div>
+                        <div v-if="userFormError" class="text-red-500 text-[10px] font-bold bg-red-50 p-3 rounded-xl">{{ userFormError }}</div>
+                        <div class="flex justify-end gap-3 pt-2">
+                            <button type="button" @click="showUserModal = false"
+                                    class="px-6 py-3 rounded-xl text-[10px] font-black uppercase border border-slate-200 text-slate-500 hover:bg-slate-50 transition-all">
+                                Cancel
+                            </button>
+                            <button type="submit" :disabled="userSaving"
+                                    class="px-6 py-3 rounded-xl text-[10px] font-black uppercase bg-indigo-600 text-white hover:bg-indigo-700 transition-all disabled:opacity-40">
+                                {{ userSaving ? 'Saving...' : 'Save' }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </Transition>
+
+        <!-- Delete Confirmation -->
+        <Transition name="fade">
+            <div v-if="showDeleteConfirm" class="fixed inset-0 z-[160] flex items-center justify-center">
+                <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="showDeleteConfirm = false"></div>
+                <div class="relative bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 w-full max-w-sm mx-4 p-8 text-center">
+                    <div class="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-4">
+                        <Trash2 class="w-6 h-6" />
+                    </div>
+                    <h3 class="text-sm font-black text-slate-800">Delete User</h3>
+                    <p class="text-xs font-bold text-slate-400 mt-2">Are you sure you want to delete <strong>{{ deletingUser?.name }}</strong>? This cannot be undone.</p>
+                    <p v-if="deleteError" class="text-red-500 text-[10px] font-bold mt-3">{{ deleteError }}</p>
+                    <div class="flex gap-3 justify-center mt-6">
+                        <button @click="showDeleteConfirm = false"
+                                class="px-5 py-2.5 rounded-xl text-[10px] font-black uppercase border border-slate-200 text-slate-500 hover:bg-slate-50 transition-all">
+                            Cancel
+                        </button>
+                        <button @click="deleteUser" :disabled="userSaving"
+                                class="px-5 py-2.5 rounded-xl text-[10px] font-black uppercase bg-rose-600 text-white hover:bg-rose-700 transition-all disabled:opacity-40">
+                            {{ userSaving ? 'Deleting...' : 'Delete' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Transition>
 
         <div v-if="notification.show" class="fixed bottom-8 right-8 z-[130] flex items-center gap-3 px-6 py-3 bg-slate-900 text-white rounded-xl shadow-2xl border border-slate-700">
             <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
@@ -185,6 +334,7 @@ import { api } from '../../plugins/axios'
 import { useAuthStore } from '../store/authStore'
 import {
     ShieldCheck, Bell, User, Puzzle, Settings2,
+    Users, Plus, Pencil, Trash2, X,
 } from 'lucide-vue-next'
 
 const authStore = useAuthStore()
@@ -197,6 +347,13 @@ const sections = [
         description: 'Two-factor authentication & password',
         icon: ShieldCheck,
         roles: null,
+    },
+    {
+        id: 'users',
+        label: 'User Management',
+        description: 'Manage users and roles',
+        icon: Users,
+        roles: ['super_admin', 'admin'],
     },
     {
         id: 'notifications',
@@ -349,7 +506,137 @@ const regenerateCodes = async () => {
     }
 }
 
+// User Management
+const users = ref([])
+const usersLoading = ref(false)
+const userSearch = ref('')
+const showUserModal = ref(false)
+const showDeleteConfirm = ref(false)
+const editingUser = ref(null)
+const deletingUser = ref(null)
+const userSaving = ref(false)
+const userFormError = ref('')
+const deleteError = ref('')
+const availableRoles = ref([])
+const userForm = ref({
+    name: '',
+    email: '',
+    password: '',
+    roles: [],
+})
+
+const filteredUsers = computed(() => {
+    if (!userSearch.value) return users.value
+    const s = userSearch.value.toLowerCase()
+    return users.value.filter(u =>
+        u.name.toLowerCase().includes(s) || u.email.toLowerCase().includes(s)
+    )
+})
+
+const roleBadge = (name) => {
+    const map = {
+        super_admin: 'bg-purple-100 text-purple-700',
+        admin: 'bg-blue-100 text-blue-700',
+        operator: 'bg-amber-100 text-amber-700',
+        driver: 'bg-emerald-100 text-emerald-700',
+        customer: 'bg-slate-100 text-slate-600',
+    }
+    return map[name?.toLowerCase()] || 'bg-slate-100 text-slate-600'
+}
+
+const userInitials = (u) => {
+    return u.name?.substring(0, 2).toUpperCase() || '??'
+}
+
+const fetchUsers = async () => {
+    usersLoading.value = true
+    try {
+        const { data } = await api.get('portal/users')
+        users.value = data.data || []
+    } catch (e) {
+        console.error('Failed to load users', e)
+    } finally {
+        usersLoading.value = false
+    }
+}
+
+const fetchRoles = async () => {
+    try {
+        const { data } = await api.get('portal/roles')
+        availableRoles.value = data || []
+    } catch (e) {
+        console.error('Failed to load roles', e)
+    }
+}
+
+const openUserModal = (user) => {
+    editingUser.value = user || null
+    userForm.value = {
+        name: user?.name || '',
+        email: user?.email || '',
+        password: '',
+        roles: user?.roles?.map(r => r.name) || [],
+    }
+    userFormError.value = ''
+    showUserModal.value = true
+}
+
+const saveUser = async () => {
+    userSaving.value = true
+    userFormError.value = ''
+    try {
+        const payload = { ...userForm.value }
+        if (editingUser.value && !payload.password) {
+            delete payload.password
+        }
+        if (editingUser.value) {
+            await api.put(`portal/users/${editingUser.value.id}`, payload)
+            notify('User updated.')
+        } else {
+            await api.post('portal/users', payload)
+            notify('User created.')
+        }
+        showUserModal.value = false
+        await fetchUsers()
+    } catch (e) {
+        userFormError.value = e.response?.data?.message || Object.values(e.response?.data?.errors || {}).flat().join(', ') || 'Failed to save user.'
+    } finally {
+        userSaving.value = false
+    }
+}
+
+const confirmDeleteUser = (user) => {
+    deletingUser.value = user
+    deleteError.value = ''
+    showDeleteConfirm.value = true
+}
+
+const deleteUser = async () => {
+    userSaving.value = true
+    deleteError.value = ''
+    try {
+        await api.delete(`portal/users/${deletingUser.value.id}`)
+        showDeleteConfirm.value = false
+        notify('User deleted.')
+        await fetchUsers()
+    } catch (e) {
+        deleteError.value = e.response?.data?.message || 'Failed to delete user.'
+    } finally {
+        userSaving.value = false
+    }
+}
+
 onMounted(() => {
     checkStatus()
+    if (authStore.user?.roles_list?.some(r => ['super_admin', 'admin'].includes(r))) {
+        fetchRoles()
+    }
 })
 </script>
+
+<style scoped>
+.animate-spin { animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+</style>
