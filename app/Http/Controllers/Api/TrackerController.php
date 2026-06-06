@@ -11,6 +11,40 @@ use Illuminate\Support\Facades\DB;
 
 class TrackerController extends Controller
 {
+    public function index()
+    {
+        $vehicles = Vehicle::query()
+            ->select('vehicles.id', 'vehicles.plate_number')
+            ->with('snapshot')
+            ->get()
+            ->map(function ($vehicle) {
+                $currentDriver = DB::table('users')
+                    ->join('driver_vehicle_assignments', 'users.id', '=', 'driver_vehicle_assignments.driver_id')
+                    ->join('drivers', 'users.id', '=', 'drivers.user_id')
+                    ->where('driver_vehicle_assignments.vehicle_id', $vehicle->id)
+                    ->whereNull('driver_vehicle_assignments.end_date')
+                    ->select('users.id', 'users.name')
+                    ->first();
+
+                return [
+                    'id' => $vehicle->id,
+                    'plate_number' => $vehicle->plate_number,
+                    'driver_name' => $currentDriver?->name,
+                    'snapshot' => $vehicle->snapshot ? [
+                        'latitude' => (float) $vehicle->snapshot->latitude,
+                        'longitude' => (float) $vehicle->snapshot->longitude,
+                        'speed' => (float) $vehicle->snapshot->speed,
+                        'last_seen_at' => $vehicle->snapshot->last_seen_at,
+                        'is_moving' => $vehicle->snapshot->is_moving,
+                        'ignition' => $vehicle->snapshot->ignition,
+                        'fuel_level' => (float) $vehicle->snapshot->fuel_level,
+                    ] : null,
+                ];
+            });
+
+        return response()->json($vehicles);
+    }
+
     public function search(Request $request)
     {
         $q = $request->query('q');

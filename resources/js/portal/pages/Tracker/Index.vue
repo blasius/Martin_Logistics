@@ -113,7 +113,7 @@
                                 <h2 class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Vehicle Details</h2>
                                 <p class="text-[9px] font-bold text-slate-400 mt-1">{{ selectedVehicle.plate_number }} — {{ selectedVehicle.driver_name || 'No Driver' }}</p>
                             </div>
-                            <button @click="selectedVehicle = null; clearMapLayers()"
+                            <button @click="goBackToAllVehicles"
                                     class="text-[10px] font-black text-slate-400 hover:text-slate-700 uppercase px-3 py-1.5 rounded-lg hover:bg-slate-100 transition-colors active:scale-95">
                                 &larr; Back
                             </button>
@@ -248,8 +248,9 @@ const mapReady = ref(false);
 const dateFrom = ref('');
 const dateTo = ref('');
 const refreshInterval = ref(0);
-let refreshTimer = null;
+const allVehicles = ref([]);
 let searchInput = ref(null);
+let refreshTimer = null;
 
 let map = null;
 let vehicleMarker = null;
@@ -257,6 +258,7 @@ let nearestPlaceMarker = null;
 let breadcrumbPolyline = null;
 let placeMarkers = [];
 let visitedPlaceMarkers = [];
+let allVehiclesMarkers = [];
 
 const typeBadgeClass = (type) => {
     const classes = {
@@ -279,6 +281,7 @@ onMounted(() => {
     dateFrom.value = today;
     dateTo.value = today;
     setTimeout(initMap, 500);
+    setTimeout(fetchAllVehicles, 1200);
 });
 
 onUnmounted(() => {
@@ -287,9 +290,13 @@ onUnmounted(() => {
 
 watch(refreshInterval, (val) => {
     if (refreshTimer) clearInterval(refreshTimer);
-    if (val > 0 && selectedVehicle.value) {
+    if (val > 0) {
         refreshTimer = setInterval(() => {
-            fetchVehicleData(selectedVehicle.value.id);
+            if (selectedVehicle.value) {
+                fetchVehicleData(selectedVehicle.value.id);
+            } else if (!searchQuery.value || searchQuery.value.length < 2) {
+                fetchAllVehicles();
+            }
         }, val * 1000);
     }
 });
@@ -301,12 +308,19 @@ watch([dateFrom, dateTo], () => {
 });
 
 let searchTimeout = null;
+let prevSearchHadValue = false;
 watch(searchQuery, (val) => {
-    if (searchTimeout) clearTimeout(searchTimeout);
-    if (!val || val.length < 2) {
+    const hasVal = val && val.length >= 2;
+    if (!hasVal && prevSearchHadValue) {
+        clearAllVehiclesMarkers();
         searchResults.value = [];
-        return;
+        renderAllVehiclesMarkers();
+    } else if (hasVal && !prevSearchHadValue) {
+        clearAllVehiclesMarkers();
     }
+    prevSearchHadValue = hasVal;
+    if (!hasVal) return;
+    if (searchTimeout) clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => doSearch(val), 300);
 });
 
@@ -328,7 +342,14 @@ const doSearch = async (q) => {
     }
 };
 
+const goBackToAllVehicles = () => {
+    selectedVehicle.value = null;
+    clearMapLayers();
+    renderAllVehiclesMarkers();
+};
+
 const selectVehicle = async (v) => {
+    clearAllVehiclesMarkers();
     selectedVehicle.value = v;
     await fetchVehicleData(v.id);
 };
@@ -386,6 +407,59 @@ const formatDistance = (meters) => {
     return (meters / 1000).toFixed(1) + 'km';
 };
 
+const fetchAllVehicles = async () => {
+    try {
+        const res = await trackerApi.getAllVehicles();
+        allVehicles.value = res.data;
+        if (!selectedVehicle.value && (!searchQuery.value || searchQuery.value.length < 2)) {
+            renderAllVehiclesMarkers();
+        }
+    } catch (e) {
+        console.error('Failed to fetch all vehicles', e);
+    }
+};
+
+const clearAllVehiclesMarkers = () => {
+    allVehiclesMarkers.forEach(m => { if (map) map.removeLayer(m); });
+    allVehiclesMarkers = [];
+};
+
+const renderAllVehiclesMarkers = () => {
+    clearAllVehiclesMarkers();
+    if (!map || !allVehicles.value.length) return;
+    const latlngs = [];
+    allVehicles.value.forEach(v => {
+        if (!v.snapshot?.latitude || !v.snapshot?.longitude) return;
+        const latlng = [v.snapshot.latitude, v.snapshot.longitude];
+        latlngs.push(latlng);
+
+        const color = v.snapshot.is_moving ? '#10b981'
+            : v.snapshot.ignition ? '#f59e0b'
+            : '#94a3b8';
+
+        const marker = L.circleMarker(latlng, {
+            radius: 7,
+            color: color,
+            fillColor: '#fff',
+            fillOpacity: 0.8,
+            weight: 2.5,
+        }).addTo(map);
+
+        const tooltipHtml = `<div class="font-sans"><p class="font-black text-xs">${v.plate_number}</p>${v.driver_name ? `<p class="text-[10px] text-slate-500">${v.driver_name}</p>` : ''}${v.snapshot.speed > 0 ? `<p class="text-[10px] text-slate-400">${v.snapshot.speed} km/h</p>` : ''}</div>`;
+        marker.bindTooltip(tooltipHtml, { direction: 'top', className: 'text-[9px] font-bold' });
+
+        allVehiclesMarkers.push(marker);
+    });
+
+    if (latlngs.length > 1) {
+        try {
+            map.fitBounds(L.latLngBounds(latlngs).pad(0.15), { padding: [40, 40], maxZoom: 10 });
+        } catch (e) { /* ignore bounds error */ }
+    } else if (latlngs.length === 1) {
+        map.setView(latlngs[0], 12);
+    }
+};
+
 const initMap = () => {
     map = L.map('tracker-map', { zoomControl: false }).setView([-1.9441, 30.0619], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -406,6 +480,7 @@ const clearMapLayers = () => {
     placeMarkers = [];
     visitedPlaceMarkers.forEach(m => map.removeLayer(m));
     visitedPlaceMarkers = [];
+    clearAllVehiclesMarkers();
 };
 
 const renderMap = (data) => {
