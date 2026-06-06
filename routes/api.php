@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\MockDispatchController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\TrackerController;
 use App\Http\Controllers\Api\FleetReportController;
+use App\Http\Controllers\Api\UserManagementController;
 use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\Support\SupportCategoryController;
 use App\Http\Controllers\Api\Support\SupportTicketMessageController;
@@ -167,6 +168,10 @@ Route::middleware('auth')->group(function () {
         Route::post('/trips', [TripController::class, 'store']);
         Route::get('/trips/search-assignments', [TripController::class, 'searchAssignments']);
 
+
+        // User Management (role-gated via controller middleware)
+        Route::get('roles', [UserManagementController::class, 'rolesList']);
+        Route::apiResource('users', UserManagementController::class);
 
         // Support System Nested Group
         Route::prefix('support')->group(function () {
