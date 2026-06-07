@@ -11,10 +11,40 @@
             </button>
         </div>
 
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Drivers</p>
+                <p class="text-3xl font-black text-slate-800 mt-1">{{ stats.total || 0 }}</p>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Male</p>
+                <p class="text-3xl font-black text-blue-600 mt-1">{{ stats.male || 0 }}</p>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Female</p>
+                <p class="text-3xl font-black text-pink-600 mt-1">{{ stats.female || 0 }}</p>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">New This Month</p>
+                <p class="text-3xl font-black text-emerald-600 mt-1">{{ stats.new_this_month || 0 }}</p>
+            </div>
+        </div>
+
         <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
             <div class="relative w-72">
                 <Search class="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
                 <input v-model="search" @input="debounceSearch" type="text" placeholder="Search drivers..." class="w-full pl-10 p-2 bg-slate-50 border-none rounded-xl text-xs font-bold outline-none">
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                <h3 class="text-xs font-black text-slate-500 uppercase tracking-wider mb-4">Nationality Distribution</h3>
+                <canvas ref="nationalityCanvas" class="max-h-64"></canvas>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                <h3 class="text-xs font-black text-slate-500 uppercase tracking-wider mb-4">Sex Distribution</h3>
+                <canvas ref="sexCanvas" class="max-h-64"></canvas>
             </div>
         </div>
 
@@ -139,8 +169,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue';
 import { api } from "../../../plugins/axios";
+import Chart from 'chart.js/auto';
 import {
     Users, UserPlus, Search, X, CheckCircle, CreditCard,
     MoreHorizontal, FileText, ShieldCheck
@@ -151,6 +182,11 @@ const drivers = ref({ data: [] });
 const stats = ref({});
 const search = ref('');
 const showModal = ref(false);
+
+// Chart refs
+const nationalityCanvas = ref(null);
+const sexCanvas = ref(null);
+let chartInstances = [];
 const submitting = ref(false);
 const userSearch = ref('');
 const userResults = ref([]);
@@ -196,6 +232,7 @@ async function fetchDrivers() {
     const { data } = await api.get('/portal/drivers', { params: { search: search.value } });
     drivers.value = data.drivers;
     stats.value = data.stats;
+    nextTick(renderCharts);
 }
 
 async function saveDriver() {
@@ -242,6 +279,58 @@ async function saveDriver() {
     }
 }
 
+const destroyCharts = () => {
+    chartInstances.forEach(c => c.destroy());
+    chartInstances = [];
+};
+
+const renderCharts = () => {
+    destroyCharts();
+
+    if (!stats.value.nationalities?.length) return;
+
+    const nationalityColors = [
+        '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6',
+        '#ec4899', '#8b5cf6', '#14b8a6', '#f97316', '#06b6d4',
+    ];
+
+    // Nationality Pie
+    if (nationalityCanvas.value) {
+        const labels = stats.value.nationalities.map(n => n.nationality);
+        const counts = stats.value.nationalities.map(n => n.count);
+        chartInstances.push(new Chart(nationalityCanvas.value, {
+            type: 'doughnut',
+            data: {
+                labels,
+                datasets: [{ data: counts, backgroundColor: nationalityColors.slice(0, labels.length), borderWidth: 0 }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 12, padding: 12 } }
+                }
+            }
+        }));
+    }
+
+    // Sex Distribution
+    if (sexCanvas.value && (stats.value.male > 0 || stats.value.female > 0)) {
+        chartInstances.push(new Chart(sexCanvas.value, {
+            type: 'doughnut',
+            data: {
+                labels: ['Male', 'Female'],
+                datasets: [{ data: [stats.value.male, stats.value.female], backgroundColor: ['#3b82f6', '#ec4899'], borderWidth: 0 }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 12, padding: 12 } }
+                }
+            }
+        }));
+    }
+};
+
 const closeModal = () => {
     showModal.value = false;
     Object.assign(form, { user_id: null, phone: '', licence_file: null, passport_file: null });
@@ -251,6 +340,7 @@ const closeModal = () => {
 
 const debounceSearch = () => { clearTimeout(window.t); window.t = setTimeout(fetchDrivers, 500); };
 onMounted(fetchDrivers);
+onUnmounted(destroyCharts);
 </script>
 
 <style scoped>
