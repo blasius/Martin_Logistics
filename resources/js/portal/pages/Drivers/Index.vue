@@ -172,10 +172,13 @@
 import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue';
 import { api } from "../../../plugins/axios";
 import Chart from 'chart.js/auto';
+import ChartDataLabels from 'chartjs-plugin-datalabels';
 import {
     Users, UserPlus, Search, X, CheckCircle, CreditCard,
     MoreHorizontal, FileText, ShieldCheck
 } from 'lucide-vue-next';
+
+Chart.register(ChartDataLabels);
 
 // State
 const drivers = ref({ data: [] });
@@ -307,7 +310,12 @@ const renderCharts = () => {
             options: {
                 responsive: true, maintainAspectRatio: false,
                 plugins: {
-                    legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 12, padding: 12 } }
+                    legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 12, padding: 12 } },
+                    datalabels: {
+                        color: '#fff', font: { weight: 'bold', size: 11 },
+                        formatter: (v) => v,
+                        display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0
+                    }
                 }
             }
         }));
@@ -324,7 +332,12 @@ const renderCharts = () => {
             options: {
                 responsive: true, maintainAspectRatio: false,
                 plugins: {
-                    legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 12, padding: 12 } }
+                    legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 12, padding: 12 } },
+                    datalabels: {
+                        color: '#fff', font: { weight: 'bold', size: 13 },
+                        formatter: (v) => v,
+                        display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0
+                    }
                 }
             }
         }));
