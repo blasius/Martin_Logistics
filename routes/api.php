@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\TrackerController;
 use App\Http\Controllers\Api\FleetReportController;
 use App\Http\Controllers\Api\UserManagementController;
+use App\Http\Controllers\Api\RoleManagementController;
 use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\Support\SupportCategoryController;
 use App\Http\Controllers\Api\Support\SupportTicketMessageController;
@@ -178,6 +179,18 @@ Route::middleware('auth')->group(function () {
         Route::get('roles', [UserManagementController::class, 'rolesList'])
             ->middleware('role:super_admin|Admin');
         Route::apiResource('users', UserManagementController::class)
+            ->middleware('role:super_admin|Admin');
+
+        // Role Management
+        Route::get('roles/manage', [RoleManagementController::class, 'index'])
+            ->middleware('role:super_admin|Admin');
+        Route::post('roles/manage', [RoleManagementController::class, 'store'])
+            ->middleware('role:super_admin|Admin');
+        Route::put('roles/manage/{role}', [RoleManagementController::class, 'update'])
+            ->middleware('role:super_admin|Admin');
+        Route::delete('roles/manage/{role}', [RoleManagementController::class, 'destroy'])
+            ->middleware('role:super_admin|Admin');
+        Route::get('roles/manage/permissions-list', [RoleManagementController::class, 'permissionsList'])
             ->middleware('role:super_admin|Admin');
 
         // Support System Nested Group
