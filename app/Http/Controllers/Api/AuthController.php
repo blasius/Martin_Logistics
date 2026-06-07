@@ -391,6 +391,23 @@ class AuthController extends Controller
         return response()->json(['message' => 'Verification email sent.']);
     }
 
+    public function verifyEmail(Request $request, $id, $hash)
+    {
+        $user = \App\Models\User::findOrFail($id);
+
+        if (! hash_equals(sha1($user->getEmailForVerification()), (string) $hash)) {
+            return response()->json(['message' => 'Invalid verification link.'], 403);
+        }
+
+        if ($user->hasVerifiedEmail()) {
+            return response()->json(['message' => 'Email already verified.']);
+        }
+
+        $user->markEmailAsVerified();
+
+        return response()->json(['message' => 'Email verified successfully. You can now log in.']);
+    }
+
     public function login(Request $request)
     {
         $request->validate([

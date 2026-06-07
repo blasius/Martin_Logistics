@@ -41,6 +41,9 @@ Route::post('/portal/2fa/recovery', [AuthController::class, 'verifyRecoveryCode'
 Route::post('/portal/2fa/setup-init', [AuthController::class, 'initSetup']);
 Route::post('/portal/2fa/setup-confirm', [AuthController::class, 'confirmSetup']);
 Route::post('/portal/email/resend', [AuthController::class, 'resendVerificationEmail']);
+Route::get('/portal/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
+    ->name('portal.email.verify')
+    ->middleware('signed');
 Route::get('/dispatch/secure-print', [DispatchController::class, 'printStatus'])
     ->name('dispatch.print.secure')
     ->middleware('signed'); // Laravel 12 handles this alias automatically
