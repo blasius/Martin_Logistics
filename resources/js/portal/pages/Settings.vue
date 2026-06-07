@@ -228,6 +228,69 @@
                     </div>
                 </div>
 
+                <!-- User Roles -->
+                <div v-if="activeSection === 'roles'">
+                    <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between gap-4">
+                            <div>
+                                <h2 class="text-[10px] font-black text-slate-500 uppercase tracking-widest">User Roles</h2>
+                                <p class="text-[9px] font-bold text-slate-400 mt-1">Create, edit and manage roles and their permissions</p>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <button @click="openRoleModal()"
+                                        class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all active:scale-95 flex items-center gap-1.5">
+                                    <Plus class="w-4 h-4" /> Add Role
+                                </button>
+                            </div>
+                        </div>
+
+                        <div v-if="rolesLoading" class="flex items-center justify-center py-16">
+                            <svg class="w-6 h-6 text-slate-300 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        </div>
+                        <div v-else class="overflow-y-auto overflow-x-hidden max-h-[calc(100vh-20rem)]">
+                            <table class="w-full text-left table-fixed">
+                                <thead class="sticky top-0 z-10 bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase border-b">
+                                <tr>
+                                    <th class="p-5 w-[30%]">Role</th>
+                                    <th class="p-5 w-[15%]">Users</th>
+                                    <th class="p-5 w-[45%]">Permissions</th>
+                                    <th class="p-5 w-[10%] text-right">Actions</th>
+                                </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                <tr v-for="role in roles" :key="role.id" class="hover:bg-slate-50/30 transition-colors">
+                                    <td class="p-5">
+                                        <span :class="roleBadge(role.name)" class="text-[9px] font-black px-2 py-0.5 rounded-lg uppercase">{{ role.name }}</span>
+                                    </td>
+                                    <td class="p-5 text-sm font-bold text-slate-500">{{ role.users_count }}</td>
+                                    <td class="p-5">
+                                        <div class="flex flex-wrap gap-1.5 truncate max-h-14 overflow-y-auto">
+                                            <span v-for="perm in role.permissions" :key="perm.id"
+                                                  class="text-[8px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 uppercase shrink-0">{{ perm.name }}</span>
+                                            <span v-if="!role.permissions.length"
+                                                  class="text-[8px] font-bold text-slate-300 italic">No permissions assigned</span>
+                                        </div>
+                                    </td>
+                                    <td class="p-5 text-right">
+                                        <div class="flex items-center justify-end gap-2">
+                                            <button @click="openRoleModal(role)" class="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-indigo-600 transition-colors">
+                                                <Pencil class="w-4 h-4" />
+                                            </button>
+                                            <button @click="confirmDeleteRole(role)" class="p-2 rounded-xl hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors">
+                                                <Trash2 class="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr v-if="!roles.length">
+                                    <td colspan="4" class="p-16 text-center text-slate-400 font-black uppercase tracking-widest text-xs">No roles found</td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Coming Soon Placeholder -->
                 <div v-else-if="currentSection?.comingSoon" class="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden">
                     <div class="flex flex-col items-center justify-center py-20 px-6">
@@ -356,6 +419,108 @@
             </div>
         </Transition>
 
+        <!-- Role Modal -->
+        <Transition name="scale-fade">
+            <div v-if="showRoleModal" class="fixed inset-0 z-[150] flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" @click="showRoleModal = false"></div>
+                <div class="relative bg-white rounded-[2rem] shadow-2xl border border-slate-200 w-full max-w-lg mx-auto max-h-[90vh] overflow-y-auto overflow-x-hidden custom-scrollbar">
+                    <div class="sticky top-0 z-10 bg-white border-b border-slate-100 px-8 py-5 flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-200">
+                            <ShieldCheck class="w-5 h-5" />
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-sm font-black text-slate-800 uppercase tracking-tight">{{ editingRole ? 'Edit Role' : 'New Role' }}</h3>
+                            <p class="text-[10px] font-bold text-slate-400 mt-0.5">{{ editingRole ? 'Update role name and permissions' : 'Create a new role with permissions' }}</p>
+                        </div>
+                        <button @click="showRoleModal = false" class="p-2 rounded-xl hover:bg-slate-100 transition-colors text-slate-400 hover:text-slate-600">
+                            <X class="w-5 h-5" />
+                        </button>
+                    </div>
+                    <form @submit.prevent="saveRole" class="p-8 space-y-6">
+                        <div class="space-y-5">
+                            <div>
+                                <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-2 block">Role Name</label>
+                                <div class="relative">
+                                    <input v-model="roleForm.name" required placeholder="e.g. manager"
+                                           class="w-full border-2 border-slate-100 bg-slate-50/50 px-4 py-3.5 rounded-xl text-sm font-bold text-slate-800 placeholder:text-slate-300 focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all" />
+                                </div>
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-3 block">Permissions</label>
+                                <div v-if="allPermissions.length" class="grid grid-cols-2 gap-2.5 max-h-64 overflow-y-auto custom-scrollbar pr-1">
+                                    <label v-for="perm in allPermissions" :key="perm"
+                                           :class="[
+                                               'relative flex items-center gap-3 px-4 py-3.5 rounded-xl border-2 cursor-pointer transition-all select-none',
+                                               roleForm.permissions.includes(perm)
+                                                   ? 'border-indigo-400 bg-indigo-50/80 shadow-sm'
+                                                   : 'border-slate-100 bg-slate-50/50 hover:border-slate-200 hover:bg-slate-50'
+                                           ]">
+                                        <input type="checkbox" :value="perm" v-model="roleForm.permissions" class="hidden" />
+                                        <div :class="[
+                                            'w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all shrink-0',
+                                            roleForm.permissions.includes(perm)
+                                                ? 'bg-indigo-600 border-indigo-600'
+                                                : 'border-slate-300 bg-white'
+                                        ]">
+                                            <svg v-if="roleForm.permissions.includes(perm)" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                                        </div>
+                                        <span :class="[
+                                            'text-xs font-black uppercase tracking-wider',
+                                            roleForm.permissions.includes(perm) ? 'text-indigo-700' : 'text-slate-500'
+                                        ]">{{ perm }}</span>
+                                    </label>
+                                </div>
+                                <div v-else class="text-xs font-bold text-slate-400 py-4 text-center">No permissions available</div>
+                            </div>
+                        </div>
+                        <div v-if="roleFormError" class="flex items-center gap-2 text-red-600 text-[10px] font-bold bg-red-50/80 border border-red-100 px-4 py-3 rounded-xl">
+                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <span>{{ roleFormError }}</span>
+                        </div>
+                        <div class="flex justify-end gap-3 pt-2 border-t border-slate-100">
+                            <button type="button" @click="showRoleModal = false"
+                                    class="px-6 py-3 rounded-xl text-[10px] font-black uppercase border-2 border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-[0.98]">
+                                Cancel
+                            </button>
+                            <button type="submit" :disabled="roleSaving"
+                                    class="px-6 py-3 rounded-xl text-[10px] font-black uppercase bg-gradient-to-br from-indigo-600 to-indigo-700 text-white hover:from-indigo-700 hover:to-indigo-800 shadow-lg shadow-indigo-200 transition-all active:scale-[0.98] disabled:opacity-40 disabled:shadow-none">
+                                <span v-if="roleSaving" class="flex items-center gap-2">
+                                    <svg class="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                    Saving...
+                                </span>
+                                <span v-else>{{ editingRole ? 'Update' : 'Create Role' }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </Transition>
+
+        <!-- Role Delete Confirmation -->
+        <Transition name="fade">
+            <div v-if="showRoleDeleteConfirm" class="fixed inset-0 z-[160] flex items-center justify-center">
+                <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="showRoleDeleteConfirm = false"></div>
+                <div class="relative bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 w-full max-w-sm mx-4 p-8 text-center">
+                    <div class="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-4">
+                        <Trash2 class="w-6 h-6" />
+                    </div>
+                    <h3 class="text-sm font-black text-slate-800">Delete Role</h3>
+                    <p class="text-xs font-bold text-slate-400 mt-2">Are you sure you want to delete <strong>{{ deletingRole?.name }}</strong>? This cannot be undone.</p>
+                    <p v-if="roleDeleteError" class="text-red-500 text-[10px] font-bold mt-3">{{ roleDeleteError }}</p>
+                    <div class="flex gap-3 justify-center mt-6">
+                        <button @click="showRoleDeleteConfirm = false"
+                                class="px-5 py-2.5 rounded-xl text-[10px] font-black uppercase border border-slate-200 text-slate-500 hover:bg-slate-50 transition-all">
+                            Cancel
+                        </button>
+                        <button @click="deleteRole" :disabled="roleSaving"
+                                class="px-5 py-2.5 rounded-xl text-[10px] font-black uppercase bg-rose-600 text-white hover:bg-rose-700 transition-all disabled:opacity-40">
+                            {{ roleSaving ? 'Deleting...' : 'Delete' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Transition>
+
         <div v-if="notification.show" class="fixed bottom-8 right-8 z-[130] flex items-center gap-3 px-6 py-3 bg-slate-900 text-white rounded-xl shadow-2xl border border-slate-700">
             <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
             <span class="text-sm font-bold">{{ notification.message }}</span>
@@ -388,6 +553,13 @@ const sections = [
         label: 'User Management',
         description: 'Manage users and roles',
         icon: Users,
+        roles: ['super_admin', 'admin'],
+    },
+    {
+        id: 'roles',
+        label: 'User Roles',
+        description: 'Roles & permissions management',
+        icon: ShieldCheck,
         roles: ['super_admin', 'admin'],
     },
     {
@@ -661,11 +833,103 @@ const deleteUser = async () => {
     }
 }
 
+// Role Management
+const roles = ref([])
+const rolesLoading = ref(false)
+const showRoleModal = ref(false)
+const showRoleDeleteConfirm = ref(false)
+const editingRole = ref(null)
+const deletingRole = ref(null)
+const roleSaving = ref(false)
+const roleFormError = ref('')
+const roleDeleteError = ref('')
+const allPermissions = ref([])
+
+const roleForm = ref({
+    name: '',
+    permissions: [],
+})
+
+const fetchRolesWithDetails = async () => {
+    rolesLoading.value = true
+    try {
+        const { data } = await api.get('portal/roles/manage')
+        roles.value = data || []
+    } catch (e) {
+        console.error('Failed to load roles', e)
+    } finally {
+        rolesLoading.value = false
+    }
+}
+
+const fetchAllPermissions = async () => {
+    try {
+        const { data } = await api.get('portal/roles/manage/permissions-list')
+        allPermissions.value = data || []
+    } catch (e) {
+        console.error('Failed to load permissions', e)
+    }
+}
+
+const openRoleModal = (role) => {
+    editingRole.value = role || null
+    roleForm.value = {
+        name: role?.name || '',
+        permissions: role?.permissions?.map(p => p.name) || [],
+    }
+    roleFormError.value = ''
+    showRoleModal.value = true
+}
+
+const saveRole = async () => {
+    roleSaving.value = true
+    roleFormError.value = ''
+    try {
+        const payload = { ...roleForm.value }
+        if (editingRole.value) {
+            await api.put(`portal/roles/manage/${editingRole.value.id}`, payload)
+            notify('Role updated.')
+        } else {
+            await api.post('portal/roles/manage', payload)
+            notify('Role created.')
+        }
+        showRoleModal.value = false
+        await fetchRolesWithDetails()
+    } catch (e) {
+        roleFormError.value = e.response?.data?.message || Object.values(e.response?.data?.errors || {}).flat().join(', ') || 'Failed to save role.'
+    } finally {
+        roleSaving.value = false
+    }
+}
+
+const confirmDeleteRole = (role) => {
+    deletingRole.value = role
+    roleDeleteError.value = ''
+    showRoleDeleteConfirm.value = true
+}
+
+const deleteRole = async () => {
+    roleSaving.value = true
+    roleDeleteError.value = ''
+    try {
+        await api.delete(`portal/roles/manage/${deletingRole.value.id}`)
+        showRoleDeleteConfirm.value = false
+        notify('Role deleted.')
+        await fetchRolesWithDetails()
+    } catch (e) {
+        roleDeleteError.value = e.response?.data?.message || 'Failed to delete role.'
+    } finally {
+        roleSaving.value = false
+    }
+}
+
 onMounted(() => {
     checkStatus()
     if (authStore.user?.roles_list?.some(r => ['super_admin', 'admin'].includes(r))) {
         fetchRoles()
         fetchUsers()
+        fetchRolesWithDetails()
+        fetchAllPermissions()
     }
 })
 </script>
