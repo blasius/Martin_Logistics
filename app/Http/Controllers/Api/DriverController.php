@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Driver;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class DriverController extends Controller
@@ -28,6 +29,11 @@ class DriverController extends Controller
                 'male' => Driver::where('sex', 'male')->count(),
                 'female' => Driver::where('sex', 'female')->count(),
                 'new_this_month' => Driver::whereMonth('created_at', now()->month)->count(),
+                'nationalities' => Driver::select('nationality', DB::raw('count(*) as count'))
+                    ->whereNotNull('nationality')
+                    ->groupBy('nationality')
+                    ->orderByDesc('count')
+                    ->get(),
             ]
         ]);
     }
