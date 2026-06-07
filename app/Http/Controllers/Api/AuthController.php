@@ -32,6 +32,18 @@ class AuthController extends Controller
 
         $user = Auth::user();
 
+        if (app()->environment('production') && ! $user->hasVerifiedEmail()) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return response()->json([
+                'requires_email_verification' => true,
+                'email' => $user->email,
+                'message' => 'Please verify your email address before logging in.',
+            ]);
+        }
+
         if ($user->hasEnabledTwoFactorAuthentication()) {
             Auth::guard('web')->logout();
             $request->session()->invalidate();
@@ -362,6 +374,21 @@ class AuthController extends Controller
             'user' => $user,
             'message' => '2FA setup complete.',
         ]);
+    }
+
+    public function resendVerificationEmail(Request $request)
+    {
+        $request->validate(['email' => 'required|email|exists:users,email']);
+
+        $user = \App\Models\User::where('email', $request->email)->first();
+
+        if ($user->hasVerifiedEmail()) {
+            return response()->json(['message' => 'Email already verified.']);
+        }
+
+        $user->sendEmailVerificationNotification();
+
+        return response()->json(['message' => 'Verification email sent.']);
     }
 
     public function login(Request $request)
