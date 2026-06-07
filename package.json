@@ -24,6 +24,7 @@
         "@geoman-io/leaflet-geoman-free": "^2.19.2",
         "@tailwindcss/cli": "^4.1.13",
         "chart.js": "^4.5.1",
+        "chartjs-plugin-datalabels": "^2.2.0",
         "dayjs": "^1.11.19",
         "firebase": "^12.5.0",
         "fullcalendar": "^6.1.19",
