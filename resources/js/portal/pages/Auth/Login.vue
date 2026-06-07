@@ -1,7 +1,29 @@
 <template>
     <div class="min-h-screen flex items-center justify-center bg-gray-100 px-4">
         <div class="bg-white p-8 rounded shadow-md w-full max-w-md">
-            <template v-if="!store.requiresTwoFactor">
+            <template v-if="emailVerificationRequired">
+                <h2 class="text-2xl font-semibold mb-2 text-center text-gray-800">Email Not Verified</h2>
+                <p class="text-sm text-gray-500 text-center mb-6">Please verify your email address before logging in.</p>
+
+                <div class="bg-amber-50 border border-amber-200 rounded p-4 mb-6">
+                    <p class="text-sm text-amber-800 font-medium">{{ emailVerificationEmail }}</p>
+                    <p class="text-xs text-amber-600 mt-1">Check your inbox for the verification link.</p>
+                </div>
+
+                <button @click="resendVerification"
+                        :disabled="sendingVerification"
+                        class="w-full bg-blue-600 text-white p-3 rounded font-medium hover:bg-blue-700 transition disabled:bg-blue-300 mb-3">
+                    <span v-if="sendingVerification">Sending...</span>
+                    <span v-else>Resend Verification Email</span>
+                </button>
+
+                <button @click="goBackFromVerification"
+                        class="w-full text-sm text-gray-500 hover:text-gray-700 font-medium text-center">
+                    &larr; Back to Login
+                </button>
+            </template>
+
+            <template v-else-if="!store.requiresTwoFactor">
                 <h2 class="text-2xl font-semibold mb-6 text-center text-gray-800">Portal Login</h2>
 
                 <form @submit.prevent="submit">
@@ -100,6 +122,7 @@
 import { ref } from 'vue'
 import { useAuthStore } from '../../store/authStore'
 import { useRouter } from 'vue-router'
+import { api } from '../../../plugins/axios'
 
 const identifier = ref('')
 const password = ref('')
@@ -108,6 +131,9 @@ const recoveryCode = ref('')
 const error = ref('')
 const loading = ref(false)
 const showRecovery = ref(false)
+const emailVerificationRequired = ref(false)
+const emailVerificationEmail = ref('')
+const sendingVerification = ref(false)
 
 const router = useRouter()
 const store = useAuthStore()
@@ -116,9 +142,15 @@ const submit = async () => {
     try {
         error.value = ''
         loading.value = true
-        await store.login(identifier.value, password.value)
+        const data = await store.login(identifier.value, password.value)
 
         if (store.requiresTwoFactor) return
+
+        if (data?.requires_email_verification) {
+            emailVerificationRequired.value = true
+            emailVerificationEmail.value = data.email || identifier.value
+            return
+        }
 
         if (store.requiresSetup) {
             router.push('/2fa/setup')
@@ -171,6 +203,25 @@ const submitRecovery = async () => {
     } finally {
         loading.value = false
     }
+}
+
+const resendVerification = async () => {
+    sendingVerification.value = true
+    error.value = ''
+    try {
+        await api.post('portal/email/resend', { email: emailVerificationEmail.value })
+        error.value = 'Verification email sent. Check your inbox.'
+    } catch (e) {
+        error.value = e.response?.data?.message || 'Failed to send verification email.'
+    } finally {
+        sendingVerification.value = false
+    }
+}
+
+const goBackFromVerification = () => {
+    emailVerificationRequired.value = false
+    emailVerificationEmail.value = ''
+    error.value = ''
 }
 
 const goBack = () => {
