@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Auth\MustVerifyEmail as MustVerifyEmailTrait;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -18,6 +19,7 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasApiTokens, HasFactory, Notifiable, HasRoles;
     use TwoFactorAuthenticatable;
+    use MustVerifyEmailTrait;
 
     protected $fillable = [
         'name',
@@ -71,6 +73,11 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
                 collect(range(1, 8))->map(fn () => Str::random(10))->all()
             )),
         ])->save();
+    }
+
+    public function sendEmailVerificationNotification()
+    {
+        $this->notify(new \App\Notifications\WelcomeOnboarding);
     }
 
     public function contacts()

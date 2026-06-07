@@ -46,6 +46,8 @@ class UserManagementController extends Controller
             $user->assignRole($validated['roles']);
         }
 
+        $user->sendEmailVerificationNotification();
+
         return response()->json($user->load('roles'), 201);
     }
 
