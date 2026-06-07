@@ -76,8 +76,11 @@ class AuthController extends Controller
         ]);
 
         $request->session()->regenerate();
+        $userData = $user->toArray();
+        $userData['roles_list'] = $user->getRoleNames();
+
         return response()->json([
-            'user'    => $user,
+            'user'    => $userData,
             'message' => 'Authenticated via session',
         ]);
     }
@@ -114,8 +117,11 @@ class AuthController extends Controller
         Auth::guard('web')->loginUsingId($user->id);
         $request->session()->regenerate();
 
+        $userData = $user->toArray();
+        $userData['roles_list'] = $user->getRoleNames();
+
         return response()->json([
-            'user'    => $user,
+            'user'    => $userData,
             'message' => 'Authenticated via 2FA',
         ]);
     }
@@ -164,8 +170,11 @@ class AuthController extends Controller
         Auth::guard('web')->loginUsingId($user->id);
         $request->session()->regenerate();
 
+        $userData = $user->toArray();
+        $userData['roles_list'] = $user->getRoleNames();
+
         return response()->json([
-            'user'    => $user,
+            'user'    => $userData,
             'message' => 'Authenticated via recovery code',
         ]);
     }
@@ -305,7 +314,9 @@ class AuthController extends Controller
         if ($user->hasEnabledTwoFactorAuthentication()) {
             Auth::guard('web')->loginUsingId($user->id);
             $request->session()->regenerate();
-            return response()->json(['user' => $user, 'message' => '2FA already active.']);
+            $userData = $user->toArray();
+            $userData['roles_list'] = $user->getRoleNames();
+            return response()->json(['user' => $userData, 'message' => '2FA already active.']);
         }
 
         if (! $user->two_factor_secret) {
@@ -355,7 +366,9 @@ class AuthController extends Controller
         if ($user->hasEnabledTwoFactorAuthentication()) {
             Auth::guard('web')->loginUsingId($user->id);
             $request->session()->regenerate();
-            return response()->json(['user' => $user, 'message' => '2FA already active.']);
+            $userData = $user->toArray();
+            $userData['roles_list'] = $user->getRoleNames();
+            return response()->json(['user' => $userData, 'message' => '2FA already active.']);
         }
 
         $google2fa = app('pragmarx.google2fa');
@@ -370,8 +383,11 @@ class AuthController extends Controller
         Auth::guard('web')->loginUsingId($user->id);
         $request->session()->regenerate();
 
+        $userData = $user->toArray();
+        $userData['roles_list'] = $user->getRoleNames();
+
         return response()->json([
-            'user' => $user,
+            'user' => $userData,
             'message' => '2FA setup complete.',
         ]);
     }
