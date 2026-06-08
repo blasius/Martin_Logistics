@@ -235,13 +235,16 @@ const locateUser = () => {
         (pos) => {
             const { latitude, longitude } = pos.coords;
 
-            map.setView([latitude, longitude], 15);
+            map.flyTo([latitude, longitude], 15, { duration: 3 });
 
-            const icon = L.divIcon({
-                className: '',
-                html: `<div style="width:24px;height:24px;background:#2563eb;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);"></div>`,
-                iconSize: [24, 24],
-                iconAnchor: [12, 12],
+            const icon = L.icon({
+                iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+                iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+                shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34],
+                shadowSize: [41, 41],
             });
 
             if (userMarker) map.removeLayer(userMarker);
