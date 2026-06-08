@@ -5,6 +5,6 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 
 //Schedule::job(new SyncWialonUnitsJob)->everyTwoMinutes()->withoutOverlapping();
-Schedule::command('telemetry:sync')->everyMinute();
-Schedule::command('telemetry:archive')->dailyAt('02:00');
-Schedule::command('telemetry:maintain-partitions')->monthlyOn(1, '00:00');
+Schedule::command('telemetry:sync')->everyMinute()->withoutOverlapping();
+Schedule::command('telemetry:archive')->dailyAt('02:00')->withoutOverlapping();
+Schedule::command('telemetry:maintain-partitions')->monthlyOn(1, '00:00')->withoutOverlapping();

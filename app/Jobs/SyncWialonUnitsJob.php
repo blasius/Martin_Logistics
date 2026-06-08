@@ -3,22 +3,18 @@
 namespace App\Jobs;
 
 use App\Services\WialonService;
-use Illuminate\Queue\Jobs\Job;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
 
-class SyncWialonUnitsJob extends Job
+class SyncWialonUnitsJob implements ShouldQueue
 {
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
     public function handle(WialonService $wialonService): void
     {
         $wialonService->syncUnits();
-    }
-
-    public function getJobId()
-    {
-        // TODO: Implement getJobId() method.
-    }
-
-    public function getRawBody()
-    {
-        // TODO: Implement getRawBody() method.
     }
 }
