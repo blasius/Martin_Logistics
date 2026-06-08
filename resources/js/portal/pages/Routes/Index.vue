@@ -235,7 +235,7 @@ const locateUser = () => {
         (pos) => {
             const { latitude, longitude } = pos.coords;
 
-            map.flyTo([latitude, longitude], 15, { duration: 3 });
+            map.flyTo([latitude, longitude], 17, { duration: 3 });
 
             const icon = L.icon({
                 iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
