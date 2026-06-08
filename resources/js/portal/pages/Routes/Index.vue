@@ -180,6 +180,7 @@ const editingMode = computed(() => !!selectedRoute.value);
 
 let map = null;
 let currentLayer = null;
+let userMarker = null;
 
 // Map Initialization
 const initMap = () => {
@@ -223,7 +224,34 @@ const initMap = () => {
     setTimeout(() => {
         map.invalidateSize();
         mapReady.value = true;
+        locateUser();
     }, 400);
+};
+
+const locateUser = () => {
+    if (!navigator.geolocation) return;
+
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            const { latitude, longitude } = pos.coords;
+
+            map.setView([latitude, longitude], 15);
+
+            const icon = L.divIcon({
+                className: '',
+                html: `<div style="width:24px;height:24px;background:#2563eb;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);"></div>`,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12],
+            });
+
+            if (userMarker) map.removeLayer(userMarker);
+            userMarker = L.marker([latitude, longitude], { icon })
+                .addTo(map)
+                .bindPopup('Your Location');
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 10000 }
+    );
 };
 
 const updatePath = (layer) => {
@@ -331,7 +359,8 @@ const createNewRoute = () => {
             map.invalidateSize();
             if (currentLayer) map.removeLayer(currentLayer);
             map.pm.getGeomanDrawLayers().forEach(layer => map.removeLayer(layer));
-            map.setView([-1.9441, 30.0619], 13); // Reset to default view
+            if (userMarker) map.setView(userMarker.getLatLng(), 15);
+            else map.setView([-1.9441, 30.0619], 13);
         }
     });
 };
