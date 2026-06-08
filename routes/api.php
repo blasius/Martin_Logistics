@@ -30,6 +30,7 @@ use App\Http\Controllers\Api\TrackerController;
 use App\Http\Controllers\Api\FleetReportController;
 use App\Http\Controllers\Api\UserManagementController;
 use App\Http\Controllers\Api\RoleManagementController;
+use App\Http\Controllers\Api\CurrencyController;
 use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\Support\SupportCategoryController;
 use App\Http\Controllers\Api\Support\SupportTicketMessageController;
@@ -192,6 +193,12 @@ Route::middleware('auth')->group(function () {
             ->middleware('role:super_admin|Admin');
         Route::get('roles/manage/permissions-list', [RoleManagementController::class, 'permissionsList'])
             ->middleware('role:super_admin|Admin');
+
+        // Currencies
+        Route::get('currencies', [CurrencyController::class, 'index']);
+        Route::post('currencies', [CurrencyController::class, 'store']);
+        Route::put('currencies/{currency}', [CurrencyController::class, 'update']);
+        Route::delete('currencies/{currency}', [CurrencyController::class, 'destroy']);
 
         // Support System Nested Group
         Route::prefix('support')->group(function () {
