@@ -15,7 +15,7 @@ export const api = axios.create({
 
 // 2. Export the CSRF function
 export async function ensureCsrfCookie() {
-    const baseUrl = (import.meta.env.VITE_API_BASE_URL || "https://martin-logistics.test").replace('/api', '');
+    const baseUrl = (import.meta.env.VITE_API_BASE_URL || window.location.origin).replace(/\/api$/, '');
     return axios.get(`${baseUrl}/sanctum/csrf-cookie`, { withCredentials: true });
 }
 
