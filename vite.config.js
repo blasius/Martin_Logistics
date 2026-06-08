@@ -18,6 +18,7 @@ export default defineConfig({
         laravel({
             input: ['resources/css/app.css', 'resources/js/app.js', 'resources/js/portal/main.js'],
             refresh: true,
+            hotFile: path.resolve(__dirname, 'storage/framework/cache/vite-hot'),
         }),
         vue({
             template: {

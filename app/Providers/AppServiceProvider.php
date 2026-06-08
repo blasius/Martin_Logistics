@@ -7,6 +7,7 @@ use App\Models\Role;
 use App\Models\Trip;
 use App\Observers\TripObserver;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\Vite;
 use PragmaRX\Google2FA\Google2FA;
 use App\Observers\RolePermissionObserver;
 
@@ -21,6 +22,8 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        Vite::useHotFile(storage_path('framework/cache/vite-hot'));
+
         Trip::observe(TripObserver::class);
 
         Role::observe(RolePermissionObserver::class);
