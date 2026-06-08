@@ -25,7 +25,8 @@ return [
     'allowed_methods' => ['*'],
 
     'allowed_origins' => [
-        // Your primary Herd/Valet domain
+        // Application URL (set APP_URL in your .env for production)
+        env('APP_URL', 'https://martin-logistics.test'),
         'https://martin-logistics.test',
         'http://martin-logistics.test',
 
@@ -36,6 +37,7 @@ return [
         'https://127.0.0.1:5173',
 
         // The specific Vite host from your .env
+        env('VITE_DEV_SERVER_HOST'),
         'https://vite.martin-logistics.test',
         // PRODUCTION
         'https://martin-logistics.nova.bi',
