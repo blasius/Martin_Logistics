@@ -14,7 +14,8 @@ import {
     HelpCircle,
     Radar,
     Zap,
-    Crosshair
+    Crosshair,
+    DollarSign
 } from "lucide-vue-next";
 
 export const menu = [
@@ -94,6 +95,11 @@ export const menu = [
         label: "Settings",
         icon: Settings,
         to: "/settings",
+    },
+    {
+        label: "Currencies",
+        icon: DollarSign,
+        to: "/currencies",
     },
     {
         label: "Support",

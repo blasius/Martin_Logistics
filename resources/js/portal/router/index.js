@@ -28,6 +28,7 @@ const router = createRouter({
                 { path: "vehicles", component: () => import("../pages/Vehicles/Index.vue") },
                 { path: "routes", component: () => import("../pages/Routes/Index.vue") },
                 { path: "places", component: () => import("../pages/Places/Index.vue") },
+                { path: "currencies", component: () => import("../pages/Currencies/Index.vue") },
                 { path: "tracker", component: () => import("../pages/Tracker/Index.vue") },
                 { path: "reports", component: () => import("../pages/Reports/Index.vue") },
                 { path: "support", component: () => import("../pages/Support/Index.vue") },
