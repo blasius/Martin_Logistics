@@ -22,7 +22,7 @@ const router = createRouter({
             component: DashboardLayout,
             meta: { requiresAuth: true },
             children: [
-                { path: "dashboard", component: () => import("../pages/Dashboard.vue") },
+                { path: "dashboard", name: "Dashboard", component: () => import("../pages/Dashboard.vue") },
                 { path: "drivers", component: () => import("../pages/Drivers/Index.vue") },
                 { path: "trips", component: () => import("../pages/Trips/Index.vue") },
                 { path: "vehicles", component: () => import("../pages/Vehicles/Index.vue") },
