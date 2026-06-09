@@ -71,9 +71,10 @@
                                     <p class="text-[9px] font-bold text-slate-400 uppercase mb-0.5">Estimated Distance</p>
                                     <p class="text-sm font-black italic">{{ route.estimated_distance_km }} KM</p>
                                 </div>
-                                <button @click.stop="deleteRoute(route.id)"
-                                        class="text-[10px] font-black text-red-400 hover:text-red-600 uppercase px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors active:scale-95">
-                                    Delete
+                                <button @click.stop="confirmDelete(route)"
+                                        class="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition-colors active:scale-95"
+                                        title="Delete">
+                                    <Trash2 class="w-4 h-4" />
                                 </button>
                             </div>
                         </div>
@@ -149,11 +150,64 @@
 
         </div>
     </div>
+
+    <Teleport to="body">
+        <div v-if="confirmDialog.show"
+             class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div class="bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 w-full max-w-sm mx-4 overflow-hidden">
+                <div class="p-6 text-center">
+                    <div class="mx-auto w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-sm font-black text-slate-800 uppercase tracking-wider mb-2">Delete Route</h3>
+                    <p class="text-xs font-bold text-slate-500">Delete <span class="text-slate-700">{{ confirmDialog.route?.name }}</span>? This cannot be undone.</p>
+                </div>
+                <div class="px-6 pb-6 flex gap-3">
+                    <button @click="confirmDialog.show = false"
+                            class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3.5 rounded-2xl text-xs font-black transition-all active:scale-95 uppercase tracking-wider">
+                        Cancel
+                    </button>
+                    <button @click="executeDelete"
+                            :disabled="confirmDialog.deleting"
+                            class="flex-1 bg-red-600 hover:bg-red-700 text-white py-3.5 rounded-2xl text-xs font-black transition-all shadow-lg shadow-red-200 active:scale-95 disabled:opacity-40 disabled:shadow-none uppercase tracking-wider">
+                        {{ confirmDialog.deleting ? 'Deleting...' : 'Delete' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </Teleport>
+
+    <Teleport to="body">
+        <div v-if="alertDialog.show"
+             class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+             @click.self="alertDialog.show = false">
+            <div class="bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 w-full max-w-sm mx-4 overflow-hidden">
+                <div class="p-6 text-center">
+                    <div class="mx-auto w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-sm font-black text-slate-800 uppercase tracking-wider mb-2">Error</h3>
+                    <p class="text-xs font-bold text-slate-500">{{ alertDialog.message }}</p>
+                </div>
+                <div class="px-6 pb-6">
+                    <button @click="alertDialog.show = false"
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-2xl text-xs font-black transition-all shadow-lg shadow-blue-200 active:scale-95 uppercase tracking-wider">
+                        OK
+                    </button>
+                </div>
+            </div>
+        </div>
+    </Teleport>
 </template>
 
 <script setup>
-import { ref, onMounted, computed, nextTick } from 'vue';
+import { ref, reactive, onMounted, computed, nextTick } from 'vue';
 import { routesApi } from "../../api/routes";
+import { Trash2 } from 'lucide-vue-next';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import '@geoman-io/leaflet-geoman-free';
@@ -167,6 +221,17 @@ const loadingRouteDetails = ref(false);
 const saving = ref(false);
 const mapReady = ref(false);
 const pathData = ref([]);
+
+const confirmDialog = reactive({
+    show: false,
+    route: null,
+    deleting: false,
+});
+
+const alertDialog = reactive({
+    show: false,
+    message: '',
+});
 
 // View Toggle: 'list' or 'form'
 const currentView = ref('list');
@@ -344,7 +409,8 @@ const editRoute = async (id) => {
 
     } catch (e) {
         console.error('Failed to load route details', e);
-        alert('Failed to load route details.');
+        alertDialog.message = 'Failed to load route details.';
+        alertDialog.show = true;
         closeForm(); // Go back if it fails
     } finally {
         loadingRouteDetails.value = false;
@@ -381,18 +447,26 @@ const closeForm = () => {
     }
 };
 
-const deleteRoute = async (id) => {
-    if (!confirm('Are you sure you want to delete this route? This cannot be undone.')) return;
+const confirmDelete = (route) => {
+    confirmDialog.route = route;
+    confirmDialog.show = true;
+};
 
+const executeDelete = async () => {
+    confirmDialog.deleting = true;
     try {
-        await routesApi.deleteRoute(id);
-
-        // Remove from list
-        routes.value = routes.value.filter(r => r.id !== id);
-
+        await routesApi.deleteRoute(confirmDialog.route.id);
+        routes.value = routes.value.filter(r => r.id !== confirmDialog.route.id);
+        confirmDialog.show = false;
+        confirmDialog.route = null;
     } catch (e) {
         console.error('Failed to delete route', e);
-        alert('Failed to delete route.');
+        confirmDialog.show = false;
+        confirmDialog.route = null;
+        alertDialog.message = 'Failed to delete route.';
+        alertDialog.show = true;
+    } finally {
+        confirmDialog.deleting = false;
     }
 };
 
@@ -415,7 +489,8 @@ const saveRoute = async () => {
 
     } catch (e) {
         console.error('Failed to save route', e);
-        alert('Failed to save route. Please check the inputs.');
+        alertDialog.message = 'Failed to save route. Please check the inputs.';
+        alertDialog.show = true;
     } finally {
         saving.value = false;
     }
