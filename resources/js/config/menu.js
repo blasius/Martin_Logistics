@@ -35,20 +35,19 @@ export const menu = [
         to: "/dispatch",
     },
     {
-        label: "Compliance",
+        label: "Regulatory",
         icon: Ticket,
         children: [
             { label: "Summary", to: "/compliance-summary" },
             { label: "Insurances", to: "/insurances" },
             { label: "Inspections", to: "/inspections" },
-        ],
-    },
-    {
-        label: "Fines",
-        icon: Ticket,
-        children: [
-            { label: "List Fines", to: "/fines" },
-            { label: "Analytics", to: "/fines/analytics" },
+            {
+                label: "Fines",
+                children: [
+                    { label: "List Fines", to: "/fines" },
+                    { label: "Analytics", to: "/fines/analytics" },
+                ],
+            },
         ],
     },
     {
