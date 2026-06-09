@@ -42,6 +42,9 @@ class MobileAuthController extends Controller
         }
 
         $plainCode = (string) random_int(100000, 999999);
+        if(!App::environment('production')) {
+            Log::info("[DEV/TEST] WhatsApp OTP for {$contact->value}: {$plainCode}");
+        }
 
         // Store hash in DB
         $contact->update([

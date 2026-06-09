@@ -68,9 +68,10 @@
                                 <div class="flex justify-between items-center">
                                     <span class="text-[9px] font-bold text-slate-400">{{ place.latitude?.toFixed(4) }}, {{ place.longitude?.toFixed(4) }}</span>
                                     <span class="text-[9px] font-bold text-slate-400">{{ place.radius_meters }}m radius</span>
-                                    <button @click.stop="deletePlace(place.id)"
-                                            class="text-[10px] font-black text-red-400 hover:text-red-600 uppercase px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors active:scale-95">
-                                        Delete
+                                    <button @click.stop="confirmDelete(place)"
+                                            class="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition-colors active:scale-95"
+                                            title="Delete">
+                                        <Trash2 class="w-4 h-4" />
                                     </button>
                                 </div>
                             </div>
@@ -188,11 +189,64 @@
             </div>
         </div>
     </div>
+
+    <Teleport to="body">
+        <div v-if="confirmDialog.show"
+             class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div class="bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 w-full max-w-sm mx-4 overflow-hidden">
+                <div class="p-6 text-center">
+                    <div class="mx-auto w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-sm font-black text-slate-800 uppercase tracking-wider mb-2">Delete Place</h3>
+                    <p class="text-xs font-bold text-slate-500">Delete <span class="text-slate-700">{{ confirmDialog.place?.name }}</span>? This cannot be undone.</p>
+                </div>
+                <div class="px-6 pb-6 flex gap-3">
+                    <button @click="confirmDialog.show = false"
+                            class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3.5 rounded-2xl text-xs font-black transition-all active:scale-95 uppercase tracking-wider">
+                        Cancel
+                    </button>
+                    <button @click="executeDelete"
+                            :disabled="confirmDialog.deleting"
+                            class="flex-1 bg-red-600 hover:bg-red-700 text-white py-3.5 rounded-2xl text-xs font-black transition-all shadow-lg shadow-red-200 active:scale-95 disabled:opacity-40 disabled:shadow-none uppercase tracking-wider">
+                        {{ confirmDialog.deleting ? 'Deleting...' : 'Delete' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </Teleport>
+
+    <Teleport to="body">
+        <div v-if="alertDialog.show"
+             class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+             @click.self="alertDialog.show = false">
+            <div class="bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 w-full max-w-sm mx-4 overflow-hidden">
+                <div class="p-6 text-center">
+                    <div class="mx-auto w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-sm font-black text-slate-800 uppercase tracking-wider mb-2">Error</h3>
+                    <p class="text-xs font-bold text-slate-500">{{ alertDialog.message }}</p>
+                </div>
+                <div class="px-6 pb-6">
+                    <button @click="alertDialog.show = false"
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-2xl text-xs font-black transition-all shadow-lg shadow-blue-200 active:scale-95 uppercase tracking-wider">
+                        OK
+                    </button>
+                </div>
+            </div>
+        </div>
+    </Teleport>
 </template>
 
 <script setup>
-import { ref, onMounted, computed, nextTick, watch } from 'vue';
+import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue';
 import { placesApi } from "../../api/places";
+import { Trash2 } from 'lucide-vue-next';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -201,6 +255,17 @@ const selectedPlace = ref(null);
 const loadingPlaces = ref(true);
 const saving = ref(false);
 const mapReady = ref(false);
+
+const confirmDialog = reactive({
+    show: false,
+    place: null,
+    deleting: false,
+});
+
+const alertDialog = reactive({
+    show: false,
+    message: '',
+});
 
 const currentView = ref('list');
 
@@ -382,7 +447,8 @@ const editPlace = async (id) => {
 
     } catch (e) {
         console.error('Failed to load place details', e);
-        alert('Failed to load place details.');
+        alertDialog.message = 'Failed to load place details.';
+        alertDialog.show = true;
         closeForm();
     }
 };
@@ -423,15 +489,26 @@ const closeForm = () => {
     }
 };
 
-const deletePlace = async (id) => {
-    if (!confirm('Are you sure you want to delete this place? This cannot be undone.')) return;
+const confirmDelete = (place) => {
+    confirmDialog.place = place;
+    confirmDialog.show = true;
+};
 
+const executeDelete = async () => {
+    confirmDialog.deleting = true;
     try {
-        await placesApi.deletePlace(id);
-        places.value = places.value.filter(p => p.id !== id);
+        await placesApi.deletePlace(confirmDialog.place.id);
+        places.value = places.value.filter(p => p.id !== confirmDialog.place.id);
+        confirmDialog.show = false;
+        confirmDialog.place = null;
     } catch (e) {
         console.error('Failed to delete place', e);
-        alert('Failed to delete place.');
+        confirmDialog.show = false;
+        confirmDialog.place = null;
+        alertDialog.message = 'Failed to delete place.';
+        alertDialog.show = true;
+    } finally {
+        confirmDialog.deleting = false;
     }
 };
 
@@ -454,7 +531,8 @@ const savePlace = async () => {
 
     } catch (e) {
         console.error('Failed to save place', e);
-        alert('Failed to save place. Please check the inputs.');
+        alertDialog.message = 'Failed to save place. Please check the inputs.';
+        alertDialog.show = true;
     } finally {
         saving.value = false;
     }
