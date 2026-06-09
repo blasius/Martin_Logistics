@@ -287,7 +287,18 @@ const editingMode = computed(() => !!selectedPlace.value);
 let map = null;
 let currentMarker = null;
 let currentCircle = null;
+let placeMarkers = null;
 let isUpdatingFromMap = false;
+
+const defaultIcon = L.icon({
+    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+    iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41],
+});
 
 const typeBadgeClass = (type) => {
     const classes = {
@@ -323,6 +334,7 @@ const initMap = () => {
     setTimeout(() => {
         map.invalidateSize();
         mapReady.value = true;
+        renderAllPlaceMarkers();
     }, 400);
 };
 
@@ -342,7 +354,7 @@ const updateMarkerVisual = (latlng) => {
     if (currentMarker) {
         currentMarker.setLatLng(latlng);
     } else {
-        currentMarker = L.marker(latlng, { draggable: true }).addTo(map);
+        currentMarker = L.marker(latlng, { icon: defaultIcon, draggable: true }).addTo(map);
         currentMarker.on('dragend', () => {
             const pos = currentMarker.getLatLng();
             placeMarker(pos);
@@ -382,6 +394,7 @@ const updateCircleRadius = () => {
 const loadPlaceOnMap = (place) => {
     if (!map) return;
 
+    clearAllPlaceMarkers();
     clearMap();
 
     if (!place.latitude || !place.longitude) return;
@@ -393,6 +406,26 @@ const loadPlaceOnMap = (place) => {
         map.fitBounds(currentCircle.getBounds().pad(0.5), { padding: [50, 50] });
     } catch (e) {
         map.setView(latlng, 13);
+    }
+};
+
+const renderAllPlaceMarkers = () => {
+    if (!map) return;
+    if (placeMarkers) placeMarkers.clearLayers();
+    else placeMarkers = L.layerGroup().addTo(map);
+
+    places.value.forEach(place => {
+        if (!place.latitude || !place.longitude) return;
+        const marker = L.marker([place.latitude, place.longitude], { icon: defaultIcon })
+            .bindTooltip(place.name, { direction: 'top', offset: L.point(0, -10) });
+        placeMarkers.addLayer(marker);
+    });
+};
+
+const clearAllPlaceMarkers = () => {
+    if (placeMarkers) {
+        placeMarkers.clearLayers();
+        placeMarkers = null;
     }
 };
 
@@ -472,6 +505,7 @@ const createNewPlace = () => {
     nextTick(() => {
         if (map) {
             map.invalidateSize();
+            clearAllPlaceMarkers();
             clearMap();
             map.setView([-1.9441, 30.0619], 6);
         }
@@ -485,7 +519,10 @@ const closeForm = () => {
     if (map) {
         clearMap();
         map.setView([-1.9441, 30.0619], 6);
-        setTimeout(() => map.invalidateSize(), 300);
+        setTimeout(() => {
+            map.invalidateSize();
+            renderAllPlaceMarkers();
+        }, 300);
     }
 };
 
@@ -501,6 +538,7 @@ const executeDelete = async () => {
         places.value = places.value.filter(p => p.id !== confirmDialog.place.id);
         confirmDialog.show = false;
         confirmDialog.place = null;
+        renderAllPlaceMarkers();
     } catch (e) {
         console.error('Failed to delete place', e);
         confirmDialog.show = false;
