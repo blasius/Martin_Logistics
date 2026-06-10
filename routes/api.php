@@ -33,6 +33,7 @@ use App\Http\Controllers\Api\RoleManagementController;
 use App\Http\Controllers\Api\CurrencyController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\SupportTicketController;
+use App\Http\Controllers\Api\MobileSupportTicketController;
 use App\Http\Controllers\Api\Support\SupportCategoryController;
 use App\Http\Controllers\Api\Support\SupportTicketMessageController;
 
@@ -65,6 +66,14 @@ Route::prefix('mobile')->middleware('auth:sanctum')->group(function () {
     Route::prefix('trips')->group(function () {
         Route::get('/current', [MobileTripController::class, 'current']);
         Route::post('/{trip}/status', [MobileTripController::class, 'updateStatus']);
+    });
+
+    // Mobile Support Tickets
+    Route::prefix('support')->group(function () {
+        Route::get('tickets', [MobileSupportTicketController::class, 'index']);
+        Route::post('tickets', [MobileSupportTicketController::class, 'store']);
+        Route::get('tickets/{ticket}', [MobileSupportTicketController::class, 'show']);
+        Route::post('tickets/{ticket}/messages', [MobileSupportTicketController::class, 'addMessage']);
     });
 });
 
