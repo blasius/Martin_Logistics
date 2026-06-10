@@ -291,6 +291,57 @@
                     </div>
                 </div>
 
+                <!-- Profile -->
+                <div v-if="activeSection === 'profile'">
+                    <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden mb-6">
+                        <div class="p-6 border-b border-slate-100 bg-slate-50/50">
+                            <h2 class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Account Information</h2>
+                        </div>
+
+                        <div class="p-6 space-y-5">
+                            <div>
+                                <label class="text-[10px] font-black text-slate-400 uppercase ml-1 block mb-2 tracking-wide">Name</label>
+                                <input v-model="profileForm.name" type="text"
+                                       class="border-slate-200 px-4 py-3.5 rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50 w-full max-w-md transition-all" />
+                                <p v-if="profileErrors.name" class="text-[9px] font-bold text-red-500 mt-1.5 ml-1">{{ profileErrors.name }}</p>
+                            </div>
+
+                            <div>
+                                <label class="text-[10px] font-black text-slate-400 uppercase ml-1 block mb-2 tracking-wide">Email</label>
+                                <div class="px-4 py-3.5 rounded-xl text-sm font-bold bg-slate-100 text-slate-500 border border-slate-200 w-full max-w-md">
+                                    {{ profileForm.email }}
+                                </div>
+                            </div>
+
+                            <div class="pt-2">
+                                <button @click="saveProfile"
+                                        :disabled="profileSaving"
+                                        class="bg-blue-600 hover:bg-blue-700 text-white px-10 py-3.5 rounded-2xl text-xs font-black transition-all shadow-lg shadow-blue-200 active:scale-95 disabled:opacity-40 disabled:shadow-none uppercase tracking-widest">
+                                    {{ profileSaving ? 'Saving...' : 'Save Changes' }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="p-6 border-b border-slate-100 bg-slate-50/50">
+                            <h2 class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Password</h2>
+                        </div>
+
+                        <div class="p-6">
+                            <p class="text-xs font-bold text-slate-500 mb-4">To change your password, request a reset link. It will be sent to your email and expires in 60 minutes.</p>
+
+                            <button @click="requestReset"
+                                    :disabled="profileResetSent"
+                                    class="bg-slate-800 hover:bg-slate-900 text-white px-10 py-3.5 rounded-2xl text-xs font-black transition-all shadow-lg shadow-slate-200 active:scale-95 disabled:opacity-40 disabled:shadow-none uppercase tracking-widest">
+                                {{ profileResetSent ? 'Link Sent' : 'Send Reset Link' }}
+                            </button>
+
+                            <p v-if="profileResetSent" class="text-[10px] font-bold text-emerald-600 mt-4">A password reset link has been sent to your email.</p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Coming Soon Placeholder -->
                 <div v-else-if="currentSection?.comingSoon" class="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden">
                     <div class="flex flex-col items-center justify-center py-20 px-6">
@@ -532,6 +583,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { api } from '../../plugins/axios'
 import { useAuthStore } from '../store/authStore'
+import { profileApi } from '../api/profile'
 import {
     ShieldCheck, Bell, User, Puzzle, Settings2,
     Users, Plus, Pencil, Trash2, X,
@@ -576,7 +628,6 @@ const sections = [
         description: 'Personal information & contacts',
         icon: User,
         roles: null,
-        comingSoon: true,
     },
     {
         id: 'integrations',
@@ -923,7 +974,55 @@ const deleteRole = async () => {
     }
 }
 
+// Profile
+const profileForm = ref({ name: '', email: '' })
+const profileErrors = ref({})
+const profileSaving = ref(false)
+const profileResetSent = ref(false)
+
+const fetchProfile = async () => {
+    try {
+        const response = await profileApi.getProfile()
+        profileForm.value.name = response.data.name
+        profileForm.value.email = response.data.email
+    } catch (e) {
+        console.error('Failed to load profile', e)
+    }
+}
+
+const saveProfile = async () => {
+    profileSaving.value = true
+    profileErrors.value = {}
+    try {
+        await profileApi.updateProfile(profileForm.value)
+        await authStore.checkAuth()
+        notify('Profile updated.')
+    } catch (e) {
+        if (e.response?.status === 422 && e.response.data?.errors) {
+            const flat = {}
+            for (const [key, msgs] of Object.entries(e.response.data.errors)) {
+                flat[key] = msgs[0]
+            }
+            profileErrors.value = flat
+        } else {
+            notify('Failed to update profile.')
+        }
+    } finally {
+        profileSaving.value = false
+    }
+}
+
+const requestReset = async () => {
+    try {
+        await profileApi.sendResetLink()
+        profileResetSent.value = true
+    } catch (e) {
+        notify('Failed to send reset link.')
+    }
+}
+
 onMounted(() => {
+    fetchProfile()
     checkStatus()
     if (authStore.user?.roles_list?.some(r => ['super_admin', 'admin'].includes(r))) {
         fetchRoles()

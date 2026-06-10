@@ -200,7 +200,18 @@ class WialonService
         $processedCount = 0;
         $now = now();
 
+        // 1. Log the total number of configured fleets found after array_filter
+        Log::info("Wialon Sync: Starting telemetry sync. Total fleets configured: " . count($this->tokens), [
+            'configured_fleet_keys' => array_keys($this->tokens)
+        ]);
+
         foreach ($this->tokens as $fleetKey => $token) {
+
+            // 2. Log right before making the API call to see which fleet is acting
+            Log::info("Wialon Sync: Fetching items for fleet [{$fleetKey}]", [
+                'token_truncated' => '...' . substr($token, -5)
+            ]);
+
             $result = $this->callApi('core/search_items', [
                 'spec' => [
                     'itemsType' => 'avl_unit',
@@ -209,45 +220,54 @@ class WialonService
                     'sortType' => 'sys_name',
                 ],
                 'force' => 1,
-                // Flag 4096 (Sensors) + 1024 (Custom Props) + 1 (Base) = 5121
-                // We need 4096 to see the 'sens' block for calibration
                 'flags' => 5121,
                 'from' => 0,
                 'to' => 0,
             ], $token);
 
-            if (!isset($result['items'])) continue;
+            // 3. Check if the API response is completely missing or malformed
+            if (!isset($result['items'])) {
+                Log::warning("Wialon Sync: No items block returned from API for fleet [{$fleetKey}]. Check token permissions.", [
+                    'api_response' => $result
+                ]);
+                continue;
+            }
 
-            $unitIds = collect($result['items'])
-                ->pluck('id')
-                ->filter()
-                ->values();
+            $incomingUnitsCount = count($result['items']);
+
+            // 4. Log the volume of assets returned by this specific fleet
+            Log::info("Wialon Sync: Fleet [{$fleetKey}] successfully returned {$incomingUnitsCount} units from API.");
+
+            $unitIds = collect($result['items'])->pluck('id')->filter()->values();
 
             $wialonUnits = WialonUnit::whereIn('wialon_id', $unitIds)
                 ->get()
                 ->keyBy('wialon_id');
 
-            $vehicleIds = $wialonUnits
-                ->pluck('vehicle_id')
-                ->filter()
-                ->values();
+            $vehicleIds = $wialonUnits->pluck('vehicle_id')->filter()->values();
 
             $snapshots = DB::table('vehicle_snapshots')
                 ->whereIn('vehicle_id', $vehicleIds)
                 ->get()
                 ->keyBy('vehicle_id');
 
+            $fleetSkippedCount = 0;
+            $fleetProcessedCount = 0;
+
             foreach ($result['items'] as $unitData) {
                 $wialonUnit = $wialonUnits->get($unitData['id']);
 
-                if (!$wialonUnit || !$wialonUnit->vehicle_id) continue;
+                if (!$wialonUnit || !$wialonUnit->vehicle_id) {
+                    // Log if an API asset isn't mapped in your DB yet
+                    Log::debug("Wialon Sync: Skipping unit ID {$unitData['id']}. Reason: Not mapped to a local vehicle record.");
+                    continue;
+                }
 
                 $vehicleId = $wialonUnit->vehicle_id;
                 $pos = $unitData['pos'] ?? null;
                 $params = $unitData['lmsg']['p'] ?? [];
                 if (!$pos) continue;
 
-                // 1. DYNAMIC FUEL CALCULATION
                 $rawFuelValue = $params['io_270'] ?? 0;
                 $fuelLiters = $this->getCalibratedFuel($vehicleId, $rawFuelValue, $unitData['sens'] ?? []);
 
@@ -263,11 +283,13 @@ class WialonService
 
                 $previousSnapshot = $snapshots->get($vehicleId);
 
+                // 5. Watch the Chronological Sanity Check bypass
                 if (
                     $previousSnapshot &&
                     $previousSnapshot->last_seen_at &&
                     Carbon::parse($previousSnapshot->last_seen_at)->greaterThanOrEqualTo($recordedAt)
                 ) {
+                    $fleetSkippedCount++;
                     continue;
                 }
 
@@ -308,7 +330,7 @@ class WialonService
                                 'longitude' => $lon,
                                 'location' => DB::raw("ST_GeomFromText('POINT($lon $lat)', 4326)"),
                                 'speed' => $speed,
-                                'fuel_level_raw' => $fuelLiters, // Accurately calibrated liters
+                                'fuel_level_raw' => $fuelLiters,
                                 'ignition' => $ignition,
                                 'odometer' => $odometer,
                                 'created_at' => $now,
@@ -316,7 +338,6 @@ class WialonService
                             ]);
                         }
 
-                        // Don't flag low fuel if sensor is missing/invalid (-0.1)
                         $isLowFuel = ($fuelLiters >= 0 && $fuelLiters < 20);
 
                         DB::table('vehicle_snapshots')->updateOrInsert(
@@ -355,12 +376,20 @@ class WialonService
 
                     if ($processed) {
                         $processedCount++;
+                        $fleetProcessedCount++;
+                    } else {
+                        $fleetSkippedCount++;
                     }
                 } catch (\Exception $e) {
-                    Log::error("Sync Error for Vehicle $vehicleId: " . $e->getMessage());
+                    Log::error("Wialon Sync: Exception processing vehicle [ID: {$vehicleId}] in fleet [{$fleetKey}]: " . $e->getMessage());
                 }
             }
+
+            // 6. Summary metrics for this specific fleet loop iteration
+            Log::info("Wialon Sync: Completed iteration for fleet [{$fleetKey}]. Processed: {$fleetProcessedCount}, Skipped/Stale: {$fleetSkippedCount}");
         }
+
+        Log::info("Wialon Sync: Global processing routine finished. Total mutated snapshots: {$processedCount}");
         return $processedCount;
     }
 
