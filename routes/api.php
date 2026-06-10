@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\FleetReportController;
 use App\Http\Controllers\Api\UserManagementController;
 use App\Http\Controllers\Api\RoleManagementController;
 use App\Http\Controllers\Api\CurrencyController;
+use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\Support\SupportCategoryController;
 use App\Http\Controllers\Api\Support\SupportTicketMessageController;
@@ -66,6 +67,9 @@ Route::prefix('mobile')->middleware('auth:sanctum')->group(function () {
         Route::post('/{trip}/status', [MobileTripController::class, 'updateStatus']);
     });
 });
+
+// Password reset (no auth — accessed via emailed link)
+Route::post('/portal/password/reset', [ProfileController::class, 'reset']);
 
 // Protected Routes
 Route::middleware('auth')->group(function () {
@@ -199,6 +203,11 @@ Route::middleware('auth')->group(function () {
         Route::post('currencies', [CurrencyController::class, 'store']);
         Route::put('currencies/{currency}', [CurrencyController::class, 'update']);
         Route::delete('currencies/{currency}', [CurrencyController::class, 'destroy']);
+
+        // Profile
+        Route::get('profile', [ProfileController::class, 'show']);
+        Route::put('profile', [ProfileController::class, 'update']);
+        Route::post('password/send-reset-link', [ProfileController::class, 'sendResetLink']);
 
         // Support System Nested Group
         Route::prefix('support')->group(function () {
