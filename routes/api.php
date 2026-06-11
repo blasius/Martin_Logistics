@@ -70,6 +70,7 @@ Route::prefix('mobile')->middleware('auth:sanctum')->group(function () {
 
     // Mobile Support Tickets
     Route::prefix('support')->group(function () {
+        Route::get('categories', [SupportCategoryController::class, 'index']);
         Route::get('tickets', [MobileSupportTicketController::class, 'index']);
         Route::post('tickets', [MobileSupportTicketController::class, 'store']);
         Route::get('tickets/{ticket}', [MobileSupportTicketController::class, 'show']);
