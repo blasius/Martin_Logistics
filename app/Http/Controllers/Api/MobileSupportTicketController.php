@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\SupportTicket;
 use App\Models\SupportTicketEvent;
+use App\Models\Vehicle;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class MobileSupportTicketController extends Controller
 {
@@ -48,6 +50,18 @@ class MobileSupportTicketController extends Controller
 
         $user = $request->user();
         $validated['user_id'] = $user->id;
+
+        if ($user->driver && empty($validated['subject_type'])) {
+            $vehicleId = DB::table('driver_vehicle_assignments')
+                ->where('driver_id', $user->id)
+                ->whereNull('end_date')
+                ->value('vehicle_id');
+
+            if ($vehicleId) {
+                $validated['subject_type'] = Vehicle::class;
+                $validated['subject_id'] = $vehicleId;
+            }
+        }
 
         $ticket = SupportTicket::create($validated);
 

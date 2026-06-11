@@ -70,7 +70,8 @@
                             </div>
                             <div>
                                 <p class="font-black text-slate-800 text-sm tracking-tight">{{ t.user?.name }}</p>
-                                <p class="text-[10px] font-bold text-indigo-600 uppercase">{{ subjectLabel(t.subject) }}</p>
+                                <p v-if="t.current_vehicle" class="text-[10px] font-bold text-indigo-600 uppercase">{{ t.current_vehicle.plate_number }}</p>
+                                <p v-else class="text-[10px] font-bold text-slate-400 uppercase">{{ subjectLabel(t.subject) }}</p>
                             </div>
                         </div>
                     </td>
@@ -134,16 +135,16 @@
                                 </div>
 
                                 <div>
-                                    <h3 class="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-4">Subject</h3>
+                                    <h3 class="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-4">Current Vehicle</h3>
                                     <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                                        <div v-if="subjectIsVehicle(ticketDetail.subject)">
-                                            <p class="text-lg font-black text-slate-800">{{ ticketDetail.subject.plate_number }}</p>
-                                            <p class="text-[10px] font-bold text-slate-400">{{ ticketDetail.subject.make }} {{ ticketDetail.subject.model }}</p>
+                                        <div v-if="ticketDetail.current_vehicle">
+                                            <p class="text-lg font-black text-slate-800">{{ ticketDetail.current_vehicle.plate_number }}</p>
+                                            <p class="text-[10px] font-bold text-slate-400">{{ ticketDetail.current_vehicle.make }} {{ ticketDetail.current_vehicle.model }}</p>
                                         </div>
-                                        <div v-else-if="ticketDetail.subject">
-                                            <p class="text-sm font-black text-slate-800">{{ subjectLabel(ticketDetail.subject) }}</p>
-                                        </div>
-                                        <p v-else class="text-[10px] font-bold text-slate-400">No subject linked</p>
+                                        <p v-else-if="ticketDetail.subject && subjectIsVehicle(ticketDetail.subject)">
+                                            <span class="text-sm font-black text-slate-400">{{ ticketDetail.subject.plate_number }} <span class="text-[10px] font-bold">(previous)</span></span>
+                                        </p>
+                                        <p v-else class="text-[10px] font-bold text-slate-400">No vehicle assigned</p>
                                     </div>
                                 </div>
 
@@ -174,7 +175,7 @@
                         <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
                             <div>
                                 <h2 class="text-xl font-black text-slate-900 uppercase tracking-tighter">{{ ticketDetail?.title || 'Loading...' }}</h2>
-                                <p v-if="ticketDetail" class="text-[10px] font-black text-slate-400 uppercase">{{ ticketDetail.user?.name }} &bull; {{ subjectLabel(ticketDetail.subject) }}</p>
+                                <p v-if="ticketDetail" class="text-[10px] font-black text-slate-400 uppercase">{{ ticketDetail.user?.name }} &bull; {{ ticketDetail.current_vehicle?.plate_number || subjectLabel(ticketDetail.subject) }}</p>
                             </div>
                             <button @click="closeTicket" class="p-2 bg-slate-50 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-colors">
                                 <X class="w-6 h-6" />
@@ -272,6 +273,26 @@
                                 <option value="" disabled>Select category</option>
                                 <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
                             </select>
+                        </div>
+
+                        <div>
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Vehicle <span class="text-slate-300">(optional)</span></label>
+                            <div class="relative">
+                                <input v-model="formVehicleQuery" @input="onVehicleQueryInput" placeholder="Search by plate or make..."
+                                       class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500" />
+                                <div v-if="vehicleSearchResults.length && formVehicleQuery"
+                                     class="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-20 max-h-48 overflow-y-auto">
+                                    <button v-for="v in vehicleSearchResults" :key="v.id" @click="selectVehicle(v)"
+                                            :class="formVehicleId === v.id ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50'"
+                                            class="w-full text-left px-4 py-3 text-sm font-bold border-b border-slate-100 last:border-0 transition-colors">
+                                        <span>{{ v.plate_number }}</span>
+                                        <span class="text-[10px] font-medium text-slate-400 ml-2">{{ v.make }} {{ v.model }}</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <p v-if="formVehicleId && formVehicleLabel" class="mt-2 text-xs font-bold text-slate-500">
+                                {{ formVehicleLabel }} <button @click="clearVehicle" class="text-rose-500 hover:text-rose-700 ml-1 text-[10px]">(remove)</button>
+                            </p>
                         </div>
 
                         <div>
@@ -435,6 +456,13 @@ const creatingTicket = ref(false)
 const userSearchResults = ref([])
 let userSearchTimeout = null
 
+// Vehicle search
+const formVehicleId = ref(null)
+const formVehicleQuery = ref('')
+const formVehicleLabel = ref('')
+const vehicleSearchResults = ref([])
+let vehicleSearchTimeout = null
+
 // Manage Categories
 const showManageCategories = ref(false)
 const allCategories = ref([])
@@ -569,6 +597,35 @@ const selectUser = (user) => {
     userSearchResults.value = []
 }
 
+const searchVehicles = async (q) => {
+    if (!q) { vehicleSearchResults.value = []; return }
+    try {
+        const { data } = await api.get('portal/support/vehicles/search', { params: { q } })
+        vehicleSearchResults.value = data
+    } catch (e) {
+        console.error('Failed to search vehicles', e)
+    }
+}
+
+const onVehicleQueryInput = () => {
+    clearTimeout(vehicleSearchTimeout)
+    vehicleSearchTimeout = setTimeout(() => searchVehicles(formVehicleQuery.value), 250)
+}
+
+const selectVehicle = (v) => {
+    formVehicleId.value = v.id
+    formVehicleLabel.value = `${v.plate_number} (${v.make} ${v.model})`
+    formVehicleQuery.value = v.plate_number
+    vehicleSearchResults.value = []
+}
+
+const clearVehicle = () => {
+    formVehicleId.value = null
+    formVehicleQuery.value = ''
+    formVehicleLabel.value = ''
+    vehicleSearchResults.value = []
+}
+
 const resetForm = () => {
     formUserId.value = null
     formUserName.value = ''
@@ -578,19 +635,28 @@ const resetForm = () => {
     formDescription.value = ''
     formPriority.value = ''
     userSearchResults.value = []
+    formVehicleId.value = null
+    formVehicleQuery.value = ''
+    formVehicleLabel.value = ''
+    vehicleSearchResults.value = []
 }
 
 const createTicket = async () => {
     if (!formValid.value) return
     creatingTicket.value = true
     try {
-        await api.post('portal/support/tickets', {
+        const payload = {
             user_id: formUserId.value,
             support_category_id: formCategoryId.value,
             title: formTitle.value,
             description: formDescription.value,
             priority: formPriority.value,
-        })
+        }
+        if (formVehicleId.value) {
+            payload.subject_type = 'App\\Models\\Vehicle'
+            payload.subject_id = formVehicleId.value
+        }
+        await api.post('portal/support/tickets', payload)
         showCreateTicket.value = false
         resetForm()
         await fetchTickets()
