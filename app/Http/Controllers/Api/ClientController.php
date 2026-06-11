@@ -55,6 +55,23 @@ class ClientController extends Controller
         return response()->json(['message' => 'Client updated successfully', 'client' => $client]);
     }
 
+    public function search(Request $request)
+    {
+        $q = $request->query('q');
+        if (strlen($q) < 1) {
+            return response()->json([]);
+        }
+
+        $clients = Client::where('name', 'like', "%{$q}%")
+            ->orWhere('email', 'like', "%{$q}%")
+            ->orWhere('phone', 'like', "%{$q}%")
+            ->orderBy('name')
+            ->limit(20)
+            ->get(['id', 'name', 'email', 'phone']);
+
+        return response()->json($clients);
+    }
+
     public function destroy(Client $client)
     {
         $client->delete();

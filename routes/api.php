@@ -37,6 +37,7 @@ use App\Http\Controllers\Api\MobileSupportTicketController;
 use App\Http\Controllers\Api\Support\SupportCategoryController;
 use App\Http\Controllers\Api\Support\SupportTicketMessageController;
 use App\Http\Controllers\Api\ClientController;
+use App\Http\Controllers\Api\OrderController;
 
 // Public Routes
 Route::post('/login', [AuthController::class, 'login']); // Token-based
@@ -184,7 +185,12 @@ Route::middleware('auth')->group(function () {
         // Order Search (For the left sidebar)
         Route::get('/orders/search', [SearchController::class, 'searchOrders']);
 
-        Route::get('/orders/{order}', [TripController::class, 'showOrder']);
+        // Orders CRUD
+        Route::get('orders', [OrderController::class, 'index']);
+        Route::post('orders', [OrderController::class, 'store']);
+        Route::get('orders/{order}', [OrderController::class, 'show']);
+        Route::put('orders/{order}', [OrderController::class, 'update']);
+        Route::delete('orders/{order}', [OrderController::class, 'destroy']);
 
         // Trip Lifecycle
         Route::post('/trips', [TripController::class, 'store']);
@@ -210,6 +216,7 @@ Route::middleware('auth')->group(function () {
             ->middleware('role:super_admin|Admin');
 
         // Clients
+        Route::get('clients/search', [ClientController::class, 'search']);
         Route::get('clients', [ClientController::class, 'index']);
         Route::post('clients', [ClientController::class, 'store']);
         Route::get('clients/{client}', [ClientController::class, 'show']);
