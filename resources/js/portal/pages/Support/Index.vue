@@ -69,12 +69,13 @@
                                 {{ userName(t.user) }}
                             </div>
                             <div>
-                                <div class="flex items-center gap-2">
-                                    <p class="font-black text-slate-800 text-sm tracking-tight">{{ t.user?.name }}</p>
-                                    <span v-if="t.user?.roles?.length" :class="roleBadge(t.user.roles[0].name)" class="text-[8px] font-black px-1.5 py-0.5 rounded uppercase">{{ t.user.roles[0].name }}</span>
-                                </div>
-                                <p v-if="t.current_vehicle" class="text-[10px] font-bold text-indigo-600 uppercase">{{ t.current_vehicle.plate_number }}</p>
-                                <p v-else class="text-[10px] font-bold text-slate-400 uppercase">{{ subjectLabel(t.subject) }}</p>
+                                <p class="font-black text-slate-800 text-sm tracking-tight">{{ t.user?.name }}</p>
+                                <span v-if="t.user?.roles?.length" class="inline-flex items-center gap-1.5 mt-1 text-[9px] font-black px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 uppercase tracking-wider shadow-sm">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-emerald-100"></span>
+                                    {{ t.user.roles[0].name }}
+                                </span>
+                                <p v-if="t.current_vehicle" class="text-[10px] font-bold text-indigo-600 uppercase mt-1.5">{{ t.current_vehicle.plate_number }}</p>
+                                <p v-else class="text-[10px] font-bold text-slate-400 uppercase mt-1.5">{{ subjectLabel(t.subject) }}</p>
                             </div>
                         </div>
                     </td>
