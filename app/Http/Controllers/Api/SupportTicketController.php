@@ -18,6 +18,7 @@ class SupportTicketController extends Controller
             ->with([
                 'user:id,name,email',
                 'user.driver:id,user_id,phone',
+                'user.roles',
                 'category:id,name',
                 'assignee:id,name',
                 'subject' => fn($q) => $q->with(['trailers', 'assignments']),
@@ -70,6 +71,7 @@ class SupportTicketController extends Controller
         return response()->json($ticket->load([
             'user:id,name,email',
             'user.driver:id,user_id,phone',
+            'user.roles',
             'category:id,name',
             'assignee:id,name',
             'subject',
@@ -81,6 +83,7 @@ class SupportTicketController extends Controller
         $ticket = SupportTicket::with([
             'user:id,name,email',
             'user.driver:id,user_id,phone',
+            'user.roles',
             'category:id,name',
             'assignee:id,name',
             'messages' => fn($q) => $q->with('author:id,name')->orderBy('created_at', 'asc'),
