@@ -12,10 +12,18 @@
                     <input v-model="search" placeholder="Search tickets..."
                            class="pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 w-64" />
                 </div>
+                <button @click="showCreateTicket = true"
+                        class="text-[10px] font-black uppercase px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition active:scale-95 flex items-center gap-1.5 shadow-lg shadow-indigo-200">
+                    <Plus class="w-3.5 h-3.5" /> New Ticket
+                </button>
                 <button @click="refresh" :disabled="loading"
                         class="text-[10px] font-black uppercase px-4 py-2 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 transition active:scale-95 disabled:opacity-40 flex items-center gap-1.5">
                     <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                     Refresh
+                </button>
+                <button @click="openManageCategories"
+                        class="text-[10px] font-black uppercase px-3 py-2 rounded-xl border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-300 transition active:scale-95 flex items-center gap-1.5">
+                    <Settings class="w-3 h-3" /> Categories
                 </button>
             </div>
         </div>
@@ -88,6 +96,7 @@
             </table>
         </div>
 
+        <!-- Ticket Detail Slideover -->
         <Transition name="slide">
             <div v-if="activeTicket" class="fixed inset-0 z-[100] flex justify-end">
                 <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="closeTicket"></div>
@@ -165,7 +174,7 @@
                         <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
                             <div>
                                 <h2 class="text-xl font-black text-slate-900 uppercase tracking-tighter">{{ ticketDetail?.title || 'Loading...' }}</h2>
-                                <p v-if="ticketDetail" class="text-[10px] font-black text-slate-400 uppercase">{{ ticketDetail.user?.name }} • {{ subjectLabel(ticketDetail.subject) }}</p>
+                                <p v-if="ticketDetail" class="text-[10px] font-black text-slate-400 uppercase">{{ ticketDetail.user?.name }} &bull; {{ subjectLabel(ticketDetail.subject) }}</p>
                             </div>
                             <button @click="closeTicket" class="p-2 bg-slate-50 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-colors">
                                 <X class="w-6 h-6" />
@@ -190,7 +199,7 @@
                                     ]">
                                         {{ msg.message }}
                                     </div>
-                                    <span class="text-[9px] font-black text-slate-400 uppercase mt-2 px-2">{{ msg.author?.name }} • {{ timeAgo(msg.created_at) }}</span>
+                                    <span class="text-[9px] font-black text-slate-400 uppercase mt-2 px-2">{{ msg.author?.name }} &bull; {{ timeAgo(msg.created_at) }}</span>
                                 </div>
                                 <div v-if="!ticketDetail?.messages?.length" class="text-center text-slate-400 font-black uppercase tracking-widest text-xs py-12">
                                     No messages yet
@@ -221,6 +230,173 @@
                 </div>
             </div>
         </Transition>
+
+        <!-- Create Ticket Slideover -->
+        <Transition name="slide">
+            <div v-if="showCreateTicket" class="fixed inset-0 z-[100] flex justify-end">
+                <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="showCreateTicket = false"></div>
+                <div class="relative bg-white w-full max-w-xl h-full shadow-2xl overflow-y-auto border-l-8 border-emerald-600">
+                    <div class="p-6 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white z-10">
+                        <h2 class="text-xl font-black text-slate-900 uppercase tracking-tighter flex items-center gap-3">
+                            <Plus class="w-6 h-6 text-emerald-600" /> New Ticket
+                        </h2>
+                        <button @click="showCreateTicket = false" class="p-2 bg-slate-50 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-colors">
+                            <X class="w-6 h-6" />
+                        </button>
+                    </div>
+
+                    <div class="p-6 space-y-5">
+                        <div>
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">User</label>
+                            <div class="relative">
+                                <input v-model="formUserQuery" @input="onUserQueryInput" placeholder="Search by name or email..."
+                                       class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500" />
+                                <div v-if="userSearchResults.length && formUserQuery"
+                                     class="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-20 max-h-48 overflow-y-auto">
+                                    <button v-for="u in userSearchResults" :key="u.id" @click="selectUser(u)"
+                                            :class="formUserId === u.id ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50'"
+                                            class="w-full text-left px-4 py-3 text-sm font-bold border-b border-slate-100 last:border-0 transition-colors">
+                                        <span>{{ u.name }}</span>
+                                        <span class="text-[10px] font-medium text-slate-400 ml-2">{{ u.email }}</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <p v-if="formUserId && formUserName" class="mt-2 text-xs font-bold text-emerald-600">
+                                {{ formUserName }}
+                            </p>
+                        </div>
+
+                        <div>
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Category</label>
+                            <select v-model="formCategoryId" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500">
+                                <option value="" disabled>Select category</option>
+                                <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Priority</label>
+                            <select v-model="formPriority" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500">
+                                <option value="" disabled>Select priority</option>
+                                <option value="low">Low</option>
+                                <option value="normal">Normal</option>
+                                <option value="high">High</option>
+                                <option value="urgent">Urgent</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Title</label>
+                            <input v-model="formTitle" placeholder="Brief title of the issue"
+                                   class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500" />
+                        </div>
+
+                        <div>
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Description</label>
+                            <textarea v-model="formDescription" placeholder="Full description of the issue"
+                                      class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 min-h-[120px] resize-none"></textarea>
+                        </div>
+
+                        <div class="flex gap-3 pt-2">
+                            <button @click="showCreateTicket = false"
+                                    class="flex-1 text-[10px] font-black uppercase px-4 py-3 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 transition active:scale-95">
+                                Cancel
+                            </button>
+                            <button @click="createTicket" :disabled="!formValid || creatingTicket"
+                                    class="flex-1 text-[10px] font-black uppercase px-4 py-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition active:scale-95 disabled:opacity-40 flex items-center justify-center gap-2">
+                                <svg v-if="creatingTicket" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                Create Ticket
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </Transition>
+
+        <!-- Manage Categories Modal -->
+        <Transition name="slide">
+            <div v-if="showManageCategories" class="fixed inset-0 z-[100] flex justify-end">
+                <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="closeManageCategories"></div>
+                <div class="relative bg-white w-full max-w-lg h-full shadow-2xl overflow-y-auto border-l-8 border-amber-500">
+                    <div class="p-6 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white z-10">
+                        <h2 class="text-xl font-black text-slate-900 uppercase tracking-tighter flex items-center gap-3">
+                            <Settings class="w-6 h-6 text-amber-500" /> Categories
+                        </h2>
+                        <button @click="closeManageCategories" class="p-2 bg-slate-50 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-colors">
+                            <X class="w-6 h-6" />
+                        </button>
+                    </div>
+
+                    <div class="p-6 space-y-5">
+                        <div class="bg-slate-50 rounded-2xl p-5 border border-slate-200">
+                            <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                                {{ editingCategory ? 'Edit Category' : 'New Category' }}
+                            </h3>
+                            <div class="space-y-3">
+                                <input v-model="categoryFormName" placeholder="Category name"
+                                       class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500" />
+                                <input v-model="categoryFormDescription" placeholder="Description (optional)"
+                                       class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500" />
+                                <div class="flex gap-2">
+                                    <button v-if="editingCategory" @click="cancelEditCategory"
+                                            class="text-[10px] font-black uppercase px-3 py-2 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 transition active:scale-95">
+                                        Cancel
+                                    </button>
+                                    <button @click="saveCategory" :disabled="!categoryFormName.trim() || savingCategory"
+                                            class="text-[10px] font-black uppercase px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition active:scale-95 disabled:opacity-40">
+                                        {{ editingCategory ? 'Update' : 'Add' }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2">
+                            <div v-for="cat in allCategories" :key="cat.id"
+                                 class="flex items-center justify-between bg-white rounded-xl border border-slate-200 px-4 py-3">
+                                <div>
+                                    <p class="text-sm font-black text-slate-800">{{ cat.name }}</p>
+                                    <p v-if="cat.description" class="text-[10px] font-bold text-slate-400">{{ cat.description }}</p>
+                                    <p class="text-[9px] font-bold text-slate-300 uppercase mt-0.5">{{ cat.tickets_count }} tickets</p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button @click="editCategory(cat)" class="p-2 rounded-xl hover:bg-slate-50 text-slate-400 hover:text-indigo-600 transition-colors">
+                                        <Pencil class="w-4 h-4" />
+                                    </button>
+                                    <button v-if="!cat.tickets_count" @click="confirmDeleteCategory(cat)" class="p-2 rounded-xl hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors">
+                                        <Trash2 class="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                            <div v-if="!allCategories.length" class="text-center text-slate-400 font-black uppercase tracking-widest text-xs py-8">
+                                No categories yet
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </Transition>
+
+        <!-- Delete Category Confirmation -->
+        <Transition name="slide">
+            <div v-if="deleteConfirmCategoryId" class="fixed inset-0 z-[200] flex items-center justify-center">
+                <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="deleteConfirmCategoryId = null"></div>
+                <div class="relative bg-white rounded-3xl shadow-2xl max-w-sm w-full mx-4 p-8 text-center border-l-8 border-rose-500">
+                    <AlertTriangle class="w-12 h-12 text-rose-500 mx-auto mb-4" />
+                    <h3 class="text-lg font-black text-slate-900 uppercase mb-2">Delete Category</h3>
+                    <p class="text-sm font-medium text-slate-500 mb-6">Are you sure you want to delete "{{ deleteConfirmCategoryName }}"? This cannot be undone.</p>
+                    <div class="flex gap-3">
+                        <button @click="deleteConfirmCategoryId = null"
+                                class="flex-1 text-[10px] font-black uppercase px-4 py-3 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 transition active:scale-95">
+                            Cancel
+                        </button>
+                        <button @click="deleteCategory" :disabled="deletingCategory"
+                                class="flex-1 text-[10px] font-black uppercase px-4 py-3 rounded-xl bg-rose-600 text-white hover:bg-rose-700 transition active:scale-95 disabled:opacity-40">
+                            Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Transition>
     </div>
 </template>
 
@@ -229,7 +405,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { api } from '../../../plugins/axios'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import { LifeBuoy, X, Send, Search } from 'lucide-vue-next'
+import { LifeBuoy, X, Send, Search, Plus, Settings, Pencil, Trash2, AlertTriangle } from 'lucide-vue-next'
 
 dayjs.extend(relativeTime)
 
@@ -246,7 +422,35 @@ const replyText = ref('')
 const statusUpdate = ref('')
 const currentUserId = ref(null)
 
+// Create Ticket
+const showCreateTicket = ref(false)
+const formUserId = ref(null)
+const formUserName = ref('')
+const formUserQuery = ref('')
+const formCategoryId = ref('')
+const formTitle = ref('')
+const formDescription = ref('')
+const formPriority = ref('')
+const creatingTicket = ref(false)
+const userSearchResults = ref([])
+let userSearchTimeout = null
+
+// Manage Categories
+const showManageCategories = ref(false)
+const allCategories = ref([])
+const editingCategory = ref(null)
+const categoryFormName = ref('')
+const categoryFormDescription = ref('')
+const savingCategory = ref(false)
+const deletingCategory = ref(false)
+const deleteConfirmCategoryId = ref(null)
+const deleteConfirmCategoryName = ref('')
+
 watch(activeCategoryId, () => { fetchTickets() })
+
+const formValid = computed(() =>
+    formUserId.value && formCategoryId.value && formTitle.value.trim() && formDescription.value.trim() && formPriority.value
+)
 
 const filteredTickets = computed(() => {
     let result = tickets.value
@@ -276,9 +480,9 @@ const userName = (user) => {
 }
 
 const subjectLabel = (subj) => {
-    if (!subj) return '—'
+    if (!subj) return '\u2014'
     if (subj.plate_number) return subj.plate_number
-    if (subj.origin && subj.dest) return `${subj.origin} → ${subj.dest}`
+    if (subj.origin && subj.dest) return `${subj.origin} \u2192 ${subj.dest}`
     if (subj.name) return subj.name
     return `#${subj.id}`
 }
@@ -304,7 +508,7 @@ const timeAgo = (date) => {
 }
 
 const formatDate = (date) => {
-    if (!date) return '—'
+    if (!date) return '\u2014'
     return dayjs(date).format('MMM D, YYYY h:mm A')
 }
 
@@ -314,6 +518,15 @@ const fetchCategories = async () => {
         categories.value = data
     } catch (e) {
         console.error('Failed to load categories', e)
+    }
+}
+
+const fetchAllCategories = async () => {
+    try {
+        const { data } = await api.get('portal/support/categories', { params: { all: true } })
+        allCategories.value = data
+    } catch (e) {
+        console.error('Failed to load all categories', e)
     }
 }
 
@@ -331,6 +544,61 @@ const fetchTickets = async () => {
         console.error('Failed to load tickets', e)
     } finally {
         loading.value = false
+    }
+}
+
+const searchUsers = async (q) => {
+    if (!q) { userSearchResults.value = []; return }
+    try {
+        const { data } = await api.get('portal/support/users/search', { params: { q } })
+        userSearchResults.value = data
+    } catch (e) {
+        console.error('Failed to search users', e)
+    }
+}
+
+const onUserQueryInput = () => {
+    clearTimeout(userSearchTimeout)
+    userSearchTimeout = setTimeout(() => searchUsers(formUserQuery.value), 250)
+}
+
+const selectUser = (user) => {
+    formUserId.value = user.id
+    formUserName.value = user.name
+    formUserQuery.value = user.name
+    userSearchResults.value = []
+}
+
+const resetForm = () => {
+    formUserId.value = null
+    formUserName.value = ''
+    formUserQuery.value = ''
+    formCategoryId.value = ''
+    formTitle.value = ''
+    formDescription.value = ''
+    formPriority.value = ''
+    userSearchResults.value = []
+}
+
+const createTicket = async () => {
+    if (!formValid.value) return
+    creatingTicket.value = true
+    try {
+        await api.post('portal/support/tickets', {
+            user_id: formUserId.value,
+            support_category_id: formCategoryId.value,
+            title: formTitle.value,
+            description: formDescription.value,
+            priority: formPriority.value,
+        })
+        showCreateTicket.value = false
+        resetForm()
+        await fetchTickets()
+        await fetchCategories()
+    } catch (e) {
+        console.error('Failed to create ticket', e)
+    } finally {
+        creatingTicket.value = false
     }
 }
 
@@ -390,6 +658,75 @@ const updateTicketStatus = async () => {
         fetchCategories()
     } catch (e) {
         console.error('Failed to update status', e)
+    }
+}
+
+// Category Management
+const openManageCategories = () => {
+    showManageCategories.value = true
+    fetchAllCategories()
+    resetCategoryForm()
+}
+
+const closeManageCategories = () => {
+    showManageCategories.value = false
+    resetCategoryForm()
+}
+
+const resetCategoryForm = () => {
+    editingCategory.value = null
+    categoryFormName.value = ''
+    categoryFormDescription.value = ''
+}
+
+const editCategory = (cat) => {
+    editingCategory.value = cat
+    categoryFormName.value = cat.name
+    categoryFormDescription.value = cat.description || ''
+}
+
+const cancelEditCategory = () => {
+    resetCategoryForm()
+}
+
+const saveCategory = async () => {
+    if (!categoryFormName.value.trim()) return
+    savingCategory.value = true
+    try {
+        const payload = { name: categoryFormName.value, description: categoryFormDescription.value }
+        if (editingCategory.value) {
+            await api.put(`portal/support/categories/${editingCategory.value.id}`, payload)
+        } else {
+            await api.post('portal/support/categories', payload)
+        }
+        resetCategoryForm()
+        await fetchAllCategories()
+        await fetchCategories()
+    } catch (e) {
+        console.error('Failed to save category', e)
+    } finally {
+        savingCategory.value = false
+    }
+}
+
+const confirmDeleteCategory = (cat) => {
+    deleteConfirmCategoryId.value = cat.id
+    deleteConfirmCategoryName.value = cat.name
+}
+
+const deleteCategory = async () => {
+    if (!deleteConfirmCategoryId.value) return
+    deletingCategory.value = true
+    try {
+        await api.delete(`portal/support/categories/${deleteConfirmCategoryId.value}`)
+        deleteConfirmCategoryId.value = null
+        deleteConfirmCategoryName.value = ''
+        await fetchAllCategories()
+        await fetchCategories()
+    } catch (e) {
+        console.error('Failed to delete category', e)
+    } finally {
+        deletingCategory.value = false
     }
 }
 

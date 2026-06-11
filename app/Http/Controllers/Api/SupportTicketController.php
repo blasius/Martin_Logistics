@@ -158,6 +158,19 @@ class SupportTicketController extends Controller
         return response()->json($categories);
     }
 
+    public function searchUsers(Request $request)
+    {
+        $q = $request->query('q');
+
+        return User::where(function ($query) use ($q) {
+                $query->where('name', 'like', "%{$q}%")
+                      ->orWhere('email', 'like', "%{$q}%");
+            })
+            ->select('id', 'name', 'email')
+            ->limit(15)
+            ->get();
+    }
+
     private function logEvent($ticketId, $type, $payload = [])
     {
         SupportTicketEvent::create([

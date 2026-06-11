@@ -220,8 +220,15 @@ Route::middleware('auth')->group(function () {
 
         // Support System Nested Group
         Route::prefix('support')->group(function () {
+            // Categories
             Route::get('categories', [SupportCategoryController::class, 'index']);
+            Route::post('categories', [SupportCategoryController::class, 'store']);
+            Route::put('categories/{supportCategory}', [SupportCategoryController::class, 'update']);
+            Route::delete('categories/{supportCategory}', [SupportCategoryController::class, 'destroy']);
             Route::get('categories/stats', [SupportTicketController::class, 'categoryStats']);
+            // User search for ticket creation
+            Route::get('users/search', [SupportTicketController::class, 'searchUsers']);
+            // Tickets
             Route::get('tickets', [SupportTicketController::class, 'index']);
             Route::post('tickets', [SupportTicketController::class, 'store']);
             Route::get('tickets/{ticket}', [SupportTicketController::class, 'show']);
