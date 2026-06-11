@@ -16,7 +16,8 @@ import {
     Zap,
     Crosshair,
     DollarSign,
-    Building2
+    Building2,
+    ClipboardList
 } from "lucide-vue-next";
 
 export const menu = [
@@ -95,6 +96,11 @@ export const menu = [
         label: "Clients",
         icon: Building2,
         to: "/clients",
+    },
+    {
+        label: "Orders",
+        icon: ClipboardList,
+        to: "/orders",
     },
     {
         label: "Settings",
