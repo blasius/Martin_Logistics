@@ -6,14 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Models\SupportTicket;
 use App\Models\SupportTicketEvent;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class MobileSupportTicketController extends Controller
 {
     public function index(Request $request)
     {
+        $user = $request->user();
+
         return SupportTicket::query()
-            ->where('user_id', Auth::id())
+            ->where('user_id', $user->id)
             ->with([
                 'user:id,name,email',
                 'category:id,name',
@@ -45,12 +46,13 @@ class MobileSupportTicketController extends Controller
             'subject_id' => 'nullable|integer',
         ]);
 
-        $validated['user_id'] = Auth::id();
+        $user = $request->user();
+        $validated['user_id'] = $user->id;
 
         $ticket = SupportTicket::create($validated);
 
         $ticket->events()->create([
-            'user_id' => Auth::id(),
+            'user_id' => $user->id,
             'type' => 'created',
             'payload' => ['priority' => $validated['priority'], 'source' => 'mobile'],
         ]);
@@ -62,8 +64,10 @@ class MobileSupportTicketController extends Controller
         ]), 201);
     }
 
-    public function show($id)
+    public function show(Request $request, $id)
     {
+        $user = $request->user();
+
         $ticket = SupportTicket::with([
             'user:id,name,email',
             'category:id,name',
@@ -73,7 +77,7 @@ class MobileSupportTicketController extends Controller
             'subject',
         ])->findOrFail($id);
 
-        if ($ticket->user_id !== Auth::id()) {
+        if ($ticket->user_id !== $user->id) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
@@ -82,7 +86,9 @@ class MobileSupportTicketController extends Controller
 
     public function addMessage(Request $request, SupportTicket $ticket)
     {
-        if ($ticket->user_id !== Auth::id()) {
+        $user = $request->user();
+
+        if ($ticket->user_id !== $user->id) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
@@ -92,12 +98,12 @@ class MobileSupportTicketController extends Controller
 
         $message = $ticket->messages()->create([
             'message' => $data['message'],
-            'user_id' => Auth::id(),
+            'user_id' => $user->id,
             'is_internal' => false,
         ]);
 
         $ticket->events()->create([
-            'user_id' => Auth::id(),
+            'user_id' => $user->id,
             'type' => 'message_added',
             'payload' => ['source' => 'mobile'],
         ]);

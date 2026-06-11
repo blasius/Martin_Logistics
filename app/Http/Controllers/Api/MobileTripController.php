@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Trip;
 use App\Models\TripHistory;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class MobileTripController extends Controller
 {
@@ -15,7 +14,7 @@ class MobileTripController extends Controller
      */
     public function current(Request $request)
     {
-        $user = Auth::user();
+        $user = $request->user();
 
         // Ensure user has an associated driver profile
         if (!$user->driver) {
@@ -42,7 +41,7 @@ class MobileTripController extends Controller
      */
     public function updateStatus(Request $request, Trip $trip)
     {
-        $user = Auth::user();
+        $user = $request->user();
 
         // Security check: Ensure the trip belongs to the authenticated driver
         if (!$user->driver || $trip->driver_id !== $user->driver->id) {
