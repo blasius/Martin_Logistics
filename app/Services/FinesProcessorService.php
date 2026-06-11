@@ -25,18 +25,6 @@ class FinesProcessorService
 
         DB::transaction(function () use ($plate, $fineable, $status, $tickets, $total, $raw) {
 
-            // record check event
-            DB::table('fine_checks')->insert([
-                'plate_number' => $plate,
-                'checkable_type' => $fineable ? get_class($fineable) : null,
-                'checkable_id' => $fineable ? $fineable->id : null,
-                'result' => $status,
-                'ticket_count' => count($tickets),
-                'total_amount' => $total,
-                'response' => json_encode($raw),
-                'created_at' => now(),
-            ]);
-
             // If API says there are no fines -> mark previous unpaid fines as PAID
             if ($status === 'clear' && $fineable) {
                 $unpaid = TrafficFine::where('fineable_type', get_class($fineable))
@@ -52,10 +40,22 @@ class FinesProcessorService
                 }
             }
 
-            // If API reports fines -> upsert them and save violations
+            // If API reports fines -> upsert them, record fine_check per ticket, and save violations
             if ($status === 'fined') {
                 foreach ($tickets as $ticket) {
                     $ticketNumber = $ticket['ticketNumber'] ?? null;
+
+                    // record check event per fine
+                    DB::table('fine_checks')->insert([
+                        'plate_number' => $ticket['plateNo'] ?? $plate,
+                        'checkable_type' => $fineable ? get_class($fineable) : null,
+                        'checkable_id' => $fineable ? $fineable->id : null,
+                        'result' => 'fined',
+                        'ticket_count' => 1,
+                        'total_amount' => floatval($ticket['ticketAmount'] ?? 0),
+                        'response' => json_encode($ticket),
+                        'created_at' => now(),
+                    ]);
 
                     // Upsert by ticket_number when available. If null, fallback: create new record.
                     $fine = $ticketNumber
