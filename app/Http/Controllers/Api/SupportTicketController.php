@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\SupportTicket;
 use App\Models\SupportTicketEvent;
 use App\Models\User;
+use App\Models\Vehicle;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -13,7 +14,7 @@ class SupportTicketController extends Controller
 {
     public function index(Request $request)
     {
-        return SupportTicket::query()
+        $tickets = SupportTicket::query()
             ->with([
                 'user:id,name,email',
                 'user.driver:id,user_id,phone',
@@ -36,6 +37,10 @@ class SupportTicketController extends Controller
             ->orderByRaw("FIELD(priority, 'urgent', 'high', 'normal', 'low')")
             ->orderBy('created_at', 'desc')
             ->paginate($request->per_page ?? 20);
+
+        $this->attachCurrentVehicles($tickets);
+
+        return $tickets;
     }
 
     public function store(Request $request)
@@ -82,6 +87,8 @@ class SupportTicketController extends Controller
             'events' => fn($q) => $q->with('actor:id,name')->orderBy('created_at', 'desc'),
             'subject',
         ])->findOrFail($id);
+
+        $this->attachCurrentVehicleToTicket($ticket);
 
         $this->logEvent($ticket->id, 'dispatcher_viewed');
 
@@ -169,6 +176,62 @@ class SupportTicketController extends Controller
             ->select('id', 'name', 'email')
             ->limit(15)
             ->get();
+    }
+
+    public function searchVehicles(Request $request)
+    {
+        $q = $request->query('q');
+
+        return Vehicle::where('plate_number', 'like', "%{$q}%")
+            ->orWhere('make', 'like', "%{$q}%")
+            ->select('id', 'plate_number', 'make', 'model')
+            ->limit(15)
+            ->get();
+    }
+
+    private function attachCurrentVehicles($tickets)
+    {
+        $driverUserIds = collect($tickets->items())
+            ->filter(fn($t) => $t->user && $t->user->driver)
+            ->pluck('user_id')
+            ->unique();
+
+        if ($driverUserIds->isEmpty()) return;
+
+        $activeVehicles = DB::table('driver_vehicle_assignments')
+            ->join('vehicles', 'vehicles.id', '=', 'driver_vehicle_assignments.vehicle_id')
+            ->whereIn('driver_vehicle_assignments.driver_id', $driverUserIds)
+            ->whereNull('driver_vehicle_assignments.end_date')
+            ->select(
+                'driver_vehicle_assignments.driver_id',
+                'vehicles.id',
+                'vehicles.plate_number',
+                'vehicles.make',
+                'vehicles.model'
+            )
+            ->get()
+            ->keyBy('driver_id');
+
+        foreach ($tickets as $ticket) {
+            $ticket->current_vehicle = $activeVehicles->get($ticket->user_id);
+        }
+    }
+
+    private function attachCurrentVehicleToTicket($ticket)
+    {
+        if (!$ticket->user || !$ticket->user->driver) {
+            $ticket->current_vehicle = null;
+            return;
+        }
+
+        $vehicle = DB::table('driver_vehicle_assignments')
+            ->join('vehicles', 'vehicles.id', '=', 'driver_vehicle_assignments.vehicle_id')
+            ->where('driver_vehicle_assignments.driver_id', $ticket->user_id)
+            ->whereNull('driver_vehicle_assignments.end_date')
+            ->select('vehicles.id', 'vehicles.plate_number', 'vehicles.make', 'vehicles.model')
+            ->first();
+
+        $ticket->current_vehicle = $vehicle;
     }
 
     private function logEvent($ticketId, $type, $payload = [])

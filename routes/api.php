@@ -227,8 +227,9 @@ Route::middleware('auth')->group(function () {
             Route::put('categories/{supportCategory}', [SupportCategoryController::class, 'update']);
             Route::delete('categories/{supportCategory}', [SupportCategoryController::class, 'destroy']);
             Route::get('categories/stats', [SupportTicketController::class, 'categoryStats']);
-            // User search for ticket creation
+            // Searches for ticket creation
             Route::get('users/search', [SupportTicketController::class, 'searchUsers']);
+            Route::get('vehicles/search', [SupportTicketController::class, 'searchVehicles']);
             // Tickets
             Route::get('tickets', [SupportTicketController::class, 'index']);
             Route::post('tickets', [SupportTicketController::class, 'store']);
