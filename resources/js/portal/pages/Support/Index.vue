@@ -77,7 +77,7 @@
                     </td>
                     <td class="p-5">
                         <p class="text-sm font-bold text-slate-700 leading-snug">{{ t.title }}</p>
-                        <p class="text-[10px] font-black text-slate-400 mt-1 uppercase">{{ t.category?.name }}</p>
+                        <span v-if="t.category" :class="categoryColor(t.category.id)" class="mt-1.5 inline-block text-[9px] font-black px-2 py-1 rounded-lg uppercase tracking-widest">{{ t.category.name }}</span>
                     </td>
                     <td class="p-5">
                         <span :class="statusBadge(t.status)" class="text-[9px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest">{{ t.status }}</span>
@@ -517,6 +517,22 @@ const subjectLabel = (subj) => {
 
 const subjectIsVehicle = (subj) => {
     return subj?.plate_number || subj?.make
+}
+
+const categoryColor = (id) => {
+    const palette = [
+        'bg-indigo-100 text-indigo-700',
+        'bg-emerald-100 text-emerald-700',
+        'bg-amber-100 text-amber-700',
+        'bg-rose-100 text-rose-700',
+        'bg-cyan-100 text-cyan-700',
+        'bg-violet-100 text-violet-700',
+        'bg-pink-100 text-pink-700',
+        'bg-orange-100 text-orange-700',
+        'bg-teal-100 text-teal-700',
+        'bg-lime-100 text-lime-700',
+    ]
+    return palette[id % palette.length]
 }
 
 const statusBadge = (status) => {
