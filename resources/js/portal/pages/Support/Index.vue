@@ -69,7 +69,10 @@
                                 {{ userName(t.user) }}
                             </div>
                             <div>
-                                <p class="font-black text-slate-800 text-sm tracking-tight">{{ t.user?.name }}</p>
+                                <div class="flex items-center gap-2">
+                                    <p class="font-black text-slate-800 text-sm tracking-tight">{{ t.user?.name }}</p>
+                                    <span v-if="t.user?.roles?.length" :class="roleBadge(t.user.roles[0].name)" class="text-[8px] font-black px-1.5 py-0.5 rounded uppercase">{{ t.user.roles[0].name }}</span>
+                                </div>
                                 <p v-if="t.current_vehicle" class="text-[10px] font-bold text-indigo-600 uppercase">{{ t.current_vehicle.plate_number }}</p>
                                 <p v-else class="text-[10px] font-bold text-slate-400 uppercase">{{ subjectLabel(t.subject) }}</p>
                             </div>
@@ -517,6 +520,19 @@ const subjectLabel = (subj) => {
 
 const subjectIsVehicle = (subj) => {
     return subj?.plate_number || subj?.make
+}
+
+const roleBadge = (role) => {
+    const map = {
+        driver: 'bg-blue-100 text-blue-700',
+        admin: 'bg-rose-100 text-rose-700',
+        super_admin: 'bg-purple-100 text-purple-700',
+        staff: 'bg-slate-200 text-slate-600',
+        finance: 'bg-emerald-100 text-emerald-700',
+        dispatcher: 'bg-amber-100 text-amber-700',
+        operator: 'bg-cyan-100 text-cyan-700',
+    }
+    return map[role?.toLowerCase()] || 'bg-slate-100 text-slate-500'
 }
 
 const categoryColor = (id) => {
