@@ -13,10 +13,10 @@ class LogRedirects
         $response = $next($request);
 
         if ($response->isRedirect()) {
-            Log::info('Redirect detected', [
+            /*Log::info('Redirect detected', [
                 'from' => $request->fullUrl(),
                 'to' => $response->headers->get('Location'),
-            ]);
+            ]);*/
         }
 
         return $response;
