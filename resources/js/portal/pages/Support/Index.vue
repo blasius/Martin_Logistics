@@ -70,8 +70,8 @@
                             </div>
                             <div>
                                 <p class="font-black text-slate-800 text-sm tracking-tight">{{ t.user?.name }}</p>
-                                <span v-if="t.user?.roles?.length" class="inline-flex items-center gap-1.5 mt-1 text-[9px] font-black px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 uppercase tracking-wider shadow-sm">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-emerald-100"></span>
+                                <span v-if="t.user?.roles?.length" class="inline-flex items-center gap-1.5 mt-1 text-[9px] font-black px-2.5 py-1 rounded-full text-white uppercase tracking-wider shadow-sm" style="background-color: #1C39BB;">
+                                    <span class="w-1.5 h-1.5 rounded-full" style="background-color: #6A7FDB;"></span>
                                     {{ t.user.roles[0].name }}
                                 </span>
                                 <p v-if="t.current_vehicle" class="text-[10px] font-bold text-indigo-600 uppercase mt-1.5">{{ t.current_vehicle.plate_number }}</p>
