@@ -36,6 +36,7 @@ use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\MobileSupportTicketController;
 use App\Http\Controllers\Api\Support\SupportCategoryController;
 use App\Http\Controllers\Api\Support\SupportTicketMessageController;
+use App\Http\Controllers\Api\ClientController;
 
 // Public Routes
 Route::post('/login', [AuthController::class, 'login']); // Token-based
@@ -207,6 +208,13 @@ Route::middleware('auth')->group(function () {
             ->middleware('role:super_admin|Admin');
         Route::get('roles/manage/permissions-list', [RoleManagementController::class, 'permissionsList'])
             ->middleware('role:super_admin|Admin');
+
+        // Clients
+        Route::get('clients', [ClientController::class, 'index']);
+        Route::post('clients', [ClientController::class, 'store']);
+        Route::get('clients/{client}', [ClientController::class, 'show']);
+        Route::put('clients/{client}', [ClientController::class, 'update']);
+        Route::delete('clients/{client}', [ClientController::class, 'destroy']);
 
         // Currencies
         Route::get('currencies', [CurrencyController::class, 'index']);
