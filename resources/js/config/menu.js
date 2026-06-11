@@ -15,7 +15,8 @@ import {
     Radar,
     Zap,
     Crosshair,
-    DollarSign
+    DollarSign,
+    Building2
 } from "lucide-vue-next";
 
 export const menu = [
@@ -89,6 +90,11 @@ export const menu = [
         label: "Reports",
         icon: BarChart3,
         to: "/reports",
+    },
+    {
+        label: "Clients",
+        icon: Building2,
+        to: "/clients",
     },
     {
         label: "Settings",

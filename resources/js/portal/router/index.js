@@ -34,6 +34,7 @@ const router = createRouter({
                 { path: "routes", component: () => import("../pages/Routes/Index.vue") },
                 { path: "places", component: () => import("../pages/Places/Index.vue") },
                 { path: "currencies", component: () => import("../pages/Currencies/Index.vue") },
+                { path: "clients", component: () => import("../pages/Clients/Index.vue") },
 
                 { path: "tracker", component: () => import("../pages/Tracker/Index.vue") },
                 { path: "reports", component: () => import("../pages/Reports/Index.vue") },
