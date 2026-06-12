@@ -56,9 +56,16 @@
                             </div>
                         </div>
 
+                        <div v-if="uploadProgress > 0" class="pt-2">
+                            <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <div class="h-full bg-indigo-600 rounded-full transition-all duration-300" :style="{ width: uploadProgress + '%' }"></div>
+                            </div>
+                            <p class="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mt-1.5 text-right">{{ uploadProgress < 100 ? uploadProgress + '%' : 'Uploaded ✓' }}</p>
+                        </div>
+
                         <div class="pt-4">
                             <button type="submit" :disabled="processing" class="w-full py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl hover:bg-indigo-700 transition-all uppercase tracking-widest text-xs disabled:opacity-50">
-                                {{ processing ? 'Verifying...' : 'Finalize Policy Record' }}
+                                {{ uploadProgress > 0 && uploadProgress < 100 ? 'Uploading ' + uploadProgress + '%...' : processing ? 'Finalizing...' : 'Finalize Policy Record' }}
                             </button>
                         </div>
                     </form>
@@ -214,6 +221,7 @@ import { ShieldAlert, Plus, X, Upload, Search, AlertOctagon, FileText, Clock, Ch
 // --- STATE ---
 const showAddModal = ref(false);
 const processing = ref(false);
+const uploadProgress = ref(0);
 const fileName = ref('');
 const archiveSearch = ref('');
 
@@ -266,13 +274,19 @@ const handleFile = (e) => {
 
 const submitPolicy = async () => {
     processing.value = true;
+    uploadProgress.value = 0;
     const fd = new FormData();
     Object.keys(form).forEach(key => fd.append(key, form[key]));
 
     try {
         const res = await axios.post('/portal/insurances', fd, {
-            headers: { 'Content-Type': 'multipart/form-data' }
+            headers: { 'Content-Type': 'multipart/form-data' },
+            onUploadProgress: (e) => {
+                uploadProgress.value = Math.round((e.loaded * 100) / e.total);
+            }
         });
+
+        uploadProgress.value = 100;
 
         // Refresh local data with returned payload
         Object.assign(data, res.data);
@@ -285,6 +299,7 @@ const submitPolicy = async () => {
         alert("Failed to save policy. Ensure dates are correct and file is under 5MB.");
     } finally {
         processing.value = false;
+        uploadProgress.value = 0;
     }
 };
 
