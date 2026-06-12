@@ -1,8 +1,8 @@
 import { api } from '../../plugins/axios';
 
 export const trackerApi = {
-    getAllVehicles() {
-        return api.get('/portal/tracker');
+    getAllVehicles(params = {}) {
+        return api.get('/portal/tracker', { params });
     },
 
     searchVehicles(q) {

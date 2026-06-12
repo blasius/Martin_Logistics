@@ -8,16 +8,35 @@ use App\Models\Vehicle;
 use App\Models\Place;
 use App\Models\VehicleSnapshot;
 use Illuminate\Support\Facades\DB;
+use App\Exports\StationaryVehiclesExport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class TrackerController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $hours = max(1, (int) $request->query('hours', 12));
+        $since = now()->subHours($hours);
+
+        $telemetryBounds = DB::table('telemetry_points')
+            ->select(
+                'vehicle_id',
+                DB::raw('COUNT(*) as point_count'),
+                DB::raw('MIN(latitude) as min_lat'),
+                DB::raw('MAX(latitude) as max_lat'),
+                DB::raw('MIN(longitude) as min_lng'),
+                DB::raw('MAX(longitude) as max_lng')
+            )
+            ->where('recorded_at', '>=', $since)
+            ->groupBy('vehicle_id')
+            ->get()
+            ->keyBy('vehicle_id');
+
         $vehicles = Vehicle::query()
             ->select('vehicles.id', 'vehicles.plate_number')
             ->with('snapshot')
             ->get()
-            ->map(function ($vehicle) {
+            ->map(function ($vehicle) use ($telemetryBounds) {
                 $currentDriver = DB::table('users')
                     ->join('driver_vehicle_assignments', 'users.id', '=', 'driver_vehicle_assignments.driver_id')
                     ->join('drivers', 'users.id', '=', 'drivers.user_id')
@@ -25,6 +44,21 @@ class TrackerController extends Controller
                     ->whereNull('driver_vehicle_assignments.end_date')
                     ->select('users.id', 'users.name')
                     ->first();
+
+                $distanceKm = null;
+                $pointCount = 0;
+                if ($telemetryBounds->has($vehicle->id)) {
+                    $b = $telemetryBounds->get($vehicle->id);
+                    $pointCount = (int) $b->point_count;
+                    if ($pointCount > 1) {
+                        $distanceKm = round(
+                            $this->haversineDistance($b->min_lat, $b->min_lng, $b->max_lat, $b->max_lng) / 1000,
+                            2
+                        );
+                    } else {
+                        $distanceKm = 0;
+                    }
+                }
 
                 return [
                     'id' => $vehicle->id,
@@ -39,6 +73,8 @@ class TrackerController extends Controller
                         'ignition' => $vehicle->snapshot->ignition,
                         'fuel_level' => (float) $vehicle->snapshot->fuel_level,
                     ] : null,
+                    'distance_km' => $distanceKm,
+                    'telemetry_point_count' => $pointCount,
                 ];
             });
 
@@ -206,6 +242,77 @@ class TrackerController extends Controller
             'places' => $allPlaces,
             'visited_places' => array_values($visitedPlaceIds),
         ]);
+    }
+
+    public function exportStationary(Request $request)
+    {
+        $hours = max(1, (int) $request->query('hours', 12));
+        $since = now()->subHours($hours);
+
+        $telemetryBounds = DB::table('telemetry_points')
+            ->select(
+                'vehicle_id',
+                DB::raw('COUNT(*) as point_count'),
+                DB::raw('MIN(latitude) as min_lat'),
+                DB::raw('MAX(latitude) as max_lat'),
+                DB::raw('MIN(longitude) as min_lng'),
+                DB::raw('MAX(longitude) as max_lng')
+            )
+            ->where('recorded_at', '>=', $since)
+            ->groupBy('vehicle_id')
+            ->get()
+            ->keyBy('vehicle_id');
+
+        $vehicles = Vehicle::query()
+            ->select('vehicles.id', 'vehicles.plate_number')
+            ->with('snapshot')
+            ->get()
+            ->filter(function ($vehicle) use ($telemetryBounds, $hours) {
+                $snap = $vehicle->snapshot;
+                if (!$snap || !$snap->last_seen_at) return false;
+                $age = now()->diffInSeconds($snap->last_seen_at) * 1000;
+                $thresholdMs = $hours * 60 * 60 * 1000;
+                if ($age > $thresholdMs) return false;
+
+                $b = $telemetryBounds->get($vehicle->id);
+                if ($b && $b->point_count > 1) {
+                    $d = $this->haversineDistance($b->min_lat, $b->min_lng, $b->max_lat, $b->max_lng) / 1000;
+                    return $d < 2;
+                }
+                return !$snap->is_moving;
+            })
+            ->map(function ($vehicle) use ($telemetryBounds) {
+                $currentDriver = DB::table('users')
+                    ->join('driver_vehicle_assignments', 'users.id', '=', 'driver_vehicle_assignments.driver_id')
+                    ->join('drivers', 'users.id', '=', 'drivers.user_id')
+                    ->where('driver_vehicle_assignments.vehicle_id', $vehicle->id)
+                    ->whereNull('driver_vehicle_assignments.end_date')
+                    ->select('users.id', 'users.name')
+                    ->first();
+
+                $distanceKm = null;
+                $b = $telemetryBounds->get($vehicle->id);
+                if ($b && $b->point_count > 1) {
+                    $distanceKm = round(
+                        $this->haversineDistance($b->min_lat, $b->min_lng, $b->max_lat, $b->max_lng) / 1000,
+                        2
+                    );
+                }
+
+                return [
+                    'plate_number' => $vehicle->plate_number,
+                    'driver_name' => $currentDriver?->name,
+                    'snapshot' => $vehicle->snapshot ? [
+                        'last_seen_at' => $vehicle->snapshot->last_seen_at,
+                    ] : null,
+                    'distance_km' => $distanceKm,
+                ];
+            })->values();
+
+        return Excel::download(
+            new StationaryVehiclesExport($vehicles),
+            'stationary_vehicles_' . now()->format('Y-m-d_H-i-s') . '.xlsx'
+        );
     }
 
     private function haversineDistance($lat1, $lon1, $lat2, $lon2)

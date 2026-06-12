@@ -54,10 +54,10 @@
                 <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider">Moving</span>
                 <span class="text-sm font-black text-green-700">{{ fleetAlerts.movingCount }}</span>
             </div>
-            <div class="flex items-center gap-2 bg-white rounded-2xl shadow-sm border border-amber-200 px-4 py-2.5">
+            <button @click="showStationaryModal = true" class="flex items-center gap-2 bg-white rounded-2xl shadow-sm border border-amber-200 px-4 py-2.5 hover:shadow-md transition-shadow active:scale-[0.97] cursor-pointer">
                 <span class="w-2 h-2 rounded-full bg-amber-500"></span>
-                <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider">Not Moved</span>
-                <select v-model="notMovedHours"
+                <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider">Stationary</span>
+                <select v-model="notMovedHours" @click.stop
                         class="text-[9px] font-black text-amber-700 bg-transparent outline-none border-none appearance-none cursor-pointer uppercase ml-1">
                     <option :value="6">6h</option>
                     <option :value="12">12h</option>
@@ -66,7 +66,7 @@
                     <option :value="48">48h</option>
                 </select>
                 <span class="text-sm font-black text-amber-700 ml-1">{{ fleetAlerts.notMovedCount }}</span>
-            </div>
+            </button>
             <div class="flex items-center gap-2 bg-white rounded-2xl shadow-sm border border-red-200 px-4 py-2.5">
                 <span class="w-2 h-2 rounded-full bg-red-500"></span>
                 <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider">Offline</span>
@@ -261,6 +261,67 @@
             </div>
         </div>
     </div>
+
+    <Teleport to="body">
+        <div v-if="showStationaryModal"
+             class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+             @click.self="showStationaryModal = false">
+            <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[80vh] flex flex-col mx-4">
+                <div class="flex items-center justify-between p-5 border-b border-slate-100 shrink-0">
+                    <div>
+                        <h2 class="text-sm font-black text-slate-800 uppercase tracking-tight">Stationary Vehicles</h2>
+                        <p class="text-[10px] font-bold text-slate-400">{{ stationaryVehicles.length }} vehicle{{ stationaryVehicles.length === 1 ? '' : 's' }} in last</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <select v-model="notMovedHours"
+                                class="text-[10px] font-black text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 outline-none cursor-pointer uppercase">
+                            <option :value="6">6h</option>
+                            <option :value="12">12h</option>
+                            <option :value="24">24h</option>
+                            <option :value="36">36h</option>
+                            <option :value="48">48h</option>
+                        </select>
+                        <button @click="showStationaryModal = false"
+                                class="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 transition-colors text-slate-400 hover:text-slate-600">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="px-5 pt-3 pb-2 shrink-0 flex items-center gap-2">
+                    <div class="relative flex-1">
+                        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                        <input v-model="stationarySearch" type="text" placeholder="Search by plate or driver..."
+                               class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all placeholder:text-slate-300" />
+                    </div>
+                    <button @click="exportStationary"
+                            class="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-[10px] font-black transition-all shadow-sm active:scale-95 uppercase tracking-wider">
+                        Export Excel
+                    </button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-5 pt-3 space-y-2">
+                    <div v-for="v in filteredStationaryVehicles" :key="v.id"
+                         class="flex items-center justify-between p-3 rounded-2xl bg-amber-50/50 border border-amber-100 hover:bg-amber-50 transition-colors">
+                        <div>
+                            <p class="text-sm font-black text-slate-800">{{ v.plate_number }}</p>
+                            <p v-if="v.driver_name" class="text-[10px] font-bold text-slate-500">{{ v.driver_name }}</p>
+                            <p v-else class="text-[10px] font-bold text-slate-400">No driver</p>
+                        </div>
+                        <div class="text-right">
+                            <p v-if="v.distance_km !== null && v.distance_km !== undefined" class="text-[10px] font-black text-amber-700">{{ v.distance_km }} km</p>
+                            <p v-if="v.snapshot?.last_seen_at" class="text-[9px] font-bold text-slate-400">{{ timeAgo(v.snapshot.last_seen_at) }}</p>
+                        </div>
+                    </div>
+                    <div v-if="filteredStationaryVehicles.length === 0" class="p-10 text-center">
+                        <p class="text-xs font-bold text-slate-400">{{ stationarySearch ? 'No vehicles match your search' : 'No stationary vehicles' }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </Teleport>
 </template>
 
 <script setup>
@@ -281,6 +342,7 @@ const dateTo = ref('');
 const refreshInterval = ref(0);
 const allVehicles = ref([]);
 const notMovedHours = ref(12);
+const showStationaryModal = ref(false);
 let searchInput = ref(null);
 let refreshTimer = null;
 
@@ -305,10 +367,16 @@ const recalcAlerts = () => {
         const lastSeen = new Date(snap.last_seen_at).getTime();
         const age = now - lastSeen;
 
-        if (snap.is_moving) {
-            movingCount++;
-        } else if (age > thresholdMs) {
+        if (age > thresholdMs) {
             offlineCount++;
+        } else if (v.distance_km !== null && v.distance_km !== undefined) {
+            if (v.distance_km >= 2) {
+                movingCount++;
+            } else {
+                notMovedCount++;
+            }
+        } else if (snap.is_moving) {
+            movingCount++;
         } else {
             notMovedCount++;
         }
@@ -321,6 +389,42 @@ const recalcAlerts = () => {
 };
 
 watch([allVehicles, notMovedHours], recalcAlerts, { immediate: true });
+
+const exportStationary = () => {
+    window.location.href = `/api/portal/tracker/export-stationary?hours=${notMovedHours.value}`;
+};
+
+const stationarySearch = ref('');
+
+const stationaryVehicles = computed(() => {
+    const now = Date.now();
+    const thresholdMs = notMovedHours.value * 60 * 60 * 1000;
+    return allVehicles.value.filter(v => {
+        const snap = v.snapshot;
+        if (!snap || !snap.last_seen_at) return false;
+        const age = now - new Date(snap.last_seen_at).getTime();
+        if (age > thresholdMs) return false;
+        if (v.distance_km !== null && v.distance_km !== undefined) {
+            return v.distance_km < 2;
+        }
+        return !snap.is_moving;
+    });
+});
+
+const filteredStationaryVehicles = computed(() => {
+    const q = stationarySearch.value.toLowerCase().trim();
+    if (!q) return stationaryVehicles.value;
+    return stationaryVehicles.value.filter(v =>
+        v.plate_number.toLowerCase().includes(q)
+        || (v.driver_name && v.driver_name.toLowerCase().includes(q))
+    );
+});
+
+watch(notMovedHours, () => {
+    if (allVehicles.value.length > 0) {
+        fetchAllVehicles();
+    }
+});
 
 let map = null;
 let vehicleMarker = null;
@@ -479,7 +583,7 @@ const formatDistance = (meters) => {
 
 const fetchAllVehicles = async () => {
     try {
-        const res = await trackerApi.getAllVehicles();
+        const res = await trackerApi.getAllVehicles({ hours: notMovedHours.value });
         allVehicles.value = res.data;
         if (!selectedVehicle.value && (!searchQuery.value || searchQuery.value.length < 2)) {
             renderAllVehiclesMarkers();
