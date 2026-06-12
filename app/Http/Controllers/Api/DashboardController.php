@@ -242,13 +242,16 @@ class DashboardController extends Controller
                 SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open_tickets,
                 SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress_tickets,
                 SUM(CASE WHEN status = 'waiting' THEN 1 ELSE 0 END) as waiting_tickets,
-                SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) as resolved_tickets,
                 SUM(CASE WHEN priority = 'urgent' THEN 1 ELSE 0 END) as urgent_tickets,
                 SUM(CASE WHEN priority = 'high' THEN 1 ELSE 0 END) as high_priority_tickets,
                 AVG(TIMESTAMPDIFF(HOUR, created_at, NOW())) as avg_resolution_hours
             ")
-            ->whereDate('created_at', $today)
             ->first();
+
+        $resolvedToday = DB::table('support_tickets')
+            ->where('status', 'resolved')
+            ->whereDate('created_at', $today)
+            ->count();
 
         $recentSupportTickets = DB::table('support_tickets')
             ->join('support_categories', 'support_tickets.support_category_id', '=', 'support_categories.id')
@@ -297,7 +300,7 @@ class DashboardController extends Controller
             'open_tickets' => (int) ($supportStats->open_tickets ?? 0),
             'in_progress_tickets' => (int) ($supportStats->in_progress_tickets ?? 0),
             'waiting_tickets' => (int) ($supportStats->waiting_tickets ?? 0),
-            'resolved_tickets' => (int) ($supportStats->resolved_tickets ?? 0),
+            'resolved_tickets' => $resolvedToday,
             'urgent_tickets' => (int) ($supportStats->urgent_tickets ?? 0),
             'high_priority_tickets' => (int) ($supportStats->high_priority_tickets ?? 0),
             'avg_resolution_hours' => round($supportStats->avg_resolution_hours ?? 0, 1),
