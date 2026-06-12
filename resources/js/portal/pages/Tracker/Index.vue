@@ -43,6 +43,37 @@
             </div>
         </div>
 
+        <div class="px-6 pb-3 shrink-0 flex items-center gap-3 flex-wrap">
+            <div class="flex items-center gap-2 bg-white rounded-2xl shadow-sm border border-slate-200 px-4 py-2.5">
+                <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider">Total</span>
+                <span class="text-sm font-black text-slate-800">{{ fleetAlerts.totalVehicles }}</span>
+            </div>
+            <div class="flex items-center gap-2 bg-white rounded-2xl shadow-sm border border-slate-200 px-4 py-2.5">
+                <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider">Moving</span>
+                <span class="text-sm font-black text-green-700">{{ fleetAlerts.movingCount }}</span>
+            </div>
+            <div class="flex items-center gap-2 bg-white rounded-2xl shadow-sm border border-amber-200 px-4 py-2.5">
+                <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider">Not Moved</span>
+                <select v-model="notMovedHours"
+                        class="text-[9px] font-black text-amber-700 bg-transparent outline-none border-none appearance-none cursor-pointer uppercase ml-1">
+                    <option :value="6">6h</option>
+                    <option :value="12">12h</option>
+                    <option :value="24">24h</option>
+                    <option :value="36">36h</option>
+                    <option :value="48">48h</option>
+                </select>
+                <span class="text-sm font-black text-amber-700 ml-1">{{ fleetAlerts.notMovedCount }}</span>
+            </div>
+            <div class="flex items-center gap-2 bg-white rounded-2xl shadow-sm border border-red-200 px-4 py-2.5">
+                <span class="w-2 h-2 rounded-full bg-red-500"></span>
+                <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider">Offline</span>
+                <span class="text-sm font-black text-red-600">{{ fleetAlerts.offlineCount }}</span>
+            </div>
+        </div>
+
         <div class="flex flex-1 overflow-hidden p-6 pt-2 gap-6">
             <div class="flex-1 bg-white rounded-[3rem] shadow-sm border border-slate-200 overflow-hidden relative z-10">
                 <div id="tracker-map" class="h-full w-full"></div>
@@ -233,7 +264,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { trackerApi } from "../../api/tracker";
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -249,8 +280,47 @@ const dateFrom = ref('');
 const dateTo = ref('');
 const refreshInterval = ref(0);
 const allVehicles = ref([]);
+const notMovedHours = ref(12);
 let searchInput = ref(null);
 let refreshTimer = null;
+
+const fleetAlerts = reactive({ totalVehicles: 0, movingCount: 0, notMovedCount: 0, offlineCount: 0 });
+
+const recalcAlerts = () => {
+    const vehicles = allVehicles.value;
+    const totalVehicles = vehicles.length;
+    const now = Date.now();
+    const thresholdMs = notMovedHours.value * 60 * 60 * 1000;
+
+    let movingCount = 0;
+    let notMovedCount = 0;
+    let offlineCount = 0;
+
+    for (const v of vehicles) {
+        const snap = v.snapshot;
+        if (!snap || !snap.last_seen_at) {
+            offlineCount++;
+            continue;
+        }
+        const lastSeen = new Date(snap.last_seen_at).getTime();
+        const age = now - lastSeen;
+
+        if (snap.is_moving) {
+            movingCount++;
+        } else if (age > thresholdMs) {
+            offlineCount++;
+        } else {
+            notMovedCount++;
+        }
+    }
+
+    fleetAlerts.totalVehicles = totalVehicles;
+    fleetAlerts.movingCount = movingCount;
+    fleetAlerts.notMovedCount = notMovedCount;
+    fleetAlerts.offlineCount = offlineCount;
+};
+
+watch([allVehicles, notMovedHours], recalcAlerts, { immediate: true });
 
 let map = null;
 let vehicleMarker = null;

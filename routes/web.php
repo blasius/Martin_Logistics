@@ -1,9 +1,7 @@
 <?php
 
 use App\Filament\Pages\TwoFactorChallenge;
-use App\Http\Controllers\ContactVerificationController;
 use App\Http\Controllers\OrderPrintController;
-use App\Http\Controllers\Portal\FineController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PortalController;
 
@@ -45,7 +43,5 @@ Route::get('/tracking', function () {
     return view('pages.tracking');
 });
 
-//Portal
+//Portal — catch-all serves Vue SPA
 Route::view('/portal/{any?}', 'portal')->where('any', '.*');
-
-Route::get('/portal/fines', [FineController::class, 'indexPage'])->name('portal.fines');
