@@ -9,6 +9,7 @@ use App\Models\Place;
 use App\Models\VehicleSnapshot;
 use Illuminate\Support\Facades\DB;
 use App\Exports\StationaryVehiclesExport;
+use App\Exports\OfflineVehiclesExport;
 use Maatwebsite\Excel\Facades\Excel;
 
 class TrackerController extends Controller
@@ -312,6 +313,45 @@ class TrackerController extends Controller
         return Excel::download(
             new StationaryVehiclesExport($vehicles),
             'stationary_vehicles_' . now()->format('Y-m-d_H-i-s') . '.xlsx'
+        );
+    }
+
+    public function exportOffline(Request $request)
+    {
+        $hours = max(1, (int) $request->query('hours', 12));
+        $since = now()->subHours($hours);
+
+        $vehicles = Vehicle::query()
+            ->select('vehicles.id', 'vehicles.plate_number')
+            ->with('snapshot')
+            ->get()
+            ->filter(function ($vehicle) use ($hours) {
+                $snap = $vehicle->snapshot;
+                if (!$snap || !$snap->last_seen_at) return true;
+                $age = now()->diffInSeconds($snap->last_seen_at) * 1000;
+                return $age > $hours * 60 * 60 * 1000;
+            })
+            ->map(function ($vehicle) {
+                $currentDriver = DB::table('users')
+                    ->join('driver_vehicle_assignments', 'users.id', '=', 'driver_vehicle_assignments.driver_id')
+                    ->join('drivers', 'users.id', '=', 'drivers.user_id')
+                    ->where('driver_vehicle_assignments.vehicle_id', $vehicle->id)
+                    ->whereNull('driver_vehicle_assignments.end_date')
+                    ->select('users.id', 'users.name')
+                    ->first();
+
+                return [
+                    'plate_number' => $vehicle->plate_number,
+                    'driver_name' => $currentDriver?->name,
+                    'snapshot' => $vehicle->snapshot ? [
+                        'last_seen_at' => $vehicle->snapshot->last_seen_at,
+                    ] : null,
+                ];
+            })->values();
+
+        return Excel::download(
+            new OfflineVehiclesExport($vehicles),
+            'offline_vehicles_' . now()->format('Y-m-d_H-i-s') . '.xlsx'
         );
     }
 
