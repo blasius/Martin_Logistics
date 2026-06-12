@@ -25,9 +25,18 @@ class InsuranceController extends Controller
                 return $ins;
             });
 
+        // Grounded: only vehicles whose LATEST insurance is expired
+        // This prevents old expired policies from falsely grounding a vehicle
+        // that already has a new valid policy.
+        $latestPerVehicle = $allInsurances
+            ->groupBy('vehicle_id')
+            ->map(fn ($insurances) => $insurances->sortByDesc('expiry_date')->first());
+
+        $grounded = $latestPerVehicle->filter(fn ($ins) => $ins->days_left <= 0)->values();
+
         return response()->json([
             // Active/Current Radar data
-            'grounded' => $allInsurances->where('days_left', '<=', 0)->values(),
+            'grounded' => $grounded,
             'critical' => $allInsurances->whereBetween('days_left', [1, 14])->values(),
             'upcoming' => $allInsurances->where('days_left', '>', 14)->values(),
 

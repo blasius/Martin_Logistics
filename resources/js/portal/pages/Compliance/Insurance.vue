@@ -89,7 +89,8 @@
                     <h2 class="text-xs font-black text-rose-600 uppercase tracking-widest">Critical: Grounded / Expired</h2>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div v-for="ins in data.grounded" :key="ins.id" class="bg-white border-2 border-rose-100 rounded-2xl p-5 shadow-sm hover:border-rose-300 transition-all group">
+                    <div v-for="ins in data.grounded" :key="ins.id" @click="openForVehicle(ins.vehicle)"
+                         class="bg-white border-2 border-rose-100 rounded-2xl p-5 shadow-sm hover:border-rose-300 hover:shadow-md transition-all group cursor-pointer active:scale-[0.98]">
                         <div class="flex justify-between items-start">
                             <span class="text-2xl font-black text-slate-900 tracking-tighter">{{ ins.vehicle?.plate_number }}</span>
                             <div class="p-2 bg-rose-50 rounded-lg text-rose-600">
@@ -247,6 +248,12 @@ const filteredArchive = computed(() => {
 const loadRadar = async () => {
     const res = await axios.get('/portal/insurances');
     Object.assign(data, res.data);
+};
+
+const openForVehicle = (vehicle) => {
+    Object.assign(form, { vehicle_id: vehicle?.id || '', policy_number: '', provider_name: '', issue_date: '', expiry_date: '', document: null });
+    fileName.value = '';
+    showAddModal.value = true;
 };
 
 const handleFile = (e) => {
