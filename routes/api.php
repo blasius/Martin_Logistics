@@ -160,6 +160,7 @@ Route::middleware('auth')->group(function () {
         // Tracker
         Route::get('/tracker', [TrackerController::class, 'index']);
         Route::get('/tracker/search', [TrackerController::class, 'search']);
+        Route::get('/tracker/export-stationary', [TrackerController::class, 'exportStationary']);
         Route::get('/tracker/{vehicle}', [TrackerController::class, 'show']);
 
         // 2FA Management
