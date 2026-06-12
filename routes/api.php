@@ -136,8 +136,8 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/insurances', [InsuranceController::class, 'index']);
         Route::post('/insurances', [InsuranceController::class, 'store']);
-        Route::get('/inspections', [InsuranceController::class, 'index']);
-        Route::post('/inspections', [InsuranceController::class, 'store']);
+        Route::get('/inspections', [InspectionController::class, 'index']);
+        Route::post('/inspections', [InspectionController::class, 'store']);
 
         // Routes
         Route::get('/routes', [RoutesController::class, 'index']);

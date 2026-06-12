@@ -75,7 +75,8 @@
                     <h2 class="text-xs font-black text-rose-600 uppercase tracking-widest">Grounded: Inspection Expired</h2>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div v-for="insp in data.grounded" :key="insp.id" class="bg-white border-2 border-rose-100 rounded-2xl p-5 shadow-sm group">
+                    <div v-for="insp in data.grounded" :key="insp.id" @click="openForVehicle(insp.vehicle)"
+                         class="bg-white border-2 border-rose-100 rounded-2xl p-5 shadow-sm group cursor-pointer hover:border-rose-300 hover:shadow-md transition-all active:scale-[0.98]">
                         <div class="flex justify-between items-start">
                             <span class="text-2xl font-black text-slate-900 tracking-tighter">{{ insp.vehicle?.plate_number }}</span>
                             <div class="p-2 bg-rose-50 rounded-lg text-rose-600">
@@ -209,6 +210,12 @@ const handleFile = (e) => {
     }
 };
 
+const openForVehicle = (vehicle) => {
+    Object.assign(form, { vehicle_id: vehicle?.id || '', scheduled_date: '', completed_date: '', inspector_name: '', document: null });
+    fileName.value = '';
+    showAddModal.value = true;
+};
+
 const submitInspection = async () => {
     processing.value = true;
     const fd = new FormData();
@@ -222,6 +229,9 @@ const submitInspection = async () => {
         showAddModal.value = false;
         Object.assign(form, { vehicle_id: '', scheduled_date: '', completed_date: '', inspector_name: '', document: null });
         fileName.value = '';
+    } catch (error) {
+        const msg = error.response?.data?.message || error.message || "Unknown error";
+        alert("Failed: " + msg);
     } finally {
         processing.value = false;
     }
