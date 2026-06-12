@@ -24,8 +24,15 @@ class InspectionController extends Controller
                 return $insp;
             });
 
+        // Grounded: only vehicles whose LATEST inspection is expired
+        $latestPerVehicle = $inspections
+            ->groupBy('vehicle_id')
+            ->map(fn ($items) => $items->sortByDesc('completed_date')->first());
+
+        $grounded = $latestPerVehicle->filter(fn ($insp) => $insp->days_left <= 0)->values();
+
         return response()->json([
-            'grounded' => $inspections->where('days_left', '<=', 0)->values(),
+            'grounded' => $grounded,
             'critical' => $inspections->whereBetween('days_left', [1, 14])->values(),
             'upcoming' => $inspections->where('days_left', '>', 14)->values(),
             'archive'  => $inspections->where('days_left', '<', 0)->values(),
