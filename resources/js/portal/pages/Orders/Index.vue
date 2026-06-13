@@ -44,7 +44,7 @@
                             <span class="font-black text-sm text-slate-800">{{ order.reference }}</span>
                         </td>
                         <td class="p-5">
-                            <span class="font-bold text-sm text-slate-700">{{ order.client?.name || '—' }}</span>
+                            <span class="font-bold text-sm text-slate-700">{{ order.client_name || '—' }}</span>
                         </td>
                         <td class="p-5">
                             <span class="font-bold text-sm text-slate-700">{{ order.origin }}</span>

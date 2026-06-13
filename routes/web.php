@@ -45,3 +45,6 @@ Route::get('/tracking', function () {
 
 //Portal — catch-all serves Vue SPA
 Route::view('/portal/{any?}', 'portal')->where('any', '.*');
+
+// Customer Portal — serves the customer-facing Vue SPA
+Route::get('/customer/{any?}', [App\Http\Controllers\CustomerPortalController::class, 'index'])->where('any', '.*');

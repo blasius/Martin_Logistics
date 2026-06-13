@@ -16,7 +16,7 @@ const isLocal = fs.existsSync(KEY_FILE) && fs.existsSync(CERT_FILE);
 export default defineConfig({
     plugins: [
         laravel({
-            input: ['resources/css/app.css', 'resources/js/app.js', 'resources/js/portal/main.js'],
+            input: ['resources/css/app.css', 'resources/js/app.js', 'resources/js/portal/main.js', 'resources/js/customer/main.js'],
             refresh: true,
             hotFile: path.resolve(__dirname, 'storage/framework/cache/vite-hot'),
         }),

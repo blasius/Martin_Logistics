@@ -9,13 +9,23 @@ use App\Traits\HasAuditTrail;
 class Client extends Model
 {
     use HasFactory, HasAuditTrail;
+
     protected $fillable = [
-        'name',
+        'user_id',
         'contact_person',
         'phone',
-        'email',
         'address',
         'type',
         'tin',
     ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function orders()
+    {
+        return $this->hasMany(Order::class);
+    }
 }
