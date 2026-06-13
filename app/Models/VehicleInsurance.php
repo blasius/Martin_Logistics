@@ -7,10 +7,11 @@ use Guava\Calendar\ValueObjects\CalendarEvent;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Carbon\Carbon;
+use App\Traits\HasAuditTrail;
 
 class VehicleInsurance extends Model implements Eventable
 {
-    use HasFactory;
+    use HasFactory, HasAuditTrail;
 
     protected $fillable = [
         'vehicle_id',

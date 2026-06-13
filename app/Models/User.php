@@ -13,9 +13,11 @@ use Spatie\Permission\Traits\HasRoles;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Laravel\Sanctum\HasApiTokens;
+use App\Traits\HasAuditTrail;
 
 class User extends Authenticatable implements FilamentUser, MustVerifyEmail
 {
+    use HasAuditTrail;
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasApiTokens, HasFactory, Notifiable, HasRoles;
     use TwoFactorAuthenticatable;

@@ -6,9 +6,11 @@ use Carbon\Carbon;
 use Guava\Calendar\Contracts\Eventable;
 use Guava\Calendar\ValueObjects\CalendarEvent;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\HasAuditTrail;
 
 class VehicleInspection extends Model implements Eventable
 {
+    use HasAuditTrail;
     protected $fillable = [
         'vehicle_id',
         'scheduled_date',

@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Traits\HasAuditTrail;
 
 class Order extends Model
 {
-    use HasFactory;
+    use HasFactory, HasAuditTrail;
 
     protected $fillable = [
         'client_id',

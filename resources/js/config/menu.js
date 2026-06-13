@@ -113,6 +113,11 @@ export const menu = [
         to: "/currencies",
     },
     {
+        label: "Audit Logs",
+        icon: ClipboardList,
+        to: "/audit-logs",
+    },
+    {
         label: "Support",
         icon: HelpCircle,
         to: "/support",
