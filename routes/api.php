@@ -38,6 +38,7 @@ use App\Http\Controllers\Api\Support\SupportCategoryController;
 use App\Http\Controllers\Api\Support\SupportTicketMessageController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\AuditLogController;
 
 // Public Routes
 Route::post('/login', [AuthController::class, 'login']); // Token-based
@@ -235,6 +236,10 @@ Route::middleware('auth')->group(function () {
         Route::get('profile', [ProfileController::class, 'show']);
         Route::put('profile', [ProfileController::class, 'update']);
         Route::post('password/send-reset-link', [ProfileController::class, 'sendResetLink']);
+
+        // Audit Logs
+        Route::get('audit-logs', [AuditLogController::class, 'index']);
+        Route::get('audit-logs/timeline/{type}/{id}', [AuditLogController::class, 'show']);
 
         // Support System Nested Group
         Route::prefix('support')->group(function () {

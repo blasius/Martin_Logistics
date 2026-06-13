@@ -3,9 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\HasAuditTrail;
 
 class TrafficFine extends Model
 {
+    use HasAuditTrail;
+
+    protected $auditExcluded = ['raw'];
     protected $fillable = [
         'ticket_number','ticket_amount','late_fee','paid_amount','issued_at','pay_by',
         'status','paid_at','payment_reference','payment_method','payment_status',

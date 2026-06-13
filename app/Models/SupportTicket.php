@@ -8,9 +8,11 @@ use Illuminate\Database\Eloquent\Relations\{
     HasMany,
     MorphTo
 };
+use App\Traits\HasAuditTrail;
 
 class SupportTicket extends Model
 {
+    use HasAuditTrail;
     protected $fillable = [
         'reference',
         'user_id',

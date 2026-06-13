@@ -4,9 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use App\Traits\HasAuditTrail;
 
 class Requisition extends Model
 {
+    use HasAuditTrail;
+
+    protected $auditExcluded = [];
     protected $fillable = [
         'reference',
         'requester_id',

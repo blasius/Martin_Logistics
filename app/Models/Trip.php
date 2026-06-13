@@ -3,9 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\HasAuditTrail;
 
 class Trip extends Model
 {
+    use HasAuditTrail;
     protected $fillable = [
         'order_id', 'vehicle_id', 'driver_id',
         'status', 'departure_time', 'arrival_time',
