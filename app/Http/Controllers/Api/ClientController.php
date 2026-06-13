@@ -4,15 +4,23 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Client;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class ClientController extends Controller
 {
     public function index()
     {
-        $clients = Client::select('id', 'name', 'contact_person', 'phone', 'email', 'address', 'type', 'tin', 'created_at')
-            ->orderBy('name')
-            ->get();
+        $clients = Client::with('user:id,name,email')
+            ->select('id', 'user_id', 'contact_person', 'phone', 'address', 'type', 'tin', 'created_at')
+            ->orderBy('id')
+            ->get()
+            ->map(function ($client) {
+                $client->name = $client->user?->name;
+                $client->email = $client->user?->email;
+                return $client;
+            });
         return response()->json($clients);
     }
 
@@ -22,19 +30,39 @@ class ClientController extends Controller
             'name' => 'required|string|max:255',
             'contact_person' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:255',
-            'email' => 'nullable|email|max:255',
+            'email' => 'nullable|email|max:255|unique:users,email',
             'address' => 'nullable|string|max:255',
             'type' => 'required|in:company,individual',
             'tin' => 'nullable|string|max:255|required_if:type,company',
         ]);
 
-        $client = Client::create($validated);
+        $user = null;
+        if (!empty($validated['email'])) {
+            $password = $request->input('password', \Illuminate\Support\Str::password(12));
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'password' => Hash::make($password),
+            ]);
+        }
 
-        return response()->json(['message' => 'Client created successfully', 'client' => $client]);
+        $client = Client::create([
+            'user_id' => $user?->id,
+            'contact_person' => $validated['contact_person'] ?? null,
+            'phone' => $validated['phone'] ?? null,
+            'address' => $validated['address'] ?? null,
+            'type' => $validated['type'],
+            'tin' => $validated['tin'] ?? null,
+        ]);
+
+        return response()->json(['message' => 'Client created successfully', 'client' => $client->load('user:id,name,email')]);
     }
 
     public function show(Client $client)
     {
+        $client->load('user:id,name,email');
+        $client->name = $client->user?->name;
+        $client->email = $client->user?->email;
         return response()->json($client);
     }
 
@@ -44,15 +72,28 @@ class ClientController extends Controller
             'name' => 'required|string|max:255',
             'contact_person' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:255',
-            'email' => 'nullable|email|max:255',
+            'email' => 'nullable|email|max:255|unique:users,email,' . ($client->user_id ?? 'NULL'),
             'address' => 'nullable|string|max:255',
             'type' => 'required|in:company,individual',
             'tin' => 'nullable|string|max:255|required_if:type,company',
         ]);
 
-        $client->update($validated);
+        if ($client->user) {
+            $client->user->update([
+                'name' => $validated['name'],
+                'email' => $validated['email'] ?? $client->user->email,
+            ]);
+        }
 
-        return response()->json(['message' => 'Client updated successfully', 'client' => $client]);
+        $client->update([
+            'contact_person' => $validated['contact_person'] ?? null,
+            'phone' => $validated['phone'] ?? null,
+            'address' => $validated['address'] ?? null,
+            'type' => $validated['type'],
+            'tin' => $validated['tin'] ?? null,
+        ]);
+
+        return response()->json(['message' => 'Client updated successfully', 'client' => $client->fresh()->load('user:id,name,email')]);
     }
 
     public function search(Request $request)
@@ -62,12 +103,23 @@ class ClientController extends Controller
             return response()->json([]);
         }
 
-        $clients = Client::where('name', 'like', "%{$q}%")
-            ->orWhere('email', 'like', "%{$q}%")
+        $clients = Client::with('user:id,name,email')
+            ->whereHas('user', function ($query) use ($q) {
+                $query->where('name', 'like', "%{$q}%")
+                    ->orWhere('email', 'like', "%{$q}%");
+            })
             ->orWhere('phone', 'like', "%{$q}%")
-            ->orderBy('name')
+            ->orderBy('id')
             ->limit(20)
-            ->get(['id', 'name', 'email', 'phone']);
+            ->get()
+            ->map(function ($client) {
+                return [
+                    'id' => $client->id,
+                    'name' => $client->user?->name ?? 'N/A',
+                    'email' => $client->user?->email,
+                    'phone' => $client->phone,
+                ];
+            });
 
         return response()->json($clients);
     }

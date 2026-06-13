@@ -27,6 +27,8 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
         'name',
         'email',
         'password',
+        'email_verification_code',
+        'email_verification_code_expires_at',
     ];
 
     protected $hidden = [
@@ -40,14 +42,19 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
     {
         return [
             'email_verified_at' => 'datetime',
+            'email_verification_code_expires_at' => 'datetime',
             'password' => 'hashed',
         ];
     }
 
     public function canAccessPanel(Panel $panel): bool
     {
-        // Your logic here to authorize a user
         return $this->hasAnyRole(['super_admin', 'admin', 'operator']);
+    }
+
+    public function client()
+    {
+        return $this->hasOne(Client::class);
     }
 
     public function enableTwoFactorAuthentication(): void
@@ -79,7 +86,17 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
 
     public function sendEmailVerificationNotification()
     {
-        $this->notify(new \App\Notifications\WelcomeOnboarding);
+        if (app()->environment('local', 'testing', 'development')) {
+            $code = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+            $this->forceFill([
+                'email_verification_code' => $code,
+                'email_verification_code_expires_at' => now()->addHours(1),
+            ])->save();
+
+            logger("【DEV】 Email verification code for {$this->email}: {$code}");
+        } else {
+            $this->notify(new \App\Notifications\WelcomeOnboarding);
+        }
     }
 
     public function contacts()
@@ -101,5 +118,4 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
     {
         return $this->hasOne(Driver::class);
     }
-
 }

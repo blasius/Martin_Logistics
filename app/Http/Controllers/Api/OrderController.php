@@ -10,10 +10,14 @@ class OrderController extends Controller
 {
     public function index()
     {
-        $orders = Order::with('client:id,name')
+        $orders = Order::with('client.user:id,name')
             ->select('id', 'client_id', 'reference', 'origin', 'destination', 'pickup_date', 'status', 'price', 'created_at')
             ->orderByDesc('created_at')
-            ->get();
+            ->get()
+            ->map(function ($order) {
+                $order->client_name = $order->client?->user?->name;
+                return $order;
+            });
         return response()->json($orders);
     }
 
@@ -31,12 +35,13 @@ class OrderController extends Controller
 
         $order = Order::create($validated);
 
-        return response()->json(['message' => 'Order created successfully', 'order' => $order->load('client:id,name')]);
+        return response()->json(['message' => 'Order created successfully', 'order' => $order->load('client.user:id,name')]);
     }
 
     public function show(Order $order)
     {
-        return response()->json($order->load('client:id,name'));
+        $order->load('client.user:id,name');
+        return response()->json($order);
     }
 
     public function update(Request $request, Order $order)
@@ -53,7 +58,7 @@ class OrderController extends Controller
 
         $order->update($validated);
 
-        return response()->json(['message' => 'Order updated successfully', 'order' => $order->fresh()->load('client:id,name')]);
+        return response()->json(['message' => 'Order updated successfully', 'order' => $order->fresh()->load('client.user:id,name')]);
     }
 
     public function destroy(Order $order)

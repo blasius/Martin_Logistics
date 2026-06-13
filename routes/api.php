@@ -39,6 +39,8 @@ use App\Http\Controllers\Api\Support\SupportTicketMessageController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\AuditLogController;
+use App\Http\Controllers\Api\Customer\AuthController as CustomerAuthController;
+use App\Http\Controllers\Api\Customer\OrderController as CustomerOrderController;
 
 // Public Routes
 Route::post('/login', [AuthController::class, 'login']); // Token-based
@@ -62,6 +64,12 @@ Route::prefix('mobile/auth')->group(function () {
     Route::post('/verify-whatsapp-otp', [MobileAuthController::class, 'verifyWhatsAppOtp']);
     Route::post('/verify-firebase-phone', [MobileAuthController::class, 'verifyFirebasePhone']);
     Route::post('/logout', [MobileAuthController::class, 'logout'])->middleware('auth:sanctum');
+});
+
+// Customer Portal — Public Auth Routes
+Route::prefix('customer/auth')->group(function () {
+    Route::post('signup', [CustomerAuthController::class, 'signup']);
+    Route::post('login', [CustomerAuthController::class, 'login']);
 });
 
 // Mobile App Routes (Protected)
@@ -260,5 +268,16 @@ Route::middleware('auth')->group(function () {
             Route::patch('tickets/{ticket}/assign', [SupportTicketController::class, 'assign']);
             Route::post('tickets/{ticket}/messages', [SupportTicketMessageController::class, 'store']);
         });
+    });
+
+    // Customer Portal API (authenticated routes — outside /portal prefix)
+    Route::prefix('customer')->group(function () {
+        Route::post('auth/verify-email', [CustomerAuthController::class, 'verifyEmail']);
+        Route::post('auth/resend-verification', [CustomerAuthController::class, 'resendVerification']);
+        Route::post('auth/logout', [CustomerAuthController::class, 'logout']);
+        Route::get('auth/me', [CustomerAuthController::class, 'me']);
+        Route::get('orders', [CustomerOrderController::class, 'index']);
+        Route::post('orders', [CustomerOrderController::class, 'store']);
+        Route::get('orders/{order}', [CustomerOrderController::class, 'show']);
     });
 });
