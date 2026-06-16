@@ -12,13 +12,13 @@ Vehicle arrives at yard after trip
   ↓
 Submits repair request → 2-level approval → parts purchase → repair → release
   ↓
-Vehicle assigned to next trip
+Vehicle assigned to next trip ──→ Trip owner assigned (one dispatcher per trip)
   ↓
 Fuel dispensed based on route + 50L reserve → departure
   ↓
-Route deviation monitored → auto-ticket if violated
+Route deviation monitored → auto-ticket goes to trip's dispatcher
   ↓
-Post-trip fuel consumption flagged if abnormal
+Post-trip fuel consumption flagged if abnormal → auto-ticket goes to trip's dispatcher
   ↓
 Back to yard → repeat
 ```
@@ -42,9 +42,10 @@ Phase 3: Fuel
   └──→ Route-Linked Dispensing (ratio + 50L reserve check)
         └──→ Post-Trip Consumption Analysis → flag bad drivers
 
-Phase 4: Route Intelligence
-  Deviation Detection Engine (Telemetry + Route geometry)
-  └──→ Auto-Ticket Creation & Escalation Workflow
+Phase 4: Route Intelligence & Trip Ownership
+  Trip Ownership & Dispatcher Assignment (one dispatcher per trip, history preserved)
+  └──→ Deviation Detection Engine (Telemetry + Route geometry)
+        └──→ Auto-Ticket Creation & Escalation Workflow (assigns to trip's dispatcher)
 
 Phase 5: Operations
   Preventive Maintenance     ←── Parts + Workshop
@@ -359,11 +360,60 @@ for investigation.
 
 ---
 
-## Phase 4 — Route Intelligence
+## Phase 4 — Route Intelligence & Trip Ownership
 
 *Builds on existing Telemetry and Routes modules. Fully leverages geofencing tables that already exist.*
 
-### 4.1 Deviation Detection Engine
+### 4.1 Trip Ownership & Dispatcher Assignment
+
+Assign a single accountable dispatcher to every trip from creation to completion,
+eliminating the "6 people, 6 stories" problem. Follows the same pattern as existing
+`driver_vehicle_assignments` and `trailer_assignments` tables (active record =
+null end date; re-assignment closes old + inserts new; full history preserved).
+
+**The business problem:**
+- 6 dispatchers "follow" 120+ trucks with no formal attribution
+- Drivers text one dispatcher, call another, and escalate to the manager — no single source of truth
+- Fuel flags, deviation tickets, and delays have no clear owner per trip
+- Handoffs between shifts or reassignments lose context
+- No one can answer "who is responsible for this trip right now?"
+
+**Requirements:**
+
+*Assignment Table:*
+- `trip_dispatcher_assignments` table: `id`, `trip_id`, `dispatcher_id` (FK users with dispatcher role),
+  `assigned_at`, `unassigned_at` (nullable = currently active), `reason` (nullable — why reassigned,
+  e.g. "shift handoff", "workload rebalance", "manager override"), timestamps
+- Current dispatcher for a trip = record with null `unassigned_at`
+- Re-assignment logic (in a service class, matching the existing pattern):
+  - Close current active record: `→ whereNull('unassigned_at') → update(['unassigned_at' => $now])`
+  - Insert new record with `assigned_at = $now`
+- History query: `trip_dispatcher_assignments` for a trip ID, ordered by `assigned_at` DESC
+
+*Assignment Rules:*
+- **Auto-assignment at trip creation:** round-robin across available dispatchers (configurable weight)
+- **Manager override:** Operations Manager can reassign any trip to any dispatcher (with reason)
+- **Shift handoff:** end-of-shift reassigns all active trips to the incoming dispatcher
+- **Reassignment limits monitor:** optional; if a trip gets reassigned >N times (e.g. 3), flag for manager review
+
+*Usage Throughout the System:*
+- Every auto-created ticket (fuel flag, route deviation) is assigned to the trip's current dispatcher first
+- Dispatcher dashboard: "My Trips" filtered to trips where `current dispatcher = me`
+- Operations dashboard: filter trips by dispatcher, see workload balance
+- Driver communication: trip detail page shows "Your Dispatcher: Alice (call +234 XXX XXXX)"
+- Trip history page shows full dispatcher assignment timeline with reasons
+
+*Dispatcher Views:*
+- "My Trips" list: all active trips where `unassigned_at IS NULL AND dispatcher_id = me`
+- Each trip card shows: truck, driver, route, status, elapsed time, next action
+- "Team Trips" for managers: all trips grouped by dispatcher, color-coded by load
+- Reassignment modal: select new dispatcher + enter reason
+
+**Dependencies:** Trips (existing), Users (existing with dispatcher role)
+
+---
+
+### 4.2 Deviation Detection Engine
 
 Detect when a vehicle deviates from its assigned route in real time and take action.
 
@@ -394,9 +444,9 @@ Detect when a vehicle deviates from its assigned route in real time and take act
 
 ---
 
-### 4.2 Auto-Ticket Creation & Escalation Workflow
+### 4.3 Auto-Ticket Creation & Escalation Workflow
 
-When a route deviation is detected, automatically create a support ticket, assign it to a dispatcher, and escalate if unresolved.
+When a route deviation is detected, automatically create a support ticket, assign it to the trip's assigned dispatcher (from 4.1), and escalate if unresolved.
 
 **Workflow:**
 
@@ -405,7 +455,7 @@ Deviation detected
   ↓
 Auto-create support ticket (type: route_deviation, priority: based on duration)
   ↓
-Auto-assign to dispatcher on duty
+Assign to trip's current dispatcher (trip_dispatcher_assignments where unassigned_at IS NULL)
   ↓
 Dispatcher reviews route deviation (stops, calls driver)
   ├── Reasonable deviation (traffic, road closure) → resolve ticket → close
@@ -418,16 +468,18 @@ Dispatcher reviews route deviation (stops, calls driver)
 *Integration with existing Support Ticket system:*
 - `support_tickets` is extended with: `source` field (manual, auto_route_deviation, auto_fuel_flag, etc.)
 - Route deviation ticket auto-populates: vehicle, driver, route, deviation distance, duration, GPS coordinates
-- Assign to dispatcher (role-based: get first available with dispatcher role)
+- Assign to trip's current dispatcher (from `trip_dispatcher_assignments`), fallback to role-based pool
 
 *Escalation:*
 - `escalation_rules` table: `ticket_type`, `level`, `escalate_after_hours`, `assign_to_role`
 - Default rule: route deviation ticket not resolved in 2 hours → escalate to Operations Manager
 - Second level: not resolved in 6 hours → escalate to Director of Operations
 - Escalation updates: ticket reassigned, notification sent, escalation history logged
+- If the trip's dispatcher is reassigned during an active ticket, the ticket stays with the trip's new dispatcher
 
 *Dispatcher UI:*
-- Dedicated "Route Alerts" queue in the dispatcher dashboard
+- Dedicated "Route Alerts" queue showing only tickets for the dispatcher's assigned trips
+- "Unassigned Tickets" queue for tickets where no trip dispatcher could be determined
 - Map view showing: current vehicle position, planned route, deviation point
 - One-click actions: "Resolve" (with note), "Call Driver" (if phone integration), "Escalate"
 - Ticket thread for communication (existing Support Ticket Message system)
@@ -436,33 +488,38 @@ Dispatcher reviews route deviation (stops, calls driver)
 - Pusher/Echo broadcast when a new deviation ticket is created
 - Email/SMS to dispatcher on duty (if not viewing the dashboard)
 
-**Dependencies:** Deviation Detection (4.1), Support Tickets (existing), User Roles (existing)
+**Dependencies:** Trip Ownership (4.1), Deviation Detection (4.2), Support Tickets (existing), User Roles (existing)
 
 ---
 
 ### Real-World Outcome After Phase 4
 
-A truck is en route from Kigali to Kampala on Route R-042. The system checks every 5 minutes:
-is the truck's GPS position within 500 meters of the planned route? The driver takes an
-unauthorized detour — maybe to pick up a personal cargo or because of a road closure. After
-10 minutes outside the corridor, the system automatically creates a support ticket with the
-truck number, driver name, route details, how far off-route the truck is, and how long it has
-been deviating. The ticket is assigned to the dispatcher on duty.
+A trip is created for Truck ABC-123, Kigali → Kampala. The system automatically assigns it to
+Dispatcher Alice (round-robin among 6 dispatchers). The trip detail page shows "Your Dispatcher:
+Alice (+250 788 XXX XXX)". When the driver has a question, he calls Alice — not 5 other people.
+When Alice is off shift, the incoming dispatcher opens the system, closes Alice's assignments
+with reason "end of shift" and takes ownership. The driver now calls the new dispatcher. One
+person, one story, at all times.
 
-The dispatcher opens the "Route Alerts" queue and sees the deviation on a map — the truck's
-current position, the planned route line, and where it went off. He calls the driver. The
-driver says there's a market day blocking the usual road and adds 20 minutes. The dispatcher
-notes it as a reasonable deviation and resolves the ticket. Done.
+A fuel flag from Phase 3 fires: the truck used 27% more fuel than expected. The system
+auto-creates a support ticket and assigns it to Alice — the trip's current dispatcher. Alice
+checks: the driver took a detour through hilly terrain. She notes it, resolves the ticket,
+and follows up with the driver about route discipline.
 
-But if the driver doesn't answer, or the dispatcher finds the deviation is unauthorized, he
-escalates to the Operations Manager. If the Operations Manager doesn't act within 2 hours,
-it escalates again to the Director of Operations. Every escalation is logged, every phone
-call is noted on the ticket, and at the end of the month you can see a report of all deviation
-events, their causes, and how quickly they were resolved.
+The truck deviates from Route R-042. After 10 minutes outside the 500m corridor, the system
+auto-creates another ticket. It goes to Alice, not a random dispatcher. She opens the Route
+Alerts queue, sees only her trips' deviations. She calls the driver — market day is blocking
+the road, he adds 20 minutes. She notes it, resolves it. Done.
 
-The same pattern applies to the fuel flags from Phase 3 — a driver who exceeded 15% fuel
-consumption automatically gets a support ticket created, assigned to the fleet manager, and
-can be escalated the same way if needed.
+But if Alice can't reach the driver and the ticket is unresolved for 2 hours, it escalates
+to the Operations Manager. The escalation chain is clear because there was one accountable
+person from the start. If Alice's assignment was reassigned mid-trip (shift change), the
+ticket moves with the trip to the new dispatcher — no lost context.
+
+The Operations Manager opens the dashboard and sees: "Alice: 12 trips, 2 tickets this week,
+83% resolved within SLA. Bob: 10 trips, 5 tickets this week, 60% within SLA." He sees the
+workload balance and can reassign trips if needed. At the end of the month, every deviation,
+fuel flag, and delay has a clear owner — no more "I thought you were handling that."
 
 ---
 
@@ -899,9 +956,10 @@ Phase 3  ─── Fuel Management
   3.2  Route-Linked Fuel Dispensing (ratio + 50L reserve)
   3.3  Post-Trip Fuel Consumption Analysis
 
-Phase 4  ─── Route Intelligence
-  4.1  Deviation Detection Engine
-  4.2  Auto-Ticket Creation & Escalation Workflow
+Phase 4  ─── Route Intelligence & Trip Ownership
+  4.1  Trip Ownership & Dispatcher Assignment
+  4.2  Deviation Detection Engine
+  4.3  Auto-Ticket Creation & Escalation Workflow
 
 Phase 5  ─── Operations
   5.1  Preventive Maintenance
