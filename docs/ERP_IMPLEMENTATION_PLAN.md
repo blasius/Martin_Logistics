@@ -29,7 +29,7 @@ Back to yard → repeat
 
 ```
 Phase 1: Foundation
-  Document Management ──────┬──→ Repair Requests (print receipts at each step)
+  Document Management ──────┬──→ Legal documents (payment receipts, POD, contracts)
 
 Phase 2: Workshop
   Spare Parts Inventory      │
@@ -81,33 +81,34 @@ Phase 10: Advanced
 
 ### 1.1 Document Management
 
-A centralized file repository with operational document templates and print receipts.
-Inspired by the bank counter workflow: each transaction is recorded in the system, a receipt
-is printed, and the stakeholder signs to keep a legal paper record.
+A centralized file repository with print templates for documents that legally require a
+signed paper copy. Inspired by the bank counter model: when money changes hands or legal
+custody transfers, the system prints a double-copy receipt that both parties sign — one
+copy for the company, one for the counterparty.
 
 **Requirements:**
 - `documents` table (polymorphic: `documentable_type`, `documentable_id`)
-- Fields: `name`, `file_path`, `type` (repair_request, approval_slip, parts_issue, release_note, fuel_receipt, etc.), `expiry_date`, `notes`, `uploaded_by`
+- Fields: `name`, `file_path`, `type` (payment_receipt, proof_of_delivery, fuel_receipt, contract, etc.), `expiry_date`, `notes`, `uploaded_by`
 - File upload via S3 or local disk with access control
 - Expiry alerts (cron checks documents expiring within N days)
-- **Print templates** per document type — printable receipts with signature lines
+- **Print templates** only for document types that legally require a signed paper record (payment receipts, POD)
 - Vue components: document list, upload modal, expiry badge, print dialog
 
-**Why first:** Every operational workflow (workshop, fuel, deviations) generates paper that needs a
-system record and a signed printout for legal/audit purposes.
+**Why first:** Legal documents (payment proofs, delivery receipts) need a system record and
+a printable signature form. Everything else stays digital — no printing for internal steps.
 
 ---
 
 ### Real-World Outcome After Phase 1
 
-The system can store and print any document type needed in daily operations. When a mechanic
-submits a repair request, the system prints a receipt with the request details and a signature
-line — the mechanic signs it and the paper copy is filed for legal records. When a manager approves
-it, a second receipt prints. When fuel is dispensed, a third receipt prints. The same pattern
-extends to every operational step. Existing vehicle photos, driver license scans, and contract
-files can also be uploaded and tagged with expiry dates so the system reminds you before they
-expire. No more lost paper sheets or digging through filing cabinets — everything has a digital
-record and a clean signed printout when you need it.
+The system stores all operational files in one place: vehicle photos, driver license scans,
+contracts, insurance certificates — each tagged with expiry dates so it reminds you before
+they expire. When a customer makes a payment, the system prints a double-copy receipt with
+signature lines — the cashier and customer both sign, one copy for each party. The same
+pattern applies to proof of delivery. No more digging through filing
+cabinets; everything has a digital record, and a clean signed printout is available when
+the law requires it. Internal workflows (repair requests, approvals, parts movements) live
+entirely in the system — no paper.
 
 ---
 
@@ -133,8 +134,9 @@ A catalog of spare parts used across the fleet, with stock levels and reorder po
 
 ### 2.2 Repair Request & Approval Workflow
 
-Digitizes the paper-based workshop process for 120+ trucks. Each step generates a system
-record and a printable receipt signed by the responsible person (bank counter model).
+Digitizes the paper-based workshop process for 120+ trucks. All steps are fully digital —
+no printing required. Only the final repair cost (if paid in cash) would use Document
+Management for a legal receipt.
 
 **Workflow:**
 1. **Request** — Mechanic submits repair request for a vehicle
@@ -150,28 +152,23 @@ record and a printable receipt signed by the responsible person (bank counter mo
 - `repair_requests` table: `reference`, `vehicle_id`, `mechanic_id` (user), `driver_id` (who reported issue), `type` (mechanical, electrical, body, tire, brake, etc.), `priority` (low, medium, high, critical), `description`, `status` (draft, pending_approval, approved, parts_pending, in_progress, completed, released, cancelled), `submitted_at`
 - `repair_request_items` table: `repair_request_id`, `description`, `part_id` (nullable, from 2.1), `estimated_quantity`, `estimated_unit_price`, `estimated_total`, `actual_quantity`, `actual_unit_price`, `actual_total`
 - Attach photos or videos of the issue via Document Management (1.1)
-- Print receipt: request form printed → mechanic signs → filed
 
 *Step 2 & 3 — Two-level approval:*
 - `approvals` table (polymorphic): `approvable_type`, `approvable_id`, `approver_id`, `approver_role`, `stage` (1 or 2), `status` (pending, approved, rejected), `comment`, `decided_at`
 - Stage 1: Logistics Manager approves → Stage 2: Operations Manager approves
 - Rejection at either stage sends request back to mechanic with comments
-- Print receipt: approval slip printed → approver signs → filed
 
 *Step 4 — Parts fulfillment:*
 - If parts in stock → pick from inventory (stock movement out)
 - If parts out of stock → trigger Procurement (2.3)
-- Print receipt: parts issue slip printed → storekeeper signs → filed
 
 *Step 5 — Repair execution:*
 - `repair_assignments` table: `repair_request_id`, `mechanic_id` (user), `assigned_at`, `started_at`, `completed_at`
 - Mechanics log time spent and actual parts used (vs estimated)
-- Print receipt: work completion slip printed → mechanic signs → filed
 
 *Step 6 — Release:*
 - `repair_releases` table: `repair_request_id`, `released_by`, `released_at`, `odometer_at_release`, `notes`
 - Vehicle status changes from `in_workshop` to `available`
-- Print receipt: release note printed → mechanic + supervisor sign → filed
 
 *Dashboard & Reporting:*
 - Real-time board: which trucks are in workshop, assigned mechanic, status, ETA
@@ -179,7 +176,7 @@ record and a printable receipt signed by the responsible person (bank counter mo
 - Average repair time by type and by mechanic
 - Parts consumption trends
 
-**Dependencies:** Document Management (1.1) for print receipts, Spare Parts (2.1) for parts tracking
+**Dependencies:** Spare Parts (2.1) for parts tracking
 
 ---
 
@@ -222,29 +219,29 @@ A real-time operational board for the workshop floor.
 
 When a truck comes into the yard after a trip and the driver reports an issue, the mechanic opens
 the system, selects the truck, describes the problem, estimates which parts are needed and how
-much they cost, and hits submit. The system prints a repair request form that the mechanic signs.
+much they cost, attaches a photo of the damaged part, and hits submit. Done — no paper.
 
-The Logistics Manager logs in, sees all pending requests sorted by priority, and approves or
-rejects with a comment. If approved, it goes to the Operations Manager for the second approval.
-Each approval prints a slip that gets signed and filed.
+The Logistics Manager opens his pending requests, sees the issue with the photo, and approves
+with a comment: "Check brake drum wear too." It moves to the Operations Manager, who approves
+as well. Both approvals happen in the system — no walking between offices, no paper slips.
 
 If the parts are in the workshop store, the storekeeper picks them, the system deducts them from
-stock, and a parts issue slip prints. If parts are out of stock, the system flags it and the
-manager creates a purchase order to the vendor right there — no separate email or phone call.
-When the parts arrive, the receiving clerk marks them received and stock updates automatically.
+stock. If parts are out of stock, the system flags it and the manager creates a purchase order
+to the vendor right in the same screen — no separate email or phone call. When the parts arrive,
+the receiving clerk marks them received, and stock updates automatically.
 
 The workshop manager opens the dashboard and sees all 120+ trucks at a glance: which are waiting
 for approval, which have parts on order, which are being worked on, which mechanic is assigned,
-and how long each repair is expected to take. He can see at a glance that Truck ABC-123 has been
-in the workshop for 3 days and is overdue, and that the engine parts for Truck XYZ-456 are
-still waiting at the supplier.
+and how long each repair is expected to take. He sees that Truck ABC-123 has been in the workshop
+for 3 days and is overdue, and that the engine parts for Truck XYZ-456 are still waiting at the
+supplier.
 
 When the repair is done, the mechanic marks it complete, a supervisor inspects and releases the
-truck, and the vehicle status changes from `in_workshop` to `available` in the system. A release
-note prints with both signatures.
+truck, and the vehicle status changes from `in_workshop` to `available` in the system.
 
 No more clipboards, no more walking to find the manager, no more wondering where a truck is in
-the workshop process, no more Excel sheets to track parts costs.
+the workshop process, no more Excel sheets to track parts costs. No paper at all — until a cash
+payment needs a legal receipt.
 
 ---
 
@@ -270,7 +267,7 @@ Manage the on-site fuel station that supplies all fleet vehicles.
 *Dispensing:*
 - `fuel_dispense` table: `vehicle_id`, `driver_id`, `tank_id`, `quantity`, `odometer_at_dispense`, `dispensed_at`, `dispensed_by`, `trip_id` (nullable), `route_id` (nullable)
 - Dispensing is semi-automated (see 3.2) — the system suggests the amount, the attendant confirms
-- Print receipt: fuel issue slip printed → driver signs → filed
+- All dispensing records are digital. No printing required — this is an internal asset transfer.
 
 *Reconciliation:*
 - Pump-to-tank variance report: (total delivered + opening stock) — (total dispensed + closing stock)
@@ -310,7 +307,7 @@ Fuel calculation is automated based on the assigned route, vehicle fuel ratio, a
 3. System calculates dispense amount based on route distance + ratio + current level + 50L reserve
 4. Dispenser confirms/overrides amount (override requires reason)
 5. System records dispense and updates vehicle's current fuel level
-6. Receipt printed → driver signs
+6. Driver acknowledges in the system (digital record)
 
 **Dependencies:** Routes (existing), Vehicles (existing), Fuel Station (3.1)
 
@@ -341,9 +338,9 @@ station attendant, who opens the system and selects the truck. The system alread
 route the truck is taking. It checks the truck's registered fuel ratio for Route R-042
 (e.g., 3.2 km/L), looks up the route distance (430 km), and checks the current fuel level in the
 truck (85L). It calculates: 430 ÷ 3.2 = 134L needed for the trip, truck has 85L, minimum reserve
-is 50L, so dispense = 134 − (85 − 50) = 99L. The attendant confirms, the pump runs, a receipt
-prints with the amount, and the driver signs. No more guessing, no more "just fill it up," no
-more disputes over how much fuel a truck should have used.
+is 50L, so dispense = 134 − (85 − 50) = 99L. The attendant confirms, the pump runs, and the
+system records the dispense digitally. No more guessing, no more "just fill it up," no more
+disputes over how much fuel a truck should have used.
 
 After the trip is complete, the system compares actual fuel used (tracked from the dispense
 record plus any refuels along the way) against the expected 134L. If the truck used 150L
@@ -943,7 +940,7 @@ no emails, no manual order entry — the entire flow is automated end to end.
 
 ```
 Phase 1  ─── Foundation
-  1.1  Document Management (print receipts, legal records)
+  1.1  Document Management (legal documents, file storage)
 
 Phase 2  ─── Workshop & Maintenance
   2.1  Spare Parts Inventory
