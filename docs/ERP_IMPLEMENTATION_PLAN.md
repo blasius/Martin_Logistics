@@ -54,7 +54,7 @@ Phase 5: Operations
   Expense Management (catalog + fixed/variable + full context)  ←── Support Tickets + Approvals
   Container & Demurrage Tracking  ←── Trips + Vehicles + Warehouses
   Performance Rating & Scoring    ←── Multiple data sources + Human ratings
-  Driver Wallet & Ledger          ←── Traffic Fines + Expenses + Trip Allowances
+  Wallet & Ledger                 ←── Users + all source modules (polymorphic)
 
 Phase 6: Commercial
   Rate / Tariff Engine ──→ Contract Management
@@ -870,15 +870,16 @@ delivery to Kigali — ETA tomorrow." She clicks it: this is a company-owned con
 moved on Trip T-892, currently on Truck XYZ-789, estimated arrival 10:00. No penalties,
 just utilization tracking.
 
-A traffic fine comes in for Truck XYZ-456 — speeding camera on the Kigali highway, 45,000 RWF.
-The fine is assigned to the vehicle. A manager reviews it via fine_check and determines the
-driver was at fault. He clicks "Impute to Driver", selects the driver, and confirms. The
-driver's wallet is debited 45,000 RWF. The driver's phone buzzes: "A fine of 45,000 RWF has
-been imputed to you for traffic violation. Tap to view." The driver opens his mobile wallet —
-current balance: -12,000 RWF (negative — he owes the company). He sees the full history:
-last week's trip allowance of 35,000 RWF (credit), a cash advance of 50,000 RWF (debit) from
-yesterday, and now this fine. He acknowledges it. At month end, the system settles his wallet:
-negative balance means it carries forward to next month's earnings.
+A traffic fine comes in for Truck XYZ-456 — speeding camera, 45,000 RWF. A manager reviews it,
+determines the driver was responsible, and opens the fine record. He clicks "Deduct from User
+Wallet", enters the amount, and submits. The system creates a debit transaction on the driver's
+wallet with category=fine, linked to the fine record via polymorphic source. The driver's phone
+buzzes: "45,000 RWF deducted from your wallet — traffic violation. Tap to view." The driver
+opens "My Wallet" — current balance: -12,000 RWF (negative). He sees the full history: last
+week's trip allowance +35,000 RWF (credit, source=trip T-892), a cash advance of -50,000 RWF
+(debit, source=cash_advance #CA-003), and this fine -45,000 RWF. The same mechanism works for
+any money movement — fuel deduction, expense reimbursement, manual adjustment — all just
+transactions with different categories and source references.
 
 ---
 
@@ -975,112 +976,107 @@ Proof of Delivery (5.2), Expense Management (5.4), Customer Portal (8.1), Users/
 
 ---
 
-### 5.7 Driver Wallet & Ledger
+### 5.7 Wallet & Ledger
 
-A financial ledger per driver that tracks all debits and credits — earnings, fines, deductions,
-reimbursements — with an always-current balance that can be positive or negative. Every entry
-has a source, an audit trail, and a currency.
+A generic financial wallet per user (driver today, others in the future) that tracks all money in
+and out — earnings, fines, deductions, reimbursements, advances — with an always-current balance
+that can be positive or negative. Every entry has a category, a source reference (polymorphic),
+an audit trail, and a currency.
 
 **The business problem:**
-- Fines issued to vehicles (traffic fines, fuel drainage, damage) currently have no systematic
-  way to impute to the responsible driver after review
-- Driver advances, trip allowances, and reimbursements are tracked on paper or WhatsApp
-- No one knows a driver's current balance — do they owe the company money or is the company
-  owed money?
-- Settlement at end of month is a manual spreadsheet exercise prone to disputes
-- No audit trail: "I already paid that fine" vs "No you didn't"
+- Money movements for a user — fines imputed, allowances earned, advances taken, expenses
+  reimbursed — are scattered across different modules with no unified view
+- No one knows a user's current balance: do they owe the company or does the company owe them?
+- Settlement is a manual spreadsheet exercise prone to disputes
+- No audit trail connecting a deduction back to its source
 
-**How it works:**
+**How it works (example with a driver):**
 
 ```
-Traffic fine issued on vehicle XYZ-123 → fine_check review
+Traffic fine issued on vehicle XYZ-123 → review determines driver at fault
   ↓
-Review determines: driver was at fault → fine imputed to driver
+Manager creates wallet debit: -45,000 RWF, category=fine, source=fine_check #F-2024-0891
   ↓
-Driver wallet debited: -45,000 RWF (source: fine #F-2024-0891)
+Driver sees in mobile app: "45,000 RWF deducted — traffic violation on June 12"
   ↓
-Driver sees in mobile app: "Fine of 45,000 RWF imputed — traffic violation on June 12"
-  ↓
-End of month settlement: balance = trip earnings - deductions - advances
-  ├── If positive → pay driver
-  └── If negative → driver owes company (deduct from next settlement)
+End of period settlement: balance = Σ credits − Σ debits
+  ├── If positive → pay user
+  └── If negative → user owes company (carry forward or deduct)
 ```
 
 **Requirements:**
 
-*1. Driver Wallet / Ledger:*
-- `driver_wallets` table: `driver_id` (FK users), `currency_id`, `current_balance` (decimal, can be negative),
+*1. Wallet (generic, per user):*
+- `wallets` table: `user_id` (FK users), `currency_id`, `current_balance` (decimal, can be negative),
   `last_settled_at`, `created_at`, `updated_at`
-- One wallet per driver per currency (single currency for now, extensible to multi-currency)
+- Unique: one wallet per user per currency
 - Balance is computed as: sum of all credits − sum of all debits
-- Balance can go negative (driver owes the company)
+- Balance can be negative (user owes the company)
 
-*2. Wallet Transactions (the history):*
+*2. Wallet Transactions (immutable history):*
 - `wallet_transactions` table: `id`, `wallet_id`, `type` (credit, debit), `amount`,
-  `balance_before`, `balance_after`, `currency_id`, `category` (trip_allowance, fine_imputation,
-  fuel_drainage_deduction, expense_reimbursement, cash_advance, salary_payment, manual_adjustment,
-  settlement_payment), `description`, `source_type` (polymorphic: fine_id, trip_id, expense_claim_id,
-  expense_id, etc.), `source_id`, `created_by` (FK users — who recorded it), `driver_visible` (boolean),
-  `driver_acknowledged_at` (nullable), `created_at`
-- Immutable: transactions are never deleted, only reversed with an offsetting entry
-- Indexed by: wallet_id, category, created_at, source_type+source_id (for traceability)
+  `balance_before`, `balance_after`, `currency_id`, `category` (trip_allowance, fine, expense_reimbursement,
+  cash_advance, fuel_deduction, salary_payment, manual_adjustment, settlement_payment, other),
+  `description`, `source_type` (polymorphic — links to any originating record: fine, trip, expense,
+  expense_claim, support_ticket, etc.), `source_id`, `created_by` (FK users — who recorded it),
+  `user_visible` (boolean), `user_acknowledged_at` (nullable), `created_at`
+- Immutable: transactions are never deleted or edited — only reversed with an offsetting entry
+- Indexed by: wallet_id, category, created_at, source_type+source_id
 
-*3. Fine Imputation Workflow (linking existing fines to driver wallet):*
-- Existing `traffic_fines` and `fine_checks` tables already capture fines issued on vehicles
-- Add a "Wallet" section to the fine review flow:
-  - Fine comes in → assigned to vehicle → fine_check review determines fault
-  - New option on fine_check: "Impute to Driver" with amount, notes, and driver selection
-  - On imputation:
-    1. System creates a debit transaction in driver's wallet
-    2. Transaction links back to the fine via polymorphic `source_type`/`source_id`
-    3. Driver receives push notification: "A fine of 45,000 RWF has been imputed to you for
-       traffic violation on June 12. Tap to view details."
-    4. Driver can acknowledge (or dispute via support ticket)
-  - Fuel drainage (detected via Phase 3.3 fuel analysis): same pattern — review determines
-    if it was driver negligence → impute to wallet
+*3. Creating Transactions (generic — source doesn't matter):*
+- Any module can create a wallet transaction by writing to `wallet_transactions` with:
+  - The `wallet_id` (looked up by user_id + currency_id)
+  - A `category` that describes what kind of money movement it is
+  - The polymorphic `source_type`/`source_id` linking back to the originating record
+- Examples of sources:
+  - A `traffic_fine` record → create debit with category=fine, source_type=traffic_fine
+  - A `trip` completion → create credit with category=trip_allowance, source_type=trip
+  - An `expense` marked as reimbursed → create credit with category=expense_reimbursement, source_type=expense
+  - A fuel analysis flag confirmed as driver negligence → create debit with category=fuel_deduction, source_type= any
+  - A manual adjustment form → create credit/debit with category=manual_adjustment, source_type=null
+- The polymorphic link keeps the wallet generic — no special-casing any source type
 
-*4. Other Wallet Entry Points:*
-- **Trip allowances (credit)**: when a trip is completed, the system auto-credits the driver's
-  km-based allowance and overnight allowance per the trip rate
-- **Expense reimbursement (credit)**: when an expense (5.4) is marked as paid for the driver
-- **Cash advance (debit)**: when a driver receives a cash advance before a trip
-- **Manual adjustment**: manager can add a manual credit/debit with reason (audit-logged)
-- **Settlement payment (debit)**: when company pays the driver, the amount is debited (balance goes down)
+*4. Transaction UI (requires source integration per module):*
+- Each source module (traffic fines, trips, expenses, etc.) gets a "Wallet" action:
+  - On a traffic fine: "Deduct from User Wallet" button → opens form: select user, amount, description
+  - On a trip completion: "Credit Trip Allowance" auto-triggered
+  - On an expense reimbursement: "Credit to Wallet" auto-triggered
+- The action creates a `wallet_transaction` with the correct polymorphic link back to the source
 
-*5. Driver Mobile App View:*
-- "My Wallet" screen:
+*5. User Mobile App View:*
+- "My Wallet" screen (for any user type with mobile access):
   - Current balance (color-coded: green = positive, red = negative)
   - Recent transactions list (last 20, paginated)
-  - Each transaction shows: date, type (credit/debit), amount, category icon, description
-  - Tap to expand: full description, source reference (fine #, trip #), acknowledgment status
-- "Acknowledge" button on imputed fines — driver confirms they've seen it
-- Push notification on new imputation: "A fine has been imputed to your wallet"
+  - Each transaction: date, type icon, amount, category label, description
+  - Tap to expand: category, source reference (fine #, trip #, etc.), acknowledgment status
+- "Acknowledge" button — user confirms they've seen the deduction/credit
+- Push notification on new debit: "45,000 RWF has been deducted from your wallet (traffic violation)"
 - Dispute button: opens a support ticket linked to the transaction
 
-*6. Manager/Dispatcher View:*
-- Driver profile includes wallet section: balance, recent transactions, full history
-- "Impute Fine" button on fine review screen
-- Wallet audit log: every entry shows who created it, when, and the source reference
-- Manual adjustment form: select driver, amount, category, description (requires reason + manager password)
+*6. Manager/Admin View:*
+- User profile includes wallet section: balance, transactions, full history
+- "Adjust Wallet" button on admin panel: select user, amount (+/-), category, description, source reference (optional)
+- Wallet audit log: every entry shows who created it and the source link
+- Activity log: all wallet changes for a user, filterable by category and date range
 
 *7. Settlement:*
-- Settlement is a reconciliation process, not a transaction type:
-  - End of period (weekly/monthly), system shows: driver balance = Σ credits − Σ debits
-  - If positive → company pays driver; settlement payment recorded as debit (balance goes to 0)
-  - If negative → driver owes company; could deduct from next positive balance or driver pays cash
+- Settlement is a reconciliation, not a transaction type:
+  - End of period, system shows: user balance = Σ credits − Σ debits
+  - If positive → company pays user; settlement payment recorded as debit (balance goes to 0)
+  - If negative → user owes company; carry forward or deduct from next positive balance
   - `wallet_settlements` table: `wallet_id`, `period_start`, `period_end`, `balance_at_settlement`,
     `amount_settled`, `method` (cash, bank_transfer, mobile_money, salary_deduction), `settled_at`,
     `settled_by`, `notes`
 
 *8. Reporting:*
-- Driver balance report: all drivers with current balance (sort by most negative first — who owes the most)
-- Fine imputation report: total fines imputed vs not imputed per month
-- Wallet transaction log: full audit trail per driver
-- Settlement history: what was paid to each driver each period
-- Negative balance aging: drivers with negative balance for more than N days
+- Balance report: all users with current balance (sort by most negative first)
+- Transaction log: full audit trail per user
+- Settlement history: what was paid/collected per user per period
+- Negative balance aging: users with negative balance for more than N days
+- Transaction volume by category: which types of money movement happen most
 
-**Dependencies:** Traffic Fines (existing), Fine Checks (existing), Trip Allowances (8.3 or existing),
-Expense Management (5.4), Fuel Analysis (3.3), Mobile Companion App (existing), Document Management (1.1)
+**Dependencies:** Users (existing), Currencies (existing), all source modules (traffic fines, trips,
+expenses, etc.) integrate via polymorphic source link
 
 ---
 
@@ -1444,7 +1440,7 @@ Phase 5  ─── Operations
   5.4  Expense Management (catalog + fixed/variable + full context)
   5.5  Container & Demurrage Tracking
   5.6  Performance Rating & Scoring
-  5.7  Driver Wallet & Ledger
+  5.7  Wallet & Ledger
 
 Phase 6  ─── Commercial
   6.1  Rate / Tariff Engine
