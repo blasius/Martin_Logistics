@@ -54,6 +54,7 @@ Phase 5: Operations
   Expense Management (catalog + fixed/variable + full context)  ←── Support Tickets + Approvals
   Container & Demurrage Tracking  ←── Trips + Vehicles + Warehouses
   Performance Rating & Scoring    ←── Multiple data sources + Human ratings
+  Driver Wallet & Ledger          ←── Traffic Fines + Expenses + Trip Allowances
 
 Phase 6: Commercial
   Rate / Tariff Engine ──→ Contract Management
@@ -869,6 +870,16 @@ delivery to Kigali — ETA tomorrow." She clicks it: this is a company-owned con
 moved on Trip T-892, currently on Truck XYZ-789, estimated arrival 10:00. No penalties,
 just utilization tracking.
 
+A traffic fine comes in for Truck XYZ-456 — speeding camera on the Kigali highway, 45,000 RWF.
+The fine is assigned to the vehicle. A manager reviews it via fine_check and determines the
+driver was at fault. He clicks "Impute to Driver", selects the driver, and confirms. The
+driver's wallet is debited 45,000 RWF. The driver's phone buzzes: "A fine of 45,000 RWF has
+been imputed to you for traffic violation. Tap to view." The driver opens his mobile wallet —
+current balance: -12,000 RWF (negative — he owes the company). He sees the full history:
+last week's trip allowance of 35,000 RWF (credit), a cash advance of 50,000 RWF (debit) from
+yesterday, and now this fine. He acknowledges it. At month end, the system settles his wallet:
+negative balance means it carries forward to next month's earnings.
+
 ---
 
 ### 5.6 Performance Rating & Scoring
@@ -961,6 +972,115 @@ performance profile. Scales to 120+ drivers where no one knows everyone personal
 
 **Dependencies:** Fuel Rating (3.3), Trip Ownership (4.1), Deviation Tickets (4.3),
 Proof of Delivery (5.2), Expense Management (5.4), Customer Portal (8.1), Users/Roles (existing)
+
+---
+
+### 5.7 Driver Wallet & Ledger
+
+A financial ledger per driver that tracks all debits and credits — earnings, fines, deductions,
+reimbursements — with an always-current balance that can be positive or negative. Every entry
+has a source, an audit trail, and a currency.
+
+**The business problem:**
+- Fines issued to vehicles (traffic fines, fuel drainage, damage) currently have no systematic
+  way to impute to the responsible driver after review
+- Driver advances, trip allowances, and reimbursements are tracked on paper or WhatsApp
+- No one knows a driver's current balance — do they owe the company money or is the company
+  owed money?
+- Settlement at end of month is a manual spreadsheet exercise prone to disputes
+- No audit trail: "I already paid that fine" vs "No you didn't"
+
+**How it works:**
+
+```
+Traffic fine issued on vehicle XYZ-123 → fine_check review
+  ↓
+Review determines: driver was at fault → fine imputed to driver
+  ↓
+Driver wallet debited: -45,000 RWF (source: fine #F-2024-0891)
+  ↓
+Driver sees in mobile app: "Fine of 45,000 RWF imputed — traffic violation on June 12"
+  ↓
+End of month settlement: balance = trip earnings - deductions - advances
+  ├── If positive → pay driver
+  └── If negative → driver owes company (deduct from next settlement)
+```
+
+**Requirements:**
+
+*1. Driver Wallet / Ledger:*
+- `driver_wallets` table: `driver_id` (FK users), `currency_id`, `current_balance` (decimal, can be negative),
+  `last_settled_at`, `created_at`, `updated_at`
+- One wallet per driver per currency (single currency for now, extensible to multi-currency)
+- Balance is computed as: sum of all credits − sum of all debits
+- Balance can go negative (driver owes the company)
+
+*2. Wallet Transactions (the history):*
+- `wallet_transactions` table: `id`, `wallet_id`, `type` (credit, debit), `amount`,
+  `balance_before`, `balance_after`, `currency_id`, `category` (trip_allowance, fine_imputation,
+  fuel_drainage_deduction, expense_reimbursement, cash_advance, salary_payment, manual_adjustment,
+  settlement_payment), `description`, `source_type` (polymorphic: fine_id, trip_id, expense_claim_id,
+  expense_id, etc.), `source_id`, `created_by` (FK users — who recorded it), `driver_visible` (boolean),
+  `driver_acknowledged_at` (nullable), `created_at`
+- Immutable: transactions are never deleted, only reversed with an offsetting entry
+- Indexed by: wallet_id, category, created_at, source_type+source_id (for traceability)
+
+*3. Fine Imputation Workflow (linking existing fines to driver wallet):*
+- Existing `traffic_fines` and `fine_checks` tables already capture fines issued on vehicles
+- Add a "Wallet" section to the fine review flow:
+  - Fine comes in → assigned to vehicle → fine_check review determines fault
+  - New option on fine_check: "Impute to Driver" with amount, notes, and driver selection
+  - On imputation:
+    1. System creates a debit transaction in driver's wallet
+    2. Transaction links back to the fine via polymorphic `source_type`/`source_id`
+    3. Driver receives push notification: "A fine of 45,000 RWF has been imputed to you for
+       traffic violation on June 12. Tap to view details."
+    4. Driver can acknowledge (or dispute via support ticket)
+  - Fuel drainage (detected via Phase 3.3 fuel analysis): same pattern — review determines
+    if it was driver negligence → impute to wallet
+
+*4. Other Wallet Entry Points:*
+- **Trip allowances (credit)**: when a trip is completed, the system auto-credits the driver's
+  km-based allowance and overnight allowance per the trip rate
+- **Expense reimbursement (credit)**: when an expense (5.4) is marked as paid for the driver
+- **Cash advance (debit)**: when a driver receives a cash advance before a trip
+- **Manual adjustment**: manager can add a manual credit/debit with reason (audit-logged)
+- **Settlement payment (debit)**: when company pays the driver, the amount is debited (balance goes down)
+
+*5. Driver Mobile App View:*
+- "My Wallet" screen:
+  - Current balance (color-coded: green = positive, red = negative)
+  - Recent transactions list (last 20, paginated)
+  - Each transaction shows: date, type (credit/debit), amount, category icon, description
+  - Tap to expand: full description, source reference (fine #, trip #), acknowledgment status
+- "Acknowledge" button on imputed fines — driver confirms they've seen it
+- Push notification on new imputation: "A fine has been imputed to your wallet"
+- Dispute button: opens a support ticket linked to the transaction
+
+*6. Manager/Dispatcher View:*
+- Driver profile includes wallet section: balance, recent transactions, full history
+- "Impute Fine" button on fine review screen
+- Wallet audit log: every entry shows who created it, when, and the source reference
+- Manual adjustment form: select driver, amount, category, description (requires reason + manager password)
+
+*7. Settlement:*
+- Settlement is a reconciliation process, not a transaction type:
+  - End of period (weekly/monthly), system shows: driver balance = Σ credits − Σ debits
+  - If positive → company pays driver; settlement payment recorded as debit (balance goes to 0)
+  - If negative → driver owes company; could deduct from next positive balance or driver pays cash
+  - `wallet_settlements` table: `wallet_id`, `period_start`, `period_end`, `balance_at_settlement`,
+    `amount_settled`, `method` (cash, bank_transfer, mobile_money, salary_deduction), `settled_at`,
+    `settled_by`, `notes`
+
+*8. Reporting:*
+- Driver balance report: all drivers with current balance (sort by most negative first — who owes the most)
+- Fine imputation report: total fines imputed vs not imputed per month
+- Wallet transaction log: full audit trail per driver
+- Settlement history: what was paid to each driver each period
+- Negative balance aging: drivers with negative balance for more than N days
+
+**Dependencies:** Traffic Fines (existing), Fine Checks (existing), Trip Allowances (8.3 or existing),
+Expense Management (5.4), Fuel Analysis (3.3), Mobile Companion App (existing), Document Management (1.1)
 
 ---
 
@@ -1324,6 +1444,7 @@ Phase 5  ─── Operations
   5.4  Expense Management (catalog + fixed/variable + full context)
   5.5  Container & Demurrage Tracking
   5.6  Performance Rating & Scoring
+  5.7  Driver Wallet & Ledger
 
 Phase 6  ─── Commercial
   6.1  Rate / Tariff Engine
