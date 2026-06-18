@@ -53,6 +53,7 @@ Phase 5: Operations
   Yard & Dock Management
   Expense Management (catalog + fixed/variable + full context)  ←── Support Tickets + Approvals
   Container & Demurrage Tracking  ←── Trips + Vehicles + Warehouses
+  Performance Rating & Scoring    ←── Multiple data sources + Human ratings
 
 Phase 6: Commercial
   Rate / Tariff Engine ──→ Contract Management
@@ -870,6 +871,99 @@ just utilization tracking.
 
 ---
 
+### 5.6 Performance Rating & Scoring
+
+A continuous rating system for drivers, dispatchers, and store managers. Combines automated
+scores (from operational data) and human ratings (from managers and customers) into a unified
+performance profile. Scales to 120+ drivers where no one knows everyone personally.
+
+**Why this matters for a 120+ fleet (the Uber insight):**
+- With many drivers and staff, reputation replaces personal knowledge
+- A driver with a 4.8 rating gets assigned to premium customers; a 3.2 rating triggers retraining
+- Dispatchers with fast resolution times and low escalation rates get promoted
+- Without a rating system, performance conversations are based on who complained loudest last week
+
+**Two score types:**
+
+| Score type | What it measures | How it's generated | Update frequency |
+|------------|-----------------|-------------------|-----------------|
+| **Automated (operational data)** | Fuel efficiency, on-time delivery, ticket resolution time, deviation frequency, expense claims volume | Pulled from existing modules (3.3 fuel rating, 4.3 deviations, 5.4 expenses, 5.2 POD) | Daily (cron) |
+| **Human rating** | Professionalism, communication, cargo care, customer satisfaction | Submitted by managers, customers, or peers | Per-event |
+
+**Requirements:**
+
+*1. Rating Profiles (one per user role):*
+- `ratings` table: `id`, `rateable_type` (driver, dispatcher, store_manager), `rateable_id`,
+  `score_type` (automated, human), `score_category`, `score` (decimal, 1.0–5.0),
+  `source` (system_generated, manager_review, customer_review, peer_review),
+  `period_start`, `period_end`, `notes`, `created_at`
+- `rating_submissions` table: `id`, `rating_id` (FK), `rater_id` (FK users, nullable for automated),
+  `rating` (1–5), `comment`, `submission_context_type` (trip_id, support_ticket_id, delivery_id),
+  `submission_context_id`, `created_at`
+- A `performance_scores` table can store the calculated composite: `rateable_type`, `rateable_id`,
+  `overall_score`, `automated_score`, `human_score`, `total_submissions`, `period`
+
+*2. Automated Scoring Sources (existing data, no new input needed):*
+- **Fuel efficiency score** (from 3.3 — driver_fuel_rating): avg variance %, flagged trips ratio
+- **On-time delivery score** (from 5.2 POD): % of deliveries made within window
+- **Ticket resolution score** (from support tickets): avg resolution time, escalation rate for the
+  driver's trip dispatcher
+- **Deviation frequency** (from 4.3): how often the driver's trips triggered deviation tickets
+- **Expense regularity** (from 5.4): number and amount of expense claims per trip (abnormal = red flag)
+- **Workshop efficiency** (for store managers from 2.2): avg repair time, parts wait time, rework rate
+
+*3. Human Rating Workflow:*
+- **Manager rates driver** after a trip: dispatcher or operations manager can open a driver's profile
+  and submit a rating (1–5) with optional comment, linked to the trip
+- **Manager rates dispatcher** periodically or per quarter: operations manager rates each dispatcher
+  on communication speed, problem resolution, workload management
+- **Customer rates driver** via customer portal (Phase 8): after delivery, customer sees "Rate your
+  delivery" — driver professionalism, cargo condition, timeliness
+- **Peer review (optional)**: drivers can rate store managers or fellow drivers
+
+*4. Composite Score Calculation:*
+- Overall score = weighted average of automated + human scores
+- Default weights (configurable): automated 60%, human 40%
+- Within automated: fuel 25%, on-time 25%, ticket resolution 20%, deviation 15%, expenses 15%
+- Within human: manager ratings 50%, customer ratings 30%, peer 20%
+- Recency weighting: last 3 months weighted more heavily than older data
+- Minimum submissions threshold before a score is "valid" (e.g., a driver with only 1 trip doesn't
+  get a displayed score until 5+ trips)
+
+*5. Driver Profile View (for dispatchers/managers):*
+- Header: name, photo, overall score (color-coded: green ≥ 4.5, yellow ≥ 3.5, red < 3.5)
+- Score breakdown: fuel efficiency, on-time delivery, deviation frequency, expenses, manager ratings
+- Trend: score over last 6 months (line chart — improving or declining?)
+- Recent ratings: last 10 human ratings with comments and context (which trip, who rated)
+- Comparison: "vs fleet average" for each metric
+- Trip history filtered by driver with performance callouts
+
+*6. Dispatcher Profile View (for operations managers):*
+- Overall score + breakdown: ticket resolution time, escalation rate, trips managed, on-time
+  performance of their assigned trips
+- Workload balance: how many trips currently assigned vs team average
+
+*7. Leaderboards & Reports:*
+- Top 10 drivers this month (by overall score)
+- Bottom 10 drivers (for coaching/retraining)
+- Best dispatcher by resolution time
+- Store manager ranking by workshop throughput
+- Score distribution histogram (how many drivers at each level)
+- Monthly trend report: "Average driver score is up 0.3 points vs last quarter"
+
+*8. Use Cases (how ratings drive decisions):*
+- **Trip assignment**: dispatchers see driver score when assigning; premium customers get top-rated
+  drivers automatically
+- **Retraining trigger**: driver below 3.0 for 2 consecutive months → auto-flag for retraining
+- **Promotion/recognition**: top 10% drivers get recognition badge on mobile app
+- **Customer-facing**: customer portal shows "Your driver has a 4.8/5 rating" for reassurance
+- **Accountability**: dispatcher score reflects how well their assigned trips performed
+
+**Dependencies:** Fuel Rating (3.3), Trip Ownership (4.1), Deviation Tickets (4.3),
+Proof of Delivery (5.2), Expense Management (5.4), Customer Portal (8.1), Users/Roles (existing)
+
+---
+
 ## Phase 6 — Commercial
 
 *Builds on Phases 1–5.*
@@ -1229,6 +1323,7 @@ Phase 5  ─── Operations
   5.3  Yard & Dock Management
   5.4  Expense Management (catalog + fixed/variable + full context)
   5.5  Container & Demurrage Tracking
+  5.6  Performance Rating & Scoring
 
 Phase 6  ─── Commercial
   6.1  Rate / Tariff Engine
