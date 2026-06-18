@@ -52,6 +52,7 @@ Phase 5: Operations
   Proof of Delivery          ←── Trips
   Yard & Dock Management
   Expense Management (catalog + fixed/variable + full context)  ←── Support Tickets + Approvals
+  Container & Demurrage Tracking  ←── Trips + Vehicles + Warehouses
 
 Phase 6: Commercial
   Rate / Tariff Engine ──→ Contract Management
@@ -707,6 +708,99 @@ Trip Ownership (4.1) for dispatcher assignment, Mobile Companion App (existing)
 
 ---
 
+### 5.5 Container & Demurrage Tracking
+
+Track every container in the fleet — company-owned (private) or shipping line containers —
+from arrival to return. Link containers to vehicles, warehouses, and trips. Calculate demurrage
+and detention penalties in real time so dispatchers know where every container is, how late it
+is, and how much is owed.
+
+**The business problem:**
+- Containers arrive at port or depot and need to be picked up, moved, loaded, and returned
+- Shipping lines charge demurrage (container sitting at port beyond free days) and detention
+  (container at customer/yard beyond free days) — these add up fast
+- Dispatchers don't have a single view of "where is container X, whose is it, is it late?"
+- No system tracks: free days remaining, daily penalty rate, or total accrued charges
+- Company-owned (private) containers vs shipping line containers need different handling:
+  private containers are assets to maximize utilization; shipping line containers are liabilities
+  to minimize penalty charges
+
+**Key concepts:**
+
+| Term | Meaning |
+|------|---------|
+| **Container** | A shipping container (20ft, 40ft, etc.) tracked by its unique ID |
+| **Owner** | Company-owned ("private") or a specific shipping line (Maersk, MSC, CMA-CGM, etc.) |
+| **Free days** | Number of days allowed before demurrage/detention charges start (per shipping line contract) |
+| **Demurrage** | Charge for container staying at port/depot beyond free days |
+| **Detention** | Charge for container staying at customer/warehouse beyond free days |
+| **Daily rate** | Penalty per day after free period expires (often tiered: days 1-5 = $X, days 6-10 = $Y) |
+
+**Requirements:**
+
+*1. Container Registry:*
+- `containers` table: `container_id` (unique identifier, e.g. "MSCU1234567"), `size` (20ft, 40ft, 40hc),
+  `type` (dry, reefer, open_top, flat_rack, tank), `owner_type` (private, shipping_line),
+  `shipping_line_id` (FK, nullable — if owned by a line), `is_owned` (boolean: true = company asset,
+  false = shipping line asset), `purchase_value` (for private containers), `purchase_date`,
+  `current_status` (at_port, in_transit, at_warehouse, at_customer, empty_returned, damaged, scrapped),
+  `current_location_id` (FK to warehouses or ports, nullable), `last_known_gps`, `is_active`
+- `container_movements` table: `container_id`, `from_location_type` (port, warehouse, customer, yard),
+  `from_location_id`, `to_location_type`, `to_location_id`, `movement_type` (port_pickup, delivery_to_customer,
+  return_to_depot, reposition, transfer), `vehicle_id` (FK — which truck moved it), `driver_id`,
+  `trip_id`, `seal_number`, `departed_at`, `arrived_at`, `notes`, `created_at`
+
+*2. Demurrage/Detention Configuration:*
+- `shipping_line_contracts` table: `shipping_line_id`, `name`, `free_demurrage_days`, `free_detention_days`,
+  `demurrage_tiers` (JSON: e.g. [{"days_from": 1, "days_to": 5, "daily_rate": 50}, {"days_from": 6, "days_to": 10, "daily_rate": 75}]),
+  `detention_tiers` (JSON, same structure), `currency_id`, `effective_from`, `effective_to`, `is_active`
+- Default tier values can apply if no specific contract is configured for a shipping line
+- Private containers: no demurrage/detention charges, but utilization tracking instead
+
+*3. Real-Time Delay & Penalty Calculation:*
+- A scheduled job (cron) or on-demand service class calculates:
+  - For each container at a port: days since arrival − free_demurrage_days = demurrage days overdue
+  - For each container at customer/warehouse: days since arrival − free_detention_days = detention days overdue
+  - Apply tiered daily rates to compute total penalty owed
+- Penalties accrue daily; system keeps a running total per container
+- `container_penalties` table (snapshot or running): `container_id`, `penalty_type` (demurrage, detention),
+  `days_overdue`, `daily_rate`, `total_amount`, `calculated_at`
+
+*4. Dispatcher Dashboard — Container View:*
+- Overview cards: total containers on-site, containers at port, containers at customer, overdue containers
+- Per-container detail card:
+  - Container ID, size, type, owner (company logo or shipping line name)
+  - Current location (port/warehouse/customer name)
+  - Days at current location, free days remaining or overdue count
+  - Penalty status: "On track" (green), "Warning — 2 free days left" (yellow), "Overdue — 5 days, $250 owed" (red)
+  - Movement history timeline
+- Map view: show container positions (last known GPS or location pin)
+- Filter by: owner (private vs shipping line), status, location, shipping line
+
+*5. Trip and Vehicle Integration:*
+- When a trip is created for container movement (port pickup or delivery), the container is linked to
+  the trip via `trip_id` on the container or via `container_movements`
+- The vehicle transporting the container is linked (already on the trip)
+- Dispatcher sees: which containers are on which truck, where they're going, ETA
+
+*6. Notifications & Alerts:*
+- When a container is picked up from port: start free-day countdown clock
+- Notification when free days are about to expire: "Container MSCU1234567 has 2 free days remaining at Port of Mombasa"
+- Escalation if overdue: notify dispatcher, then operations manager
+- For private containers: notification if container sits idle for more than N days (utilization alert)
+
+*7. Reporting:*
+- Demurrage/detention cost by shipping line (monthly): which lines cost the most in penalties
+- Penalty cost by customer (if customer-related delays)
+- Container utilization report (private containers): days in use vs idle
+- Container movement log per container: full lifecycle trace
+- Total demurrage/detention cost trend (month over month)
+
+**Dependencies:** Trips (existing), Vehicles (existing), Warehouses (5.3 or existing),
+Rate Engine (6.1) for potential per_container charges
+
+---
+
 ### Real-World Outcome After Phase 5
 
 With Phases 1-4 solid, operations is running on the system: workshop, fuel, and route monitoring
@@ -751,15 +845,28 @@ a fixed expense from the catalog, no approval needed — it goes directly to the
 A different scenario: a driver pays a road permit fee not in the catalog. The dispatcher
 can't find a matching item, so she toggles to custom entry, types "Rwanda Road Permit —
 Kabale border, 25,000 RWF", estimated amount, and submits. Since it's a variable expense,
-it enters the approval chain. Logistics Manager approves, Director of Operations approves,
-then it moves to Finance. The Logistics Manager approves within 10
-minutes. The Director of Operations approves 5 minutes later. The expense moves to "Pending
+it enters the approval chain. Logistics Manager approves within 10 minutes,
+Director of Operations approves 5 minutes later, and it moves to "Pending
 Payment" in Finance.
 
 The finance officer processes it end of day, records the payment, and uploads a scanned copy
 of the bank transfer receipt. The driver's phone buzzes: "Your expense of 85,000 RWF for
 tire replacement has been paid. View proof of payment." No phone calls, no WhatsApp, no
 "I haven't been reimbursed from last month."
+
+A dispatcher opens the Container Tracking dashboard. She sees: 12 containers on-site, 8 at
+Port of Mombasa, 4 at customer sites. One is flagged red — "MSCU1234567 (Maersk) — Port of
+Mombasa — 8 days overdue — $400 owed." She clicks it. The system shows: this 40ft container
+was picked up 18 days ago, has 10 free demurrage days, is now 8 days overdue at $50/day.
+The shipping line contract says days 1-5 = $50/day, days 6-10 = $75/day — the system
+calculated $400 automatically. She checks the movement history: picked up by Truck XYZ-456
+on June 1, delivered to Customer ABC on June 3, still sitting there 15 days later with only
+5 free detention days. She calls the customer to arrange return before it hits $75/day tier.
+
+A green container on the same screen shows "Private — Container ML-001 — In transit —
+delivery to Kigali — ETA tomorrow." She clicks it: this is a company-owned container last
+moved on Trip T-892, currently on Truck XYZ-789, estimated arrival 10:00. No penalties,
+just utilization tracking.
 
 ---
 
@@ -1121,6 +1228,7 @@ Phase 5  ─── Operations
   5.2  Proof of Delivery
   5.3  Yard & Dock Management
   5.4  Expense Management (catalog + fixed/variable + full context)
+  5.5  Container & Demurrage Tracking
 
 Phase 6  ─── Commercial
   6.1  Rate / Tariff Engine
