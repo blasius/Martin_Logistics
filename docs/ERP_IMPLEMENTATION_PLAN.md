@@ -51,6 +51,7 @@ Phase 5: Operations
   Preventive Maintenance     ←── Parts + Workshop
   Proof of Delivery          ←── Trips
   Yard & Dock Management
+  Expense Claim & Reimbursement  ←── Support Tickets + Approvals
 
 Phase 6: Commercial
   Rate / Tariff Engine ──→ Contract Management
@@ -571,6 +572,84 @@ Manage truck check-in/check-out, dock door assignment, and loading/unloading sch
 
 ---
 
+### 5.4 Expense Claim & Reimbursement
+
+Turn unpredictable on-road expenses into a structured workflow: driver submits a support ticket
+→ dispatcher converts it to an expense → 2-level approval → finance pays → driver notified.
+
+**The business problem:**
+- Trucks break down on the road, need emergency tires, pay road tolls, or buy minor parts
+- Drivers currently spend out of pocket or call around asking who will approve
+- No formal record of these expenses, no way to track what's been paid vs pending
+- Multiple phone calls per expense: driver calls dispatcher, dispatcher calls manager, manager
+  calls finance, finance asks for proof — all over WhatsApp or phone
+
+**Workflow:**
+
+```
+Driver submits support ticket (type: expense)
+  ↓  (includes: amount, category, receipt photo, notes)
+Dispatchers "Expense Queue" — reviews and converts to expense claim
+  ↓
+Expense claim created with draft status
+  ↓  (Ticket linked: support_ticket_id on expense)
+Logistics Manager approves/rejects
+  ↓
+Director of Operations approves/rejects
+  ↓
+Finance queue — approved expenses pending payment
+  ↓
+Finance officer records payment + uploads proof of payment
+  ↓
+Expense marked as paid → original support ticket auto-resolved
+  ↓
+Push notification to driver: "Your expense of 45,000 RWF for tires has been paid"
+```
+
+**Requirements:**
+
+*Expense Claim Table:*
+- `expense_claims` table: `reference`, `support_ticket_id` (FK, nullable), `driver_id`, `vehicle_id`,
+  `trip_id` (nullable), `category` (breakdown, tires, tolls, permits, accommodation, meals, other),
+  `amount`, `currency_id`, `description`, `status` (draft, pending_logistics, pending_operations,
+  approved, paid, rejected, cancelled), `rejection_reason`, `created_at`, `updated_at`
+- Receipt/document upload via Document Management (1.1) — polymorphic link to expense_claim
+- Link to the originating support ticket: the ticket's `source` field indicates it was converted to an expense
+
+*Dispatcher UI (converting ticket to expense):*
+- In the support ticket detail, a "Convert to Expense" button appears for tickets of type `expense`
+- Pre-populates fields from the ticket: driver, vehicle, amount, description, receipt photo
+- Dispatcher can edit before submitting for approval
+- Once submitted, ticket status changes to `converted_to_expense`
+
+*Approval Workflow:*
+- Uses the existing `approvals` table (polymorphic, same as Phase 2.2): `approvable_type` = `expense_claim`
+- Stage 1: Logistics Manager approves (or rejects with reason)
+- Stage 2: Director of Operations approves (or rejects with reason)
+- Rejection at either stage sends it back to dispatcher with comments; ticket reopens
+
+*Finance Queue:*
+- "Pending Payment" list: all approved expense claims, sorted by priority/date
+- Finance officer selects an expense, records payment: `paid_at`, `payment_method`, `payment_reference`,
+  `proof_of_payment_file` (upload via Document Management)
+- System marks expense as `paid`, auto-resolves the linked support ticket
+
+*Driver Notification:*
+- When expense is marked as paid, send push notification via the mobile companion app
+- Notification includes: expense reference, amount paid, and a link to view the payment proof
+- If no mobile companion app session, fall back to SMS (if available)
+
+*Reporting:*
+- Expense by category (monthly): how much spent on breakdowns vs tires vs tolls
+- Expense by vehicle: which trucks generate the most on-road expenses
+- Expense by driver: who submits the most claims
+- Pending payment aging: how long approved expenses wait for finance to pay
+
+**Dependencies:** Support Tickets (existing), Approvals (2.2), Document Management (1.1),
+Trip Ownership (4.1) for dispatcher assignment, Mobile Companion App (existing)
+
+---
+
 ### Real-World Outcome After Phase 5
 
 With Phases 1-4 solid, operations is running on the system: workshop, fuel, and route monitoring
@@ -602,6 +681,20 @@ At month end, the operations dashboard shows: total trips completed, average tur
 on-time delivery rate, and a breakdown of delays by cause (workshop, fueling, driver, route).
 The operations manager can see at a glance that the biggest delay cause this month was "waiting
 for workshop parts" and can address the parts procurement process.
+
+A driver on the road blows a tire. He opens the mobile app, submits a support ticket: "Tire blew
+30 km after Kabale, replace at local shop — 85,000 RWF", and attaches a photo of the damaged
+tire and the shop's quote. The ticket goes to his trip's assigned dispatcher.
+
+The dispatcher sees the ticket in her "Expense Queue", reviews the photo and amount, converts
+it to an expense claim, and submits for approval. The Logistics Manager approves within 10
+minutes. The Director of Operations approves 5 minutes later. The expense moves to "Pending
+Payment" in Finance.
+
+The finance officer processes it end of day, records the payment, and uploads a scanned copy
+of the bank transfer receipt. The driver's phone buzzes: "Your expense of 85,000 RWF for
+tire replacement has been paid. View proof of payment." No phone calls, no WhatsApp, no
+"I haven't been reimbursed from last month."
 
 ---
 
@@ -962,6 +1055,7 @@ Phase 5  ─── Operations
   5.1  Preventive Maintenance
   5.2  Proof of Delivery
   5.3  Yard & Dock Management
+  5.4  Expense Claim & Reimbursement
 
 Phase 6  ─── Commercial
   6.1  Rate / Tariff Engine
