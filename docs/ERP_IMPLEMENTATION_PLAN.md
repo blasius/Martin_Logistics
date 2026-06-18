@@ -51,7 +51,7 @@ Phase 5: Operations
   Preventive Maintenance     ←── Parts + Workshop
   Proof of Delivery          ←── Trips
   Yard & Dock Management
-  Expense Claim & Reimbursement  ←── Support Tickets + Approvals
+  Expense Management (catalog + fixed/variable + full context)  ←── Support Tickets + Approvals
 
 Phase 6: Commercial
   Rate / Tariff Engine ──→ Contract Management
@@ -572,29 +572,59 @@ Manage truck check-in/check-out, dock door assignment, and loading/unloading sch
 
 ---
 
-### 5.4 Expense Claim & Reimbursement
+### 5.4 Expense Management
 
-Turn unpredictable on-road expenses into a structured workflow: driver submits a support ticket
-→ dispatcher converts it to an expense → 2-level approval → finance pays → driver notified.
+A unified expense module covering every cost incurred on a vehicle, linked to its full operational
+context: trip, route, driver, location, odometer. Supports pre-approved fixed expense items as
+well as variable/unpredictable expenses — the dispatcher chooses from a catalog or types a custom one.
 
 **The business problem:**
-- Trucks break down on the road, need emergency tires, pay road tolls, or buy minor parts
-- Drivers currently spend out of pocket or call around asking who will approve
-- No formal record of these expenses, no way to track what's been paid vs pending
-- Multiple phone calls per expense: driver calls dispatcher, dispatcher calls manager, manager
-  calls finance, finance asks for proof — all over WhatsApp or phone
+- Expenses are scattered across support tickets, WhatsApp messages, phone calls, and paper receipts
+- No catalog of common expense items with pre-approved amounts — every tire replacement goes
+  through the same approval as a one-off toll fee
+- No way to track total cost of ownership per vehicle because small on-road expenses are invisible
+- Dispatchers and managers waste time re-approving the same type of expense over and over
+- Reporting is impossible: "how much did we spend on tires vs tolls last month?" is a manual
+  spreadsheet exercise
 
-**Workflow:**
+**Two expense types:**
 
+| Type | Example | Approval needed |
+|------|---------|-----------------|
+| **Fixed** (pre-approved catalog item) | Tire replacement 22R — 85,000 RWF, Oil change — 45,000 RWF | None or auto-approve (manager can audit) |
+| **Variable** (not in catalog or over limit) | Emergency tow from unknown garage, road permit fee | 2-level approval (Logistics Manager → Director of Operations) |
+
+**Workflow (two entry points):**
+
+*Entry point A — From support ticket (unpredictable on-road expense):*
 ```
 Driver submits support ticket describing the issue
-  ↓  (e.g. "Blew a tire 30 km after Kabale, replaced at local shop — 85,000 RWF")
+  ↓  (e.g. "Blew a tire 30 km after Kabale, replaced at local shop")
 Dispatcher reviews — decides it qualifies as an expense
   ↓
-Dispatchers "Expense Queue" — converts ticket to expense claim
+Dispatcher opens "Convert to Expense":
+  ├── Selects from pre-approved expense catalog (e.g. "Tire replacement 22R — 85,000 RWF")
+  │     → Fixed expense, no approval needed, goes directly to Finance queue
+  └── Or types custom: name, description, estimated amount
+        → Variable expense, enters 2-level approval workflow
   ↓
-Expense claim created with draft status
-  ↓  (Ticket linked: support_ticket_id on expense)
+Expense recorded with full context (populated from ticket):
+  vehicle, trip, route, driver, location, odometer, timestamp
+```
+
+*Entry point B — Direct entry (for known/recurring costs not tied to a ticket):*
+```
+Authorized user (dispatcher/manager) creates expense directly
+  ├── Selects from catalog (fixed, no approval)
+  └── Enters custom item (variable, needs approval)
+  ↓
+Expense recorded with full context (entered manually)
+```
+
+*Approval & payment (for variable expenses only):*
+```
+Variable expense created (draft)
+  ↓
 Logistics Manager approves/rejects
   ↓
 Director of Operations approves/rejects
@@ -603,49 +633,74 @@ Finance queue — approved expenses pending payment
   ↓
 Finance officer records payment + uploads proof of payment
   ↓
-Expense marked as paid → original support ticket auto-resolved
+Expense marked as paid → if linked to a support ticket, ticket auto-resolves
   ↓
-Push notification to driver: "Your expense of 85,000 RWF for tires has been paid"
+Push notification to driver (if applicable)
 ```
 
 **Requirements:**
 
-*Expense Claim Table:*
-- `expense_claims` table: `reference`, `support_ticket_id` (FK, nullable), `driver_id`, `vehicle_id`,
-  `trip_id` (nullable), `category` (breakdown, tires, tolls, permits, accommodation, meals, other),
-  `amount`, `currency_id`, `description`, `status` (draft, pending_logistics, pending_operations,
-  approved, paid, rejected, cancelled), `rejection_reason`, `created_at`, `updated_at`
-- Receipt/document upload via Document Management (1.1) — polymorphic link to expense_claim
-- Link to the originating support ticket: the ticket's `source` field indicates it was converted to an expense
+*1. Expense Types Catalog (pre-approved items):*
+- `expense_types` table: `name`, `description`, `category` (tires, engine, brakes, electrical,
+  body, tolls, permits, accommodation, meals, fuel_external, towing, other), `expense_class`
+  (fixed, variable), `default_amount` (for fixed), `currency_id`, `is_active`
+- Admin CRUD for managing the catalog — Logistics Manager or Director of Operations maintains it
+- A fixed expense type means its default_amount is pre-approved; no further approval needed
+- A variable expense type still requires the full approval chain
 
-*Dispatcher UI (converting ticket to expense):*
-- A "Convert to Expense" button on any open support ticket — the dispatcher decides, not the driver
-- Dispatcher fills in: category, amount, attaches driver's receipt photo from the ticket, adds notes
-- Pre-populates driver, vehicle, and trip from the ticket's context
-- Once submitted, ticket status changes to `converted_to_expense`
+*2. Unified Expense Records with Full Context:*
+- `expenses` table (renamed from `expense_claims`): `reference`, `expense_type_id` (FK, nullable),
+  `support_ticket_id` (FK, nullable), `vehicle_id` (FK), `driver_id` (FK, nullable), `trip_id` (FK, nullable),
+  `route_id` (FK, nullable), `name`, `description`, `category`, `amount`, `currency_id`,
+  `location` (point geometry or text description), `odometer` (nullable), `expense_class` (fixed, variable),
+  `status` (pending, approved, paid, rejected, cancelled),
+  `rejection_reason`, `paid_at`, `payment_method`, `payment_reference`, `proof_of_payment_file_id`,
+  `created_by`, `created_at`, `updated_at`
+- Receipt/document upload via Document Management (1.1)
+- If created from a support ticket: `support_ticket_id` populated; ticket status changes to `converted_to_expense`
 
-*Approval Workflow:*
-- Uses the existing `approvals` table (polymorphic, same as Phase 2.2): `approvable_type` = `expense_claim`
+*3. Dispatcher UI — Converting a Ticket to an Expense:*
+- A "Convert to Expense" button on any open support ticket
+- Step 1: Search/select from the expense catalog. Shows pre-approved items with their default amounts.
+  If a match exists, dispatcher picks it → expense_class = fixed, amount pre-filled
+- Step 2: If not in catalog, toggle to custom entry: type name, description, estimated amount →
+  expense_class = variable
+- Step 3: Review and confirm. Pre-populated fields from the ticket: vehicle, driver, trip, route.
+  Dispatcher adds: location (from ticket context or manual), odometer
+- Fixed expense → created directly at "approved" status, goes to Finance queue
+- Variable expense → created at "pending" status, enters approval workflow
+
+*4. Direct Expense Entry (no ticket):*
+- A "New Expense" form available to dispatchers and managers
+- Same flow: pick from catalog or enter custom → full context required (vehicle is mandatory)
+- Same approval rules based on expense class
+
+*5. Approval Workflow (variable expenses only):*
+- Uses the existing `approvals` table (polymorphic, same as Phase 2.2): `approvable_type` = `expense`
 - Stage 1: Logistics Manager approves (or rejects with reason)
 - Stage 2: Director of Operations approves (or rejects with reason)
-- Rejection at either stage sends it back to dispatcher with comments; ticket reopens
+- Rejection at either stage sends it back to creator with comments
 
-*Finance Queue:*
-- "Pending Payment" list: all approved expense claims, sorted by priority/date
-- Finance officer selects an expense, records payment: `paid_at`, `payment_method`, `payment_reference`,
+*6. Finance Queue & Payment:*
+- "Pending Payment" list: all approved expenses (both fixed and variable)
+- Sortable by: date, amount, vehicle, category
+- Finance officer records payment: `paid_at`, `payment_method`, `payment_reference`,
   `proof_of_payment_file` (upload via Document Management)
-- System marks expense as `paid`, auto-resolves the linked support ticket
+- System marks expense as `paid`; if linked to a support ticket, ticket auto-resolves
 
-*Driver Notification:*
-- When expense is marked as paid, send push notification via the mobile companion app
-- Notification includes: expense reference, amount paid, and a link to view the payment proof
-- If no mobile companion app session, fall back to SMS (if available)
+*7. Driver Notification:*
+- When an expense linked to a support ticket is marked as paid, push notification via mobile app:
+  "Your expense of 85,000 RWF for tire replacement has been paid."
+- Notification includes amount paid and link to view proof of payment
 
-*Reporting:*
-- Expense by category (monthly): how much spent on breakdowns vs tires vs tolls
-- Expense by vehicle: which trucks generate the most on-road expenses
-- Expense by driver: who submits the most claims
+*8. Reporting:*
+- Expense by category (monthly): tires, engine, tolls, permits, etc.
+- Expense by vehicle: total cost of ownership per truck
+- Expense by driver: who generates the most costs
+- Fixed vs variable expense split: what percentage of costs are predictable vs unpredictable
+- Expense by trip: how much each trip costs beyond planned fuel
 - Pending payment aging: how long approved expenses wait for finance to pay
+- Catalog usage report: which pre-approved items are used most, which are never used
 
 **Dependencies:** Support Tickets (existing), Approvals (2.2), Document Management (1.1),
 Trip Ownership (4.1) for dispatcher assignment, Mobile Companion App (existing)
@@ -684,12 +739,20 @@ on-time delivery rate, and a breakdown of delays by cause (workshop, fueling, dr
 The operations manager can see at a glance that the biggest delay cause this month was "waiting
 for workshop parts" and can address the parts procurement process.
 
-A driver on the road blows a tire. He opens the mobile app, submits a support ticket: "Tire blew
-30 km after Kabale, replaced at local shop — 85,000 RWF", and attaches a photo of the damaged
-tire and the shop's quote. The ticket goes to his trip's assigned dispatcher.
+A driver on the road blows a tire. He opens the mobile app, submits a support ticket: "Tire
+blew 30 km after Kabale, replaced at local shop — 85,000 RWF", and attaches a photo. The
+ticket goes to his trip's assigned dispatcher.
 
-The dispatcher sees the ticket, reviews the photo and amount, decides this qualifies as an expense.
-She clicks "Convert to Expense", fills in the category and amount, and submits for approval. The Logistics Manager approves within 10
+The dispatcher reviews it, decides this qualifies as an expense, and clicks "Convert to Expense".
+She searches the catalog and finds "Tire replacement 22R — 85,000 RWF" — it's a pre-approved
+fixed item. She selects it, adds the odometer reading and location, and confirms. Since it's
+a fixed expense from the catalog, no approval needed — it goes directly to the Finance queue.
+
+A different scenario: a driver pays a road permit fee not in the catalog. The dispatcher
+can't find a matching item, so she toggles to custom entry, types "Rwanda Road Permit —
+Kabale border, 25,000 RWF", estimated amount, and submits. Since it's a variable expense,
+it enters the approval chain. Logistics Manager approves, Director of Operations approves,
+then it moves to Finance. The Logistics Manager approves within 10
 minutes. The Director of Operations approves 5 minutes later. The expense moves to "Pending
 Payment" in Finance.
 
@@ -1057,7 +1120,7 @@ Phase 5  ─── Operations
   5.1  Preventive Maintenance
   5.2  Proof of Delivery
   5.3  Yard & Dock Management
-  5.4  Expense Claim & Reimbursement
+  5.4  Expense Management (catalog + fixed/variable + full context)
 
 Phase 6  ─── Commercial
   6.1  Rate / Tariff Engine
