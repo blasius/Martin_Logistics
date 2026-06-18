@@ -587,9 +587,11 @@ Turn unpredictable on-road expenses into a structured workflow: driver submits a
 **Workflow:**
 
 ```
-Driver submits support ticket (type: expense)
-  ↓  (includes: amount, category, receipt photo, notes)
-Dispatchers "Expense Queue" — reviews and converts to expense claim
+Driver submits support ticket describing the issue
+  ↓  (e.g. "Blew a tire 30 km after Kabale, replaced at local shop — 85,000 RWF")
+Dispatcher reviews — decides it qualifies as an expense
+  ↓
+Dispatchers "Expense Queue" — converts ticket to expense claim
   ↓
 Expense claim created with draft status
   ↓  (Ticket linked: support_ticket_id on expense)
@@ -603,7 +605,7 @@ Finance officer records payment + uploads proof of payment
   ↓
 Expense marked as paid → original support ticket auto-resolved
   ↓
-Push notification to driver: "Your expense of 45,000 RWF for tires has been paid"
+Push notification to driver: "Your expense of 85,000 RWF for tires has been paid"
 ```
 
 **Requirements:**
@@ -617,9 +619,9 @@ Push notification to driver: "Your expense of 45,000 RWF for tires has been paid
 - Link to the originating support ticket: the ticket's `source` field indicates it was converted to an expense
 
 *Dispatcher UI (converting ticket to expense):*
-- In the support ticket detail, a "Convert to Expense" button appears for tickets of type `expense`
-- Pre-populates fields from the ticket: driver, vehicle, amount, description, receipt photo
-- Dispatcher can edit before submitting for approval
+- A "Convert to Expense" button on any open support ticket — the dispatcher decides, not the driver
+- Dispatcher fills in: category, amount, attaches driver's receipt photo from the ticket, adds notes
+- Pre-populates driver, vehicle, and trip from the ticket's context
 - Once submitted, ticket status changes to `converted_to_expense`
 
 *Approval Workflow:*
@@ -683,11 +685,11 @@ The operations manager can see at a glance that the biggest delay cause this mon
 for workshop parts" and can address the parts procurement process.
 
 A driver on the road blows a tire. He opens the mobile app, submits a support ticket: "Tire blew
-30 km after Kabale, replace at local shop — 85,000 RWF", and attaches a photo of the damaged
+30 km after Kabale, replaced at local shop — 85,000 RWF", and attaches a photo of the damaged
 tire and the shop's quote. The ticket goes to his trip's assigned dispatcher.
 
-The dispatcher sees the ticket in her "Expense Queue", reviews the photo and amount, converts
-it to an expense claim, and submits for approval. The Logistics Manager approves within 10
+The dispatcher sees the ticket, reviews the photo and amount, decides this qualifies as an expense.
+She clicks "Convert to Expense", fills in the category and amount, and submits for approval. The Logistics Manager approves within 10
 minutes. The Director of Operations approves 5 minutes later. The expense moves to "Pending
 Payment" in Finance.
 
