@@ -30,6 +30,68 @@ Back to yard → repeat
 
 ---
 
+## Design Philosophy
+
+This ERP is built on a clear separation: **computers do what they are good at; humans do what they are good at.**
+
+### What the System Owns (Numbers & Communication)
+
+- **Tracking & accountability:** Every truck, driver, trip, container, and expense has a single owner and a
+  clear status at all times. No more "6 dispatchers for 120+ trucks" — the fleet is divided into formal
+  assignments and the system knows who is responsible for what.
+- **Automated alerts:** Fuel anomalies, route deviations, delays, document expiry, maintenance due —
+  all detected and turned into support tickets automatically, assigned to the right person, escalated if
+  unresolved. Humans review and act; the system does the watching.
+- **Ordered queues:** Every yard service (wash, workshop, fueling, docks) uses automatic FIFO/priority
+  queuing. No chaotic clusters around the fuel pump or repair bay — the system tells everyone their turn.
+- **Paperwork generation:** The system prints legal documents (payment receipts with signature lines,
+  proof of delivery with POD signatures) using a bank-counter double-copy model. Everything else is
+  fully digital — no printing repair requests, approvals, or internal forms.
+- **Numbers & calculations:** Route-based fuel calculation, exchange rate conversion, demurrage penalty
+  computation, driver performance scoring, profit margin analysis — the system never makes arithmetic
+  errors.
+
+### What Humans Own (Interaction & Judgment)
+
+- **Guidance & counseling:** Managers review drivers' performance scores, fuel abuse flags, and fine
+  history — then have the human conversation: coaching, warning, or disciplinary action.
+- **Negotiation & sales:** Sales people negotiate rates with clients, review contracts, handle customer
+  relationships. The system provides the data (is this client profitable?); the human closes the deal.
+- **Support & escalation:** Dispatchers review auto-created tickets, call drivers to understand context,
+  resolve issues or escalate. The system flags the problem; the human decides what it means.
+- **Override decisions:** When a pre-trip clearance check blocks a trip (expired insurance, unpaid fine),
+  the dispatcher decides whether to resolve or bypass, and the manager approves with a written comment.
+  The system enforces the gate; humans decide when to open it.
+- **Customer service:** The customer portal lets clients track orders, view invoices, and communicate
+  with their account manager — reducing phone calls while preserving personal relationships.
+
+### Architecture Principles
+
+1. **Mobile-first for drivers:** The driver mobile app (Native Java, with future dispatcher companion) is
+   the primary channel. All driver-facing interactions — trip assignment, departure confirmation, issue
+   reporting, POD signatures — go through a clean REST API consumed by the mobile app.
+2. **API-first design:** Every feature exposes a documented API endpoint before any UI is built. The
+   admin Filament panel and customer Vue SPA consume the same APIs the mobile apps use.
+3. **High-volume readiness:** Telemetry ingestion (15,000+ points/hour per truck), fuel transactions,
+   and ticket activity are designed with partitioning, indexing, and async queue processing where
+   appropriate. The queue connection (currently `sync`) must be upgraded to a proper driver (Redis /
+   SQS) for production volume.
+4. **Scalable accountability:** Dividing 120+ trucks among 6 dispatchers is chaos. The system assigns
+   one accountable person per trip via round-robin (configurable weight), preserves full reassignment
+   history, and provides a clear escalation chain (Dispatcher → Logistics Manager → Director of
+   Operations → Managing Director) so responsibility is never ambiguous.
+5. **Audit everything:** Every state change — who approved what, who bypassed which check, who
+   reassigned a trip, who converted a ticket to an expense — is logged with timestamp and user. The
+   system never asks "who did that?" — it always knows.
+
+### Plan Structure
+
+Phases are ordered by the real yard workflow (not corporate priorities). Each phase depends on the
+phases before it. The build order is: vehicle arrives → gets repaired → gets fuel → gets dispatched
+→ gets monitored → generates data → that data drives commercial decisions.
+
+---
+
 ## Dependency Map
 
 ```
