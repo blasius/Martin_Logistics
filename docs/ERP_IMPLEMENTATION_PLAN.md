@@ -30,6 +30,7 @@ Back to yard → repeat
 ```
 Phase 1: Foundation
   Document Management ──────┬──→ Legal documents (payment receipts, POD, contracts)
+  Role Builder & Permissions ──→ All modules (who can do what)
 
 Phase 2: Workshop
   Spare Parts Inventory      │
@@ -44,20 +45,22 @@ Phase 3: Fuel
 
 Phase 4: Route Intelligence & Trip Ownership
   Trip Ownership & Dispatcher Assignment (one dispatcher per trip, history preserved)
-  └──→ Deviation Detection Engine (Telemetry + Route geometry)
-        └──→ Auto-Ticket Creation & Escalation Workflow (assigns to trip's dispatcher)
+  └──→ Deviation Detection + Delay Detection (Telemetry + Route geometry + schedules)
+        └──→ Auto-Ticket Creation & Escalation Workflow (Dispatcher → Mgr → Dir Ops → MD)
 
 Phase 5: Operations
   Preventive Maintenance     ←── Parts + Workshop
   Proof of Delivery          ←── Trips
-  Yard & Dock Management
-  Expense Management (catalog + fixed/variable + full context)  ←── Support Tickets + Approvals
+  Yard, Dock & Queue Management  ←── Vehicles + all yard services
+  Expense Management (catalog + fixed/variable + any-level conversion)  ←── Tickets + Approvals
   Container & Demurrage Tracking  ←── Trips + Vehicles + Warehouses
   Performance Rating & Scoring    ←── Multiple data sources + Human ratings
   Wallet & Ledger                 ←── Users + all source modules (polymorphic)
+  Unified Reporting & Analytics   ←── All preceding phases (data sources)
 
 Phase 6: Commercial
   Rate / Tariff Engine ──→ Contract Management
+  Order-to-Dispatch Workflow  ←── Rates + Trip Ownership + Fuel + Docs
 
 Phase 7: Revenue
   Billing & Invoicing ──→ Accounts Receivable
@@ -100,6 +103,71 @@ copy for the company, one for the counterparty.
 
 **Why first:** Legal documents (payment proofs, delivery receipts) need a system record and
 a printable signature form. Everything else stays digital — no printing for internal steps.
+
+---
+
+### 1.2 Role Builder & Permission Manager
+
+A dedicated UI where a Super Admin can create roles and titles (Logistics Manager, Finance Officer,
+Director of Finance, Dispatcher, etc.) with transparent, granular permissions. Every role shows
+exactly what powers it has — no hidden access, no guessing who can do what.
+
+**The business problem:**
+- Roles and permissions are hardcoded or undocumented — no one knows exactly what a "Logistics
+  Manager" can vs cannot do
+- When a new hire joins, there's no way to quickly create a custom role matching their
+  responsibilities
+- No transparency: a dispatcher doesn't know if they can approve expenses; a manager doesn't
+  know if they can reassign trips
+- Scaling from 6 to 60+ staff requires clear, auditable role definitions
+
+**Requirements:**
+
+*Role & Permission Engine:*
+- `roles` table: `name`, `slug`, `description`, `is_super_admin` (boolean — bypasses all checks),
+  `is_active`, `created_by`, `created_at`
+- `permissions` table: `name`, `slug`, `group` (trips, vehicles, expenses, users, reports, fines,
+  containers, fuel, workshop, etc.), `description`
+- `role_permissions` pivot: `role_id`, `permission_id`, `allowed` (boolean — can also explicitly deny)
+- `user_roles` pivot: `user_id`, `role_id`, `assigned_by`, `assigned_at`
+
+*Permission Granularity (examples — each maps to a feature in this plan):*
+- Trips: view_assigned, view_all, create, assign_truck, assign_dispatcher, cancel, approve_deviation
+- Expenses: view_own, view_all, create_from_ticket, approve_stage1, approve_stage2, manage_catalog, pay
+- Vehicles: view, edit, transfer, deactivate
+- Users: view, create, assign_role, manage_permissions
+- Workshop: view_queue, assign_mechanic, approve_repair, release
+- Fuel: dispense, view_reports, manage_tanks, approve_supplier_delivery
+- Finance: view_pending_payments, process_payment, view_reports, reconcile
+- Containers: view, track, impute_demurrage
+- Reports: view_operational, view_financial, view_driver_performance, export
+
+*Super Admin UI:*
+- Role list view: all roles with user count, active status
+- Role detail/editor:
+  - Role name, description, active toggle
+  - Permissions grouped by module (expandable sections)
+  - Each permission: checkbox (allow) or explicit deny
+  - "Effective permissions" summary showing what this role can actually do in plain language
+- User role manager:
+  - Select user → assign one or more roles
+  - Effective permissions preview: "User X can: approve expenses up to Stage 1, assign trucks, view all trips"
+- Audit log: every role/permission change logged with who made it and when
+
+*Built-in Default Roles (seeded on install):*
+| Role | Scope |
+|------|-------|
+| Super Admin | Full access to everything |
+| Director of Operations | Approve Stage 2, view all, escalate to MD |
+| Logistics Manager | Assign trucks, approve Stage 1, manage expense catalog |
+| Operations Manager | Review deviations, reassign trips (legacy role) |
+| Dispatcher | View assigned trips, create tickets, convert to expense |
+| Finance Officer | View pending payments, process payments, view financial reports |
+| Driver | Mobile app: view trips, submit tickets, view wallet, acknowledge |
+| Sales Person | View client orders, create truck requests, view rates |
+| Customer | Portal: place orders, track, view invoices, rate driver |
+
+**Dependencies:** Users (existing, or seeded via initial setup)
 
 ---
 
@@ -441,6 +509,17 @@ Detect when a vehicle deviates from its assigned route in real time and take act
 - `route_deviations` table: `vehicle_id`, `trip_id`, `route_id`, `detected_at`, `gps_point` (Geometry), `distance_from_route` (meters), `duration_minutes`, `status` (new, investigating, resolved, escalated), `resolved_at`, `notes`
 - Dashboard: active deviations, deviation history per vehicle
 
+*Delay Detection (added alongside deviation monitoring):*
+- Not every problem is a route deviation — trips can also be delayed at origin, at loading, or at delivery
+- `delay_events` table: `trip_id`, `vehicle_id`, `delay_type` (late_departure, loading_delay, breakdown,
+  traffic, customer_delay, delivery_delay), `detected_at`, `expected_time`, `actual_time`,
+  `duration_minutes`, `status` (new, investigating, resolved, escalated), `notes`
+- **Late departure detection**: cron checks trips with `departure_time` past due + status still `assigned`
+  → auto-create delay event
+- **Loading delay**: if check-in at dock (5.3) exceeds expected load time threshold → auto-create delay event
+- **Arrival delay**: if ETA has passed + trip still `on_route` → auto-create delay event
+- All delay events feed into the same Auto-Ticket system (4.3)
+
 **Dependencies:** Routes (existing route geometry), Telemetry (existing telemetry_points table), Geofencing tables (existing schema)
 
 ---
@@ -452,31 +531,42 @@ When a route deviation is detected, automatically create a support ticket, assig
 **Workflow:**
 
 ```
-Deviation detected
+Problem detected (deviation, delay, fuel flag)
   ↓
-Auto-create support ticket (type: route_deviation, priority: based on duration)
+Auto-create support ticket
   ↓
 Assign to trip's current dispatcher (trip_dispatcher_assignments where unassigned_at IS NULL)
   ↓
-Dispatcher reviews route deviation (stops, calls driver)
-  ├── Reasonable deviation (traffic, road closure) → resolve ticket → close
-  └── Unauthorized deviation → escalate to Operations Manager
-        └── Escalate to Director of Operations if still unresolved after N hours
+Dispatcher reviews
+  ├── Resolved → close ticket
+  ├── Needs manager input → escalate to Logistics Manager
+  │     ├── Resolved → close
+  │     └── Needs higher authority → escalate to Director of Operations
+  │           ├── Resolved → close
+  │           └── Company-wide impact → escalate to Managing Director
+  └── At any level: anyone in the chain can also convert the issue to an expense
+        with amounts and justification (see Phase 5.4 Expense Management)
 ```
 
 **Requirements:**
 
 *Integration with existing Support Ticket system:*
-- `support_tickets` is extended with: `source` field (manual, auto_route_deviation, auto_fuel_flag, etc.)
-- Route deviation ticket auto-populates: vehicle, driver, route, deviation distance, duration, GPS coordinates
+- `support_tickets` is extended with: `source` field (manual, auto_route_deviation, auto_delay,
+  auto_fuel_flag, etc.)
+- Each ticket auto-populates: vehicle, driver, route, context details (deviation distance, delay
+  duration, GPS coordinates, etc.)
 - Assign to trip's current dispatcher (from `trip_dispatcher_assignments`), fallback to role-based pool
 
 *Escalation:*
 - `escalation_rules` table: `ticket_type`, `level`, `escalate_after_hours`, `assign_to_role`
-- Default rule: route deviation ticket not resolved in 2 hours → escalate to Operations Manager
-- Second level: not resolved in 6 hours → escalate to Director of Operations
+- Default four-level chain:
+  - Level 1: Dispatcher → Logistics Manager (unresolved after N hours)
+  - Level 2: Logistics Manager → Director of Operations (unresolved after N more hours)
+  - Level 3: Director of Operations → Managing Director (unresolved after N more hours)
 - Escalation updates: ticket reassigned, notification sent, escalation history logged
 - If the trip's dispatcher is reassigned during an active ticket, the ticket stays with the trip's new dispatcher
+- Anyone in the chain (dispatcher, manager, director, MD) can convert the issue into an expense
+  with amounts and justification (see Phase 5.4)
 
 *Dispatcher UI:*
 - Dedicated "Route Alerts" queue showing only tickets for the dispatcher's assigned trips
@@ -559,19 +649,59 @@ Electronic POD workflow for drivers and customers.
 
 ---
 
-### 5.3 Yard & Dock Management
+### 5.3 Yard, Dock & Queue Management
 
-Manage truck check-in/check-out, dock door assignment, and loading/unloading schedules.
+Manage truck check-in/check-out, dock door assignment, loading/unloading schedules, and
+FIFO/priority queues for all yard services: loading docks, workshop entry, fueling bay,
+and car wash. Every service has a queue to avoid chaos and ensure ordered service.
+
+**The business problem:**
+- 120+ trucks competing for limited services: fueling bay, workshop, wash bay, loading docks
+- No queue = drivers skip ahead, disputes, frustrated staff
+- No visibility on wait times: "how many trucks are ahead of me at the wash bay?"
+- No way to prioritize: an urgent breakdown should skip the workshop queue
+
+**Queue System (common to all service types):**
+- `service_queues` table: `id`, `vehicle_id`, `service_type` (loading_dock, unload_dock, workshop,
+  fueling_bay, car_wash, inspection), `priority` (1=critical, 2=urgent, 3=normal, 4=low),
+  `status` (waiting, in_progress, completed, skipped, cancelled), `position` (computed or ordered),
+  `requested_at`, `started_at`, `completed_at`, `assigned_station` (nullable — which specific dock/bay),
+  `notes`
+- Queue ordering: FIFO within same priority level; higher priority jumps the line
+- Each service type has its own queue view (dispatchers see relevant queues)
+- Estimated wait time: computed from average service time × trucks ahead in queue
+- Mobile check-in: driver checks in at arrival → auto-added to the appropriate queue
+- Station assignment: when a dock/bay becomes free, next truck in queue is auto-assigned
 
 **Requirements:**
+
+*Yard & Docks:*
 - `yard_entries` table: `vehicle_id`, `driver_id`, `check_in_at`, `check_out_at`, `purpose` (loading, unloading, parking, workshop), `dock_door_id`, `notes`
 - `dock_doors` table: `code`, `warehouse_id` (nullable), `is_occupied`, `current_vehicle_id`, `occupied_since`
-- Yard capacity dashboard (doors occupied / free, trucks waiting)
-- Check-in/check-out UI or mobile endpoint
+- Yard capacity dashboard (doors occupied / free, trucks waiting per queue)
 - Waiting time tracking (check-in to dock assignment)
-- Vue pages: yard dashboard, dock management, check-in log
 
-**Dependencies:** Vehicles + Drivers (both exist)
+*Service Queues:*
+- **Car wash queue**: trucks arrive at wash bay → check in → FIFO queue → wash → complete
+- **Workshop queue**: repair requests (Phase 2.2) feed into workshop queue once approved; priority based
+  on repair priority (critical over normal)
+- **Fueling queue**: trucks arriving at the yard petroleum station are queued; the route-linked
+  dispensing (3.2) is triggered when the truck reaches the pump
+- **Loading/unloading queues**: trucks arrive at yard → join loading or unloading queue → assigned to
+  next available dock door
+
+*Dashboard:*
+- Unified queue view: tabs for each service type showing current queue length, estimated wait time,
+  and current vehicle in service
+- Per-queue detail: list of waiting vehicles with priority badges, elapsed wait time
+- "Next up" indicator: which vehicle goes next to which station
+- Manual override: authorized user can reorder queue (logged)
+
+*Driver Mobile View:*
+- "My Position" screen: shows which queues the driver's truck is in, position, estimated wait
+- Push notification: "Your truck is next at the fueling bay" or "Dock 3 is ready for you"
+
+**Dependencies:** Vehicles + Drivers (both exist), Workshop (2.2) for workshop queue, Fuel (3.1) for fueling queue
 
 ---
 
@@ -579,7 +709,8 @@ Manage truck check-in/check-out, dock door assignment, and loading/unloading sch
 
 A unified expense module covering every cost incurred on a vehicle, linked to its full operational
 context: trip, route, driver, location, odometer. Supports pre-approved fixed expense items as
-well as variable/unpredictable expenses — the dispatcher chooses from a catalog or types a custom one.
+well as variable/unpredictable expenses. Any authorized user (dispatcher, manager, director, MD)
+can create an expense — either from a support ticket during escalation or as a direct entry.
 
 **The business problem:**
 - Expenses are scattered across support tickets, WhatsApp messages, phone calls, and paper receipts
@@ -599,17 +730,19 @@ well as variable/unpredictable expenses — the dispatcher chooses from a catalo
 
 **Workflow (two entry points):**
 
-*Entry point A — From support ticket (unpredictable on-road expense):*
+*Entry point A — From support ticket during escalation (any level can convert):*
 ```
 Driver submits support ticket describing the issue
   ↓  (e.g. "Blew a tire 30 km after Kabale, replaced at local shop")
-Dispatcher reviews — decides it qualifies as an expense
+Ticket flows through escalation chain (4.3):
+  Dispatcher → Logistics Manager → Director of Ops → Managing Director
   ↓
-Dispatcher opens "Convert to Expense":
+At any level, the current assignee can click "Convert to Expense":
   ├── Selects from pre-approved expense catalog (e.g. "Tire replacement 22R — 85,000 RWF")
   │     → Fixed expense, no approval needed, goes directly to Finance queue
-  └── Or types custom: name, description, estimated amount
-        → Variable expense, enters 2-level approval workflow
+  └── Or types custom: name, description, estimated amount, justification
+        → Variable expense, enters approval workflow (approval starts from the
+          level ABOVE whoever created it — e.g. if manager converts, director approves)
   ↓
 Expense recorded with full context (populated from ticket):
   vehicle, trip, route, driver, location, odometer, timestamp
@@ -646,10 +779,13 @@ Push notification to driver (if applicable)
 *1. Expense Types Catalog (pre-approved items):*
 - `expense_types` table: `name`, `description`, `category` (tires, engine, brakes, electrical,
   body, tolls, permits, accommodation, meals, fuel_external, towing, other), `expense_class`
-  (fixed, variable), `default_amount` (for fixed), `currency_id`, `is_active`
-- Admin CRUD for managing the catalog — Logistics Manager or Director of Operations maintains it
-- A fixed expense type means its default_amount is pre-approved; no further approval needed
-- A variable expense type still requires the full approval chain
+  (fixed, variable), `default_amount` (for fixed), `currency_id`, `status` (draft, pending_approval,
+  active, rejected), `created_by`, `approved_by`, `approved_at`, `is_active`
+- Logistics Manager can create a new expense type as "draft" → submits for approval
+- Director of Operations approves/rejects new expense type before it becomes active
+- Once approved, the expense type is available in the catalog for anyone to use
+- A fixed expense type means its default_amount is pre-approved; no further approval needed per instance
+- A variable expense type still requires the full approval chain per instance
 
 *2. Unified Expense Records with Full Context:*
 - `expenses` table (renamed from `expense_claims`): `reference`, `expense_type_id` (FK, nullable),
@@ -662,16 +798,22 @@ Push notification to driver (if applicable)
 - Receipt/document upload via Document Management (1.1)
 - If created from a support ticket: `support_ticket_id` populated; ticket status changes to `converted_to_expense`
 
-*3. Dispatcher UI — Converting a Ticket to an Expense:*
-- A "Convert to Expense" button on any open support ticket
+*3. Converting a Ticket to an Expense (from any escalation level):*
+- A "Convert to Expense" button on any open support ticket — visible to whoever currently holds
+  the ticket (dispatcher, manager, director, or MD)
 - Step 1: Search/select from the expense catalog. Shows pre-approved items with their default amounts.
-  If a match exists, dispatcher picks it → expense_class = fixed, amount pre-filled
-- Step 2: If not in catalog, toggle to custom entry: type name, description, estimated amount →
-  expense_class = variable
+  If a match exists, pick it → expense_class = fixed, amount pre-filled
+- Step 2: If not in catalog, toggle to custom entry: type name, description, estimated amount,
+  and a justification note → expense_class = variable
 - Step 3: Review and confirm. Pre-populated fields from the ticket: vehicle, driver, trip, route.
-  Dispatcher adds: location (from ticket context or manual), odometer
+  User adds: location (from ticket context or manual), odometer
 - Fixed expense → created directly at "approved" status, goes to Finance queue
 - Variable expense → created at "pending" status, enters approval workflow
+- **Approval rule**: the expense is approved by the level ABOVE whoever converted it:
+  - If dispatcher converted → Logistics Manager + Director of Operations approve
+  - If Logistics Manager converted → Director of Operations + (if amount > threshold) MD approve
+  - If Director of Operations converted → Managing Director approves
+  - If MD converted → auto-approved (MD is top of chain)
 
 *4. Direct Expense Entry (no ticket):*
 - A "New Expense" form available to dispatchers and managers
@@ -869,6 +1011,14 @@ A green container on the same screen shows "Private — Container ML-001 — In 
 delivery to Kigali — ETA tomorrow." She clicks it: this is a company-owned container last
 moved on Trip T-892, currently on Truck XYZ-789, estimated arrival 10:00. No penalties,
 just utilization tracking.
+
+A driver pulls into the yard after completing a trip. He checks in via the mobile app — the
+system adds him to the car wash queue (position 3, est. wait 20 min) and the workshop queue
+(his pre-existing repair request is already in the queue at position 5). He sees: "Car wash:
+3 ahead of you (~20 min). Workshop: 5 ahead of you (~2 hours)." When his truck reaches the
+front of the wash bay, his phone buzzes: "Your truck is next at the wash bay — proceed to
+Bay 2." After the wash, the system automatically moves him to the fueling queue where the
+attendant is waiting. No shouting, no skipping, no chaos — just ordered service.
 
 A traffic fine comes in for Truck XYZ-456 — speeding camera, 45,000 RWF. A manager reviews it,
 determines the driver was responsible, and opens the fine record. He clicks "Deduct from User
@@ -1080,9 +1230,97 @@ expenses, etc.) integrate via polymorphic source link
 
 ---
 
+### 5.8 Unified Reporting & Analytics
+
+A centralized reporting layer that pulls data from all modules into accurate, real-time,
+drill-down reports. Covers revenue, expenses, and operational metrics across every dimension:
+truck, route, driver, dispatcher, client, cargo type, and more.
+
+**The business problem:**
+- Reports are scattered across modules (workshop costs in Phase 2, fuel in Phase 3, expenses in
+  Phase 5, revenue in Phase 7) — no single view
+- Managers export data to Excel and manually cross-reference
+- No drill-down: "revenue is down" → "by which client?" → "on which route?" requires separate queries
+- Real-time insight is limited to a few dashboards
+
+**Requirements:**
+
+*1. Unified Report Engine (service class + scheduled materialized views):*
+- A `reporting` service that aggregates data from all modules into materialized views or a
+  dedicated `report_snapshots` table, refreshed on a schedule (every 15 min for operational,
+  daily for financial)
+- Reports are generated server-side with optional CSV/PDF export
+- Every report supports: date range filter, dimension filters (truck, driver, route, client,
+  dispatcher, cargo type), and drill-down (click a row → see detail)
+
+*2. Report Catalog (each is a route/endpoint + optional dashboard card):*
+
+*Operational Reports:*
+| Report | Dimensions | Source |
+|--------|-----------|--------|
+| Trip completion rate | By driver, truck, route | Trips |
+| On-time delivery % | By driver, client, route | POD (5.2) |
+| Average turnaround time | By truck, yard | Yard (5.3) |
+| Deviation frequency | By driver, truck, route | Deviations (4.2) |
+| Delay breakdown | By cause, driver, route | Delays (4.2) |
+| Workshop throughput | By mechanic, repair type | Workshop (2.2) |
+| Queue wait times | By service type (wash, fuel, dock) | Queues (5.3) |
+
+*Financial Reports:*
+| Report | Dimensions | Source |
+|--------|-----------|--------|
+| Revenue | By client, route, truck, cargo type, month | Invoices (7.1) |
+| Total expenses | By category, truck, driver, trip | Expenses (5.4) |
+| Expense breakdown | Fixed vs variable, by catalog type | Expenses (5.4) |
+| Profit per trip | Revenue − (fuel + expenses + driver cost) | Combined |
+| Profit per client | Total revenue − total costs per client | Combined |
+| Demurrage/detention cost | By shipping line, container | Containers (5.5) |
+| Fuel cost | By truck, route, driver | Fuel (3.1, 3.3) |
+| Wallet balance report | All users, negative balances aged | Wallet (5.7) |
+
+*Performance Reports:*
+| Report | Dimensions | Source |
+|--------|-----------|--------|
+| Driver scorecard | All score dimensions + trend | Ratings (5.6) |
+| Dispatcher scorecard | Resolution time, escalation rate | Ratings (5.6) |
+| Fleet utilization | % of trucks in use vs idle | Trips + Vehicles |
+| Container utilization | Private container days in use vs idle | Containers (5.5) |
+
+*3. Interactive Dashboard (real-time):*
+- Top-level KPIs: active trips, trucks in workshop, trucks fueling, pending expenses, revenue today
+- Each KPI is clickable → opens the detail report
+- Charts: revenue trend (line), expense breakdown (pie), top clients (bar), driver scores (histogram)
+- Auto-refresh: KPIs refresh every 30 seconds; reports refresh on page load
+- Role-based visibility: Super Admin sees everything; a Dispatcher sees only operational; a Finance
+  Officer sees only financial; a Driver sees only their own data
+
+*4. Drill-Down Example Flow:*
+```
+Operations Manager opens dashboard
+  → Sees "Revenue this month: $450K (▼12% vs last month)"
+  → Clicks revenue KPI
+  → Report: Revenue by Client, sorted by biggest decline
+  → Sees "Client ABC: $45K this month vs $78K last month (▼42%)"
+  → Clicks Client ABC
+  → Report: Trips for Client ABC this month
+  → Sees only 12 trips vs 22 last month
+  → Clicks a specific trip
+  → Trip detail: driver, truck, route, expenses, POD status
+  → Root cause: dispatcher reassignment caused delay
+```
+
+*5. Data Export:*
+- Every report has an "Export" button → CSV or PDF
+- Scheduled email reports: configure which reports go to which role (e.g., weekly financial report
+  to Finance Director every Monday at 8 AM)
+
+**Dependencies:** All preceding phases (data sources), User Roles (1.2) for role-based visibility
+
+---
+
 ## Phase 6 — Commercial
 
-*Builds on Phases 1–5.*
+*Builds on Phases 1–5. Includes the sales-to-operations handoff workflow.*
 
 ### 6.1 Rate / Tariff Engine
 
@@ -1114,19 +1352,121 @@ Customer service agreements that tie clients to pricing terms, SLAs, and validit
 
 ---
 
+### 6.3 Order-to-Dispatch Workflow
+
+The complete handoff from customer inquiry to truck on the road: customer submits order request
+→ sales person reviews and negotiates → after agreement, sales person creates a truck request
+for Logistics → Logistics Manager assigns a truck → system auto-assigns a dispatcher →
+dispatcher prepares the trip (fuel, mileage, docs, instructions) → trip begins.
+
+**The business problem:**
+- No formal handoff between sales (who closes the deal) and operations (who executes)
+- Sales person agrees terms with client but has no way to communicate tonnage, pickup, dropoff,
+  and special requirements to Logistics
+- Logistics Manager receives orders verbally or by email — no structured data
+- Dispatcher has no pre-departure checklist — they react to issues instead of preparing in advance
+
+**Workflow:**
+
+```
+Client submits inquiry via customer portal or sales person enters manually
+  ↓
+Sales person reviews: cargo type, tonnage, pickup/dropoff locations, dates
+  ↓
+Negotiation: sales person adjusts pricing (using rate engine), presents quote to client
+  ↓
+Client accepts + payment (if required) → order confirmed
+  ↓
+Sales person creates "Truck Request" with full context
+  ├── Cargo: type, tonnage, special handling (reefer, hazardous, fragile)
+  ├── Route: pickup location, dropoff location, expected pickup date, expected delivery date
+  ├── Commercial: agreed rate, client reference, payment status
+  └── Attachments: client PO, cargo manifest, special instructions
+  ↓
+Logistics Manager reviews Truck Request queue
+  ├── Assigns a specific truck (considering: tonnage capacity, current location, maintenance due)
+  └── If truck needs trailer — assigns trailer too
+  ↓
+System auto-creates trip + auto-assigns dispatcher (round-robin, per Phase 4.1)
+  ↓
+Dispatcher receives trip in "My Trips" with "Pre-Departure" status
+  └── Pre-departure checklist (dispatcher must complete before trip starts):
+        ├── Fuel: confirm fuel dispensed (or schedule at yard)
+        ├── Mileage: confirm current odometer, expected trip distance
+        ├── Documentation: upload trip documents (waybill, cargo manifest, permits, insurance copy)
+        ├── Driver instructions: route notes, customer contact, special handling instructions, 
+        │   emergency contacts — typed or attached as PDF
+        └── Pre-trip inspection: confirm driver completed vehicle check (linked to mobile app)
+  ↓
+Dispatcher marks "Ready to Depart" → trip status changes to "assigned" → driver notified
+  ↓
+Departure: driver confirms departure in mobile app → trip status → "on_route"
+```
+
+**Requirements:**
+
+*Truck Request (internal handoff document):*
+- `truck_requests` table: `reference`, `order_id` (FK), `sales_person_id` (FK users with sales role),
+  `cargo_type`, `tonnage`, `pickup_location`, `dropoff_location`, `expected_pickup_date`,
+  `expected_delivery_date`, `special_requirements` (text), `agreed_rate`, `client_reference`,
+  `payment_status` (pending, paid), `status` (draft, submitted, truck_assigned, in_progress, completed, cancelled),
+  `assigned_vehicle_id` (FK, nullable — set by Logistics Manager), `notes`, `created_at`, `updated_at`
+- Sales person creates from: a confirmed order (customer portal or manual entry)
+- Fields: cargo type + tonnage drive truck selection (a 5-ton truck can't carry 20 tons)
+
+*Logistics Manager Truck Assignment UI:*
+- Queue of pending truck requests sorted by expected pickup date
+- For each request: cargo details, tonnage, locations, dates, commercial info
+- Truck selector: shows available trucks, filtered by:
+  - Capacity >= required tonnage
+  - Current location near pickup location
+  - Not due for maintenance within trip distance
+  - Current fuel level
+- One-click assign → system creates the trip, links the truck request, auto-assigns dispatcher
+
+*Dispatcher Pre-Departure Checklist:*
+- `trip_preparations` table: `trip_id`, `fuel_confirmed` (boolean), `fuel_liters`, `odometer_start`,
+  `documents_uploaded` (boolean), `instructions_provided` (boolean), `inspection_confirmed` (boolean),
+  `prepared_by` (FK dispatcher), `ready_at` (timestamp), `notes`
+- Dispatcher dashboard shows: trips needing preparation, trips ready to depart, trips in progress
+- "Not Ready" warning: if any checklist item is incomplete, the dispatcher cannot mark the trip ready
+- Driver sees preparation status in mobile app: "Your dispatcher is preparing your trip" →
+  "Trip ready — please proceed to your truck"
+
+*Driver Notification (when trip is ready):*
+- Push notification: "Trip T-1042 is ready. Truck ABC-123, Kigali → Kampala. Pickup tomorrow 8:00 AM."
+- Driver opens mobile app: sees trip details, documents, instructions, route info
+
+**Dependencies:** Orders (existing or Phase 8), Rate Engine (6.1), Trip Ownership (4.1),
+Fuel Dispensing (3.2), Document Management (1.1), Mobile Companion App (existing)
+
+---
+
 ### Real-World Outcome After Phase 6
 
-A sales manager opens the rate card screen and sees a list of active tariffs — standard rates
-per km per vehicle type, fuel surcharge percentages, and customer-specific negotiated rates.
-When a new client asks for a quote, she creates a rate card for them: "USD 2.50/km for 20-ton
-trucks, 15% fuel surcharge, $50/hr loading wait time." The tariff engine calculates that for a
-300 km trip with a 20-ton truck and 2 hours loading wait: (300 × 2.50) + (300 × 2.50 × 0.15) +
-(50 × 2) = $862.50 + $100 = $962.50. She generates a quote PDF and sends it to the client in 2
-minutes instead of 20 minutes of manual calculation.
+A client submits an inquiry through the customer portal: "Need to move 15 tons of cement from
+Kigali to Kampala, pickup June 20." The sales person receives it, opens the rate engine, and
+calculates: 430 km × $2.50/km + 15% fuel surcharge = $1,236. She sends a quote to the client.
+The client asks for a discount at $2.20/km. The sales person adjusts, re-sends. Client accepts.
 
-When a trip is completed, the system automatically calculates the invoice amount using the
-assigned rate card. No re-typing. The invoice is generated, sent to the client, and tracked.
-Finance can see at a glance which invoices are paid, overdue, or disputed.
+Once payment is confirmed, the sales person creates a Truck Request: cargo=cement, tonnage=15T,
+pickup=Kigali warehouse, dropoff=Kampala depot, pickup date=June 20, special instructions=
+"Cover with tarpaulin — cement must stay dry."
+
+The Logistics Manager opens the Truck Request queue. Available trucks filtered by capacity
+(≥15T) and proximity to Kigali. He picks Truck XYZ-789, assigns it. The system auto-creates
+the trip and assigns it to Dispatcher Alice (round-robin).
+
+Alice opens her "Pre-Departure" tab. She checks: fuel dispensed (120L per route calculation),
+odometer confirmed (45,230 km), documents uploaded (waybill, cement handling instructions,
+Rwanda customs permit), driver instructions written ("Contact John at Kampala depot
++256 700 XXX XXX — offload bay 3"). She marks the trip ready. Driver Bob gets a notification:
+"Trip T-1100 is ready. Truck XYZ-789, Kigali → Kampala, pickup tomorrow 8 AM."
+
+Bob departs. Trip status → on_route. Alice monitors. When a delay ticket auto-creates (Bob
+is stuck at the border for 3 hours), Alice escalates to the Logistics Manager. The manager
+converts it to an expense — "Border delay fee — 50,000 RWF" — which needs Director approval.
+Director approves, Finance pays, Bob gets reimbursed. One story, one chain, end to end.
 
 When a new client signs up, a contract is created with start and end dates, the agreed rate
 card is attached, and the system sends reminders 30 days before expiry. If the contract allows
@@ -1416,6 +1756,7 @@ no emails, no manual order entry — the entire flow is automated end to end.
 ```
 Phase 1  ─── Foundation
   1.1  Document Management (legal documents, file storage)
+  1.2  Role Builder & Permission Manager
 
 Phase 2  ─── Workshop & Maintenance
   2.1  Spare Parts Inventory
@@ -1430,21 +1771,23 @@ Phase 3  ─── Fuel Management
 
 Phase 4  ─── Route Intelligence & Trip Ownership
   4.1  Trip Ownership & Dispatcher Assignment
-  4.2  Deviation Detection Engine
-  4.3  Auto-Ticket Creation & Escalation Workflow
+  4.2  Deviation Detection + Delay Detection
+  4.3  Auto-Ticket Creation & Escalation Workflow (Dispatcher → Mgr → Dir Ops → MD)
 
 Phase 5  ─── Operations
   5.1  Preventive Maintenance
   5.2  Proof of Delivery
-  5.3  Yard & Dock Management
-  5.4  Expense Management (catalog + fixed/variable + full context)
+  5.3  Yard, Dock & Queue Management
+  5.4  Expense Management (catalog + fixed/variable + any-level conversion)
   5.5  Container & Demurrage Tracking
   5.6  Performance Rating & Scoring
   5.7  Wallet & Ledger
+  5.8  Unified Reporting & Analytics
 
 Phase 6  ─── Commercial
   6.1  Rate / Tariff Engine
   6.2  Contract Management
+  6.3  Order-to-Dispatch Workflow (quote → truck request → assignment → prep)
 
 Phase 7  ─── Revenue
   7.1  Billing & Invoicing
