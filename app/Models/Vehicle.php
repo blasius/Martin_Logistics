@@ -101,8 +101,17 @@ class Vehicle extends Model
     public function drivers()
     {
         return $this->belongsToMany(Driver::class, 'driver_vehicle_assignments')
-            ->withPivot('start_date', 'end_date') // ONLY these two
-            ->withTimestamps(); // Only if you have created_at/updated_at
+            ->withPivot('start_date', 'end_date')
+            ->withTimestamps();
     }
 
+    public function repairRequests()
+    {
+        return $this->hasMany(RepairRequest::class);
+    }
+
+    public function latestRepairRequest()
+    {
+        return $this->hasOne(RepairRequest::class)->latestOfMany();
+    }
 }
