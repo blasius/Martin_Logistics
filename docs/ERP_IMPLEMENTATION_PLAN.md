@@ -34,7 +34,7 @@ Phase 1: Foundation
 
 Phase 2: Workshop
   Spare Parts Inventory      │
-  └──→ Repair Request & Approval Workflow
+  └──→ Repair Request & Approval Workflow (with checklist + released pool)
         └──→ Procurement (parts purchasing)
               └──→ Workshop Dashboard (real-time status)
 
@@ -239,8 +239,16 @@ Management for a legal receipt.
 - Mechanics log time spent and actual parts used (vs estimated)
 
 *Step 6 — Release:*
-- `repair_releases` table: `repair_request_id`, `released_by`, `released_at`, `odometer_at_release`, `notes`
-- Vehicle status changes from `in_workshop` to `available`
+- `repair_releases` table: `repair_request_id`, `released_by`, `released_at`, `odometer_at_release`,
+  `unresolved_issues` (text, **required** — workshop must note any remaining problems, even if minor),
+  `checklist_completed` (boolean — enforces that all required checkups were done)
+- Vehicle status changes from `in_workshop` to `released_from_workshop` (enters a "released pool")
+- The released pool is visible to dispatchers and the Logistics Manager — they decide which
+  vehicles are truly road-ready and can be marked `available` or sent back to workshop if
+  unresolved issues are critical
+- **Enforcement**: the system prevents release if any required checklist items are incomplete
+  (e.g., brake check, fluid levels, tire pressure for trucks that had brake-related repairs),
+  as configured per repair type
 
 *Dashboard & Reporting:*
 - Real-time board: which trucks are in workshop, assigned mechanic, status, ETA
@@ -308,8 +316,18 @@ and how long each repair is expected to take. He sees that Truck ABC-123 has bee
 for 3 days and is overdue, and that the engine parts for Truck XYZ-456 are still waiting at the
 supplier.
 
-When the repair is done, the mechanic marks it complete, a supervisor inspects and releases the
-truck, and the vehicle status changes from `in_workshop` to `available` in the system.
+When the repair is done, the mechanic marks it complete. A supervisor inspects the truck and
+opens the release screen. The system requires him to complete a checklist based on the repair
+type — since this was a brake job, he must confirm: brake fluid level OK, brake pad wear within
+limits, test drive completed. He also must enter any unresolved issues: "Slight vibration at
+high speed — recommend monitoring." He releases the truck.
+
+But the truck doesn't go directly to "available." It enters the **released pool** — a queue of
+vehicles that have been through workshop but await a dispatcher or Logistics Manager to confirm
+they're road-ready. The Logistics Manager opens the pool, sees the unresolved issues note,
+decides the vibration is acceptable for local routes but not for long-haul. He marks it
+"available for local trips only" or sends it back to workshop if the issue is critical. This
+two-stage gate prevents workshop from dumping trucks back into the fleet without accountability.
 
 No more clipboards, no more walking to find the manager, no more wondering where a truck is in
 the workshop process, no more Excel sheets to track parts costs. No paper at all — until a cash
