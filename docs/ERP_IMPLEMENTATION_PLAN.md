@@ -12,6 +12,11 @@ Vehicle arrives at yard after trip
   ↓
 Submits repair request → 2-level approval → parts purchase → repair → release
   ↓
+Pre-trip clearance (workshop issues, expired docs, fines, balances)
+  ├── All clear → trip created normally
+  └── Blockers found → dispatcher resolves or requests manager bypass
+        └── Manager approves with comment → driver notified via mobile app
+  ↓
 Vehicle assigned to next trip ──→ Trip owner assigned (one dispatcher per trip)
   ↓
 Fuel dispensed based on route + 50L reserve → departure
@@ -48,6 +53,7 @@ Phase 4: Route Intelligence & Trip Ownership
   Trip Ownership & Dispatcher Assignment (one dispatcher per trip, history preserved)
   └──→ Deviation Detection + Delay Detection (Telemetry + Route geometry + schedules)
         └──→ Auto-Ticket Creation & Escalation Workflow (Dispatcher → Mgr → Dir Ops → MD)
+  Pre-Trip Clearance & Gatekeeping ←── Workshop + Docs + Fines + Wallet (checks before trip start)
 
 Phase 5: Operations
   Preventive Maintenance     ←── Parts + Workshop
@@ -675,7 +681,146 @@ Dispatcher reviews
 
 ---
 
+### 4.5 Pre-Trip Clearance & Gatekeeping
+
+Before a trip can start, the system checks every condition that might prevent the truck from
+safely and legally hitting the road. Dispatchers can override individual failures, but each
+override requires manager approval with a written comment. The driver is notified via the
+mobile companion app once clearance is granted.
+
+**The business problem:**
+- A truck rolls out of the yard with an unresolved workshop issue — breaks down on the highway
+- A driver's license expired last week — the trip gets stopped at a police checkpoint, fined, delayed
+- A driver has pending traffic fines — another checkpoint, another delay, another fine
+- A driver has a negative wallet balance — already owes the company money, should not be
+  dispatched on a new revenue-generating trip without acknowledging the debt
+- Dispatchers have no dashboard showing "here's why this truck cannot leave right now"
+- When a dispatcher DOES override a warning, there's no record of who approved it or why
+
+**Requirements:**
+
+*Clearance Checks (performed at trip creation, before "Ready to Depart"):*
+
+| # | Check | Source | Severity |
+|---|-------|--------|----------|
+| 1 | Workshop release with unresolved issues | `repair_requests` where vehicle_id = trip's truck AND status = released_with_issues | BLOCKING |
+| 2 | Expired vehicle documents (insurance, inspection, registration) | `vehicle_insurances`, `vehicle_inspections`, Document Management expiry dates | BLOCKING |
+| 3 | Expired driver license | `drivers.license_expiry_date` | BLOCKING |
+| 4 | Pending traffic fines linked to driver or vehicle | `traffic_fines` where status = unpaid AND (driver_id = trip's driver OR vehicle_id = trip's truck) | WARNING |
+| 5 | Driver negative wallet balance | `wallets` where user_id = trip's driver AND current_balance < 0 | WARNING |
+| 6 | Preventive maintenance overdue | `vehicle.last_pm_date` + interval vs. today | WARNING |
+| 7 | Outstanding support tickets on vehicle/driver | `support_tickets` where status = open AND linked to trip's vehicle or driver | INFO |
+
+- BLOCKING = trip cannot be created or marked ready until resolved or overridden
+- WARNING = displays prominently but does not block — driver should be informed
+- INFO = shown for awareness only
+
+*Trip Clearance Bypass Flow:*
+```
+System checks all conditions at trip creation
+  ↓
+All passed? → trip created normally, status = "scheduled" or "pre_departure"
+  │
+  ↓ (any blocking failure)
+System prevents trip creation, shows clearance dashboard with all failures
+  ├── [Resolve Issue] → dispatcher fixes the underlying problem (e.g. renews insurance)
+  │     └── System re-checks → all clear → trip created
+  │
+  └── [Request Bypass] → dispatcher selects specific failures to override
+        ├── Requires: written justification per failure
+        ├── Trip status → "pending_clearance" (not yet created fully — held in draft)
+        └── Manager notification (email/push/dashboard badge)
+              ↓
+        Manager reviews clearance dashboard
+          ├── [Approve] → enters comment per bypass item
+          │     └── Trip created → status = "scheduled"
+          │           └── Driver notified via mobile app with:
+          │                 ├── Trip details (truck, route, dates)
+          │                 ├── Bypassed items: "Insurance expired — manager approved"
+          │                 ├── Special instructions from dispatcher
+          │                 └── "Contact your dispatcher: Alice (+250 788 XXX XXX)"
+          │
+          └── [Reject] → enters rejection reason
+                └── Trip stays in "pending_clearance" — dispatcher must resolve
+```
+
+*Data Model:*
+- `trip_clearance_bypasses` table: `id`, `trip_id` (nullable — assigned after approval),
+  `check_type` (enum: workshop_issues, expired_document, expired_license, unpaid_fines,
+  negative_balance, pm_overdue), `check_reference_type` (polymorphic — the specific failing
+  entity, e.g. App\Models\VehicleInsurance::class), `check_reference_id`, `severity` (blocking,
+  warning, info), `details` (text — pre-filled with the failure, e.g. "Insurance policy EXP-456
+  expired on 2026-04-15"), `dispatcher_justification` (text), `status` (pending, approved,
+  rejected), `reviewed_by` (FK users, nullable), `reviewer_comment` (text, nullable),
+  `reviewed_at` (timestamp, nullable), `created_at`, `updated_at`
+- Only one bypass request per trip — a batch of individual bypass items
+- A `trip_clearance_bypass_approvals` pivot for tracking which manager approved which items
+  (if multiple items need different managers in hierarchy)
+
+*Dispatcher Clearance Dashboard:*
+- Trip creation modal/flow automatically opens clearance summary when failures exist
+- Shows: traffic light (red/yellow/green), list of failures with details, resolution button,
+  bypass request button
+- "Pending Clearances" queue: all trips stuck in pending_clearance, grouped by age
+- Bypass request form: select failures to override, write justification per item, submit
+
+*Manager Clearance Review UI:*
+- "Clearance Requests" queue: count badge in navigation
+- Each request shows: dispatcher name, truck, driver, route, date, and all bypass items
+- Per item: failure details, dispatcher justification, [Approve] / [Reject] with comment
+- Approve all at once or per-item
+- If approved: system auto-creates trip, sends notification to driver's mobile app
+- If rejected: dispatcher sees reason, must resolve before re-submitting
+
+*Trip Status Additions:*
+- New trip status: `pending_clearance` (system-created but held — trip record may exist in
+  draft form with a unique reference but not yet "live")
+- Alternative: create trip with `is_cleared = false` flag instead of a separate status
+- Once manager approves → `is_cleared = true` or status transitions to `scheduled`/`pre_departure`
+
+*Driver Mobile Notification:*
+- Push notification payload:
+  ```json
+  {
+    "type": "trip_clearance_granted",
+    "trip_id": 1042,
+    "reference": "T-1042",
+    "truck": "ABC-123",
+    "route": "Kigali → Kampala",
+    "dispatcher": "Alice (+250 788 XXX XXX)",
+    "bypasses": [
+      {
+        "item": "Insurance expired (EXP-456)",
+        "status": "manager_approved",
+        "note": "Temporary cover note issued, renewal in progress — MD approved"
+      }
+    ],
+    "instructions": "Pickup at Mombasa Port, Dock 7. Contact site manager John (+254 7XX XXX XXX)."
+  }
+  ```
+- Driver opens app → sees trip card with clearance status, bypass notes, and instructions
+- Trip detail screen shows each bypass item with resolved status and manager comment
+
+**Dependencies:** Trip Ownership (4.1), Workshop (2.1–2.5), Document Management (1.1),
+Vehicle Insurance (existing), Traffic Fines (existing), Wallet (5.9 — for negative balance
+check; can be added later as an extension), Mobile Companion App (existing)
+
+---
+
 ### Real-World Outcome After Phase 4
+
+Dispatcher David opens trip creation for Truck ABC-123, Kigali → Kampala. Before the trip is
+created, the system runs clearance checks: the truck's insurance expired yesterday (BLOCKING),
+the driver has an unpaid traffic fine from last month (WARNING), and the driver's wallet is
+negative (WARNING). David can resolve the insurance by uploading the renewal certificate, or
+request a manager bypass. He requests a bypass for the insurance with justification: "Renewal
+paid, waiting for certificate from insurer". The trip is held in "pending_clearance" status.
+
+The Operations Manager receives a notification, opens the Clearance Requests queue, sees David's
+request, reads the justification, and approves with comment: "Temporary cover note issued —
+renewal expected within 48 hours." The system creates the trip, sends a push notification to
+the driver: "Trip T-1042 ready. Truck ABC-123, Kigali → Kampala. Note: Insurance expired —
+manager approved. Pickup tomorrow 8:00 AM. Your dispatcher: David (+250 788 XXX XXX)."
 
 A trip is created for Truck ABC-123, Kigali → Kampala. The system automatically assigns it to
 Dispatcher Alice (round-robin among 6 dispatchers). The trip detail page shows "Your Dispatcher:
@@ -1866,6 +2011,7 @@ Phase 4  ─── Route Intelligence & Trip Ownership
   4.1  Trip Ownership & Dispatcher Assignment
   4.2  Deviation Detection + Delay Detection
   4.3  Auto-Ticket Creation & Escalation Workflow (Dispatcher → Mgr → Dir Ops → MD)
+  4.4  Pre-Trip Clearance & Gatekeeping (workshop issues, expired docs, fines, wallet)
 
 Phase 5  ─── Operations
   5.1  Preventive Maintenance
