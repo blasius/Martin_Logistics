@@ -31,6 +31,7 @@ Back to yard → repeat
 Phase 1: Foundation
   Document Management ──────┬──→ Legal documents (payment receipts, POD, contracts)
   Role Builder & Permissions ──→ All modules (who can do what)
+  Currency & Exchange Rates  ──→ All monetary transactions (conversion, display)
 
 Phase 2: Workshop
   Spare Parts Inventory      │
@@ -171,6 +172,73 @@ exactly what powers it has — no hidden access, no guessing who can do what.
 
 ---
 
+### 1.3 Currency & Exchange Rate Management
+
+A central currency system that ensures every monetary amount in the system has a currency and is
+displayable in the user's default currency using historical or current exchange rates.
+
+**The business problem:**
+- Expenses may be incurred in USD (fuel at border), RWF (local parts), or UGX (Kampala permits)
+- Invoicing clients in their preferred currency while reporting in the national currency
+- Exchange rates fluctuate daily — an expense logged in USD on May 3 needs the May 3 rate, not
+  today's rate, for accurate reporting
+- Without a currency layer, amounts in different currencies cannot be compared or summed
+
+**Requirements:**
+
+*Currencies Table:*
+- `currencies` table: `code` (RWF, USD, UGX, KES, EUR), `name`, `symbol`, `is_default` (exactly one),
+  `decimal_places` (0 for RWF, 2 for USD), `is_active`, `created_at`
+- Seeded with common East African currencies; Super Admin can add more
+- The default currency is the national currency for reporting — all dashboards and reports
+  display amounts converted to this currency by default
+
+*Exchange Rates (historical, date-bound):*
+- `exchange_rates` table: `from_currency_id`, `to_currency_id`, `rate` (decimal — e.g., 1460 for
+  1 USD = 1,460 RWF), `date` (date — which day this rate was valid), `source` (manual, bank_feed,
+  automated_api), `created_by`
+- One row per currency pair per date: USD→RWF on May 3 = 1460, USD→RWF on May 4 = 1475
+- Rate for today is used for current display; rate for a specific date is used when converting
+  historical amounts
+- If no rate exists for a given date, the system uses the most recent rate before that date
+  (fallback), with a warning flag on the report
+- Admin UI: add/edit rates, bulk import from CSV, optional API integration (free currency API)
+
+*Currency Conversion Service:*
+- A `CurrencyService` with methods:
+  - `convert(amount, from_currency, to_currency, date = null)`: converts using the rate valid on
+    that date (or latest available)
+  - `format(amount, currency, convert_to_default = true)`: returns a display string like
+    "$50.00 (≈ 73,000 RWF)" when showing a non-default currency amount
+  - `formatDefault(amount, currency)`: returns only the default currency representation
+- Used by all reporting (Phase 5.8) to sum amounts across currencies
+- Used by dashboards to display a unified view in the national currency
+
+*Where currency_id is already used (enforced by schema across the plan):*
+| Table | Purpose |
+|-------|---------|
+| `expenses` | Cost incurred in the transaction's currency |
+| `expense_types` | Pre-approved amounts in their original currency |
+| `wallets` | Wallet balance per currency (one wallet per user per currency) |
+| `wallet_transactions` | Each transaction in its original currency |
+| `rate_card_items` | Pricing per currency |
+| `invoices` | Invoice amount in the agreed currency |
+| `purchase_orders` | Supplier purchase in the transaction currency |
+| `shipping_line_contracts` | Demurrage/detention rates in their currency |
+| `containers` (purchase_value) | Container asset value |
+
+*Display behavior throughout the app:*
+- Every monetary field stores its original `currency_id` and amount
+- When displaying: if the user's preferred display currency differs from the stored currency,
+  show both: "USD 50.00 (≈ 73,000 RWF)"
+- Reports: all amounts are shown in the default currency with an optional "show original" toggle
+- Dashboards: all KPIs are in the default currency
+- The conversion uses the **date of the transaction**, not today's rate, for historical accuracy
+
+**Dependencies:** None (seeded data)
+
+---
+
 ### Real-World Outcome After Phase 1
 
 The system stores all operational files in one place: vehicle photos, driver license scans,
@@ -181,6 +249,12 @@ pattern applies to proof of delivery. No more digging through filing
 cabinets; everything has a digital record, and a clean signed printout is available when
 the law requires it. Internal workflows (repair requests, approvals, parts movements) live
 entirely in the system — no paper.
+
+The Super Admin adds currencies: RWF (default), USD, UGX. He sets today's rate: 1 USD = 1,460 RWF.
+A fuel expense logged in USD at the border automatically shows "USD 200.00 (≈ 292,000 RWF)" in
+dashboards. Last month's invoice in USD uses the exchange rate from that invoice's date, not
+today's rate — preserving accurate historical reporting. Every expense, invoice, and wallet
+transaction has its original currency stored and is convertible to the default currency on the fly.
 
 ---
 
@@ -1775,6 +1849,7 @@ no emails, no manual order entry — the entire flow is automated end to end.
 Phase 1  ─── Foundation
   1.1  Document Management (legal documents, file storage)
   1.2  Role Builder & Permission Manager
+  1.3  Currency & Exchange Rate Management
 
 Phase 2  ─── Workshop & Maintenance
   2.1  Spare Parts Inventory
