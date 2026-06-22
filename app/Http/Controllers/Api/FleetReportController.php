@@ -14,6 +14,7 @@ use App\Models\ExpenseType;
 use App\Models\VehicleSnapshot;
 use App\Models\TelemetryEvent;
 use App\Models\Currency;
+use App\Services\CurrencyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -25,12 +26,13 @@ class FleetReportController extends Controller
         $today = now();
 
         // ── Currency handling ──
+        $currencyService = app(CurrencyService::class);
         $currencies = Currency::all(['id', 'code', 'name', 'symbol', 'is_default']);
         $defaultCurrency = $currencies->firstWhere('is_default', true) ?? $currencies->first();
         $selectedCurrencyId = $request->integer('currency_id', $defaultCurrency?->id ?? 2);
         $selectedCurrency = $currencies->firstWhere('id', $selectedCurrencyId) ?? $defaultCurrency;
-        // Fines are always in RWF regardless of selected currency
         $rwf = $currencies->firstWhere('code', 'RWF') ?? $defaultCurrency;
+        $usd = $currencies->firstWhere('code', 'USD') ?? $defaultCurrency;
         $monthStart = $today->copy()->startOfMonth();
         $yearStart = $today->copy()->startOfYear();
         $twelveMonthsAgo = $today->copy()->subMonths(12);
@@ -105,11 +107,13 @@ class FleetReportController extends Controller
             'completed_trips' => $completedTrips,
             'active_trips' => $activeTrips,
             'pending_trips' => Trip::where('status', 'pending')->count(),
-            'total_revenue' => $totalRevenue,
-            'month_revenue' => $monthRevenue,
-            'avg_revenue_per_trip' => $completedTrips > 0 ? round($totalRevenue / $completedTrips, 2) : 0,
+            'total_revenue' => $currencyService->convert($totalRevenue, $usd, $selectedCurrency),
+            'month_revenue' => $currencyService->convert($monthRevenue, $usd, $selectedCurrency),
+            'avg_revenue_per_trip' => $completedTrips > 0 ? round($currencyService->convert($totalRevenue, $usd, $selectedCurrency) / $completedTrips, 2) : 0,
             'delivery_rate' => $totalTrips > 0 ? round(($completedTrips / $totalTrips) * 100, 1) : 0,
-            'top_clients' => $topClients,
+            'top_clients' => $topClients->map(fn ($c) => array_merge($c, [
+                'total_revenue' => $currencyService->convert($c['total_revenue'], $usd, $selectedCurrency),
+            ])),
         ];
 
         // ── Compliance ──
@@ -160,8 +164,12 @@ class FleetReportController extends Controller
         $totalExpenses = (float) Requisition::whereIn('status', ['paid', 'approved'])->sum('amount');
         $totalFineCost = (float) TrafficFine::sum('ticket_amount');
         $totalFinePaid = (float) TrafficFine::where('status', 'PAID')->sum('paid_amount');
-        $netProfit = $totalRevenue - $totalExpenses - $totalFineCost;
-        $profitMargin = $totalRevenue > 0 ? round(($netProfit / $totalRevenue) * 100, 1) : 0;
+        $convertedRevenue = $currencyService->convert($totalRevenue, $usd, $selectedCurrency);
+        $convertedExpenses = $currencyService->convert($totalExpenses, $usd, $selectedCurrency);
+        // Fines are always in RWF — convert to selected currency for net profit calculation but keep RWF display
+        $convertedFineCost = $currencyService->convert($totalFineCost, $rwf, $selectedCurrency);
+        $netProfit = $convertedRevenue - $convertedExpenses - $convertedFineCost;
+        $profitMargin = $convertedRevenue > 0 ? round(($netProfit / $convertedRevenue) * 100, 1) : 0;
 
         // Monthly revenue trend — same order base as top clients
         $monthlyRevenue = (clone $orderRevenueQuery)
@@ -186,7 +194,7 @@ class FleetReportController extends Controller
             ->orderBy('month')
             ->pluck('value', 'month');
 
-        // Build combined monthly labels & series
+        // Build combined monthly labels & series (convert to selected currency)
         $monthlyLabels = [];
         $monthlyRevenueSeries = [];
         $monthlyExpensesSeries = [];
@@ -195,9 +203,9 @@ class FleetReportController extends Controller
             $key = $d->format('Y-m');
             $label = $d->format('M');
             $monthlyLabels[] = $label;
-            $monthlyRevenueSeries[] = (float) ($monthlyRevenue[$key] ?? 0);
-            $monthlyExpensesSeries[] = (float) ($monthlyExpenses[$key] ?? 0);
-            $monthlyFinesSeries[] = (float) ($monthlyFines[$key] ?? 0);
+            $monthlyRevenueSeries[] = (float) $currencyService->convert($monthlyRevenue[$key] ?? 0, $usd, $selectedCurrency);
+            $monthlyExpensesSeries[] = (float) $currencyService->convert($monthlyExpenses[$key] ?? 0, $usd, $selectedCurrency);
+            $monthlyFinesSeries[] = (float) $currencyService->convert($monthlyFines[$key] ?? 0, $rwf, $selectedCurrency);
         }
 
         // Cost breakdown by expense type
@@ -213,8 +221,8 @@ class FleetReportController extends Controller
             ->get();
 
         $financial = [
-            'total_revenue' => $totalRevenue,
-            'total_expenses' => $totalExpenses,
+            'total_revenue' => $convertedRevenue,
+            'total_expenses' => $convertedExpenses,
             'total_fine_cost' => $totalFineCost,
             'total_fine_paid' => $totalFinePaid,
             'net_profit' => $netProfit,
@@ -223,7 +231,11 @@ class FleetReportController extends Controller
             'monthly_revenue' => $monthlyRevenueSeries,
             'monthly_expenses' => $monthlyExpensesSeries,
             'monthly_fines' => $monthlyFinesSeries,
-            'cost_breakdown' => $costBreakdown,
+            'cost_breakdown' => $costBreakdown->map(fn ($c) => [
+                'name' => $c->name,
+                'amount' => (float) $currencyService->convert((float) $c->amount, $usd, $selectedCurrency),
+            ]),
+            'fine_currency' => 'RWF',
         ];
 
         // ── Fuel Overview ──

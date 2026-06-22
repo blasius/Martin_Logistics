@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             RolesSeeder::class,
+            ExchangeRateSeeder::class,
         ]);
 
         // Run Wialon sync after DB created (only when you want it)

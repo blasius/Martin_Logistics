@@ -128,7 +128,10 @@ export const menu = [
     {
         label: "Currencies",
         icon: DollarSign,
-        to: "/currencies",
+        children: [
+            { label: "Manage Currencies", to: "/currencies" },
+            { label: "Exchange Rates", to: "/exchange-rates" },
+        ],
     },
     {
         label: "Audit Logs",

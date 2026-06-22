@@ -218,13 +218,20 @@ const selectedCurrency = computed(() => {
     return currencies.value.find(c => c.id === selectedCurrencyId.value) || { code: 'RWF', symbol: 'RWF' }
 })
 
+const shortenNumber = (val) => {
+    if (val == null || isNaN(val)) return '—'
+    const abs = Math.abs(val)
+    if (abs >= 1_000_000_000) return (val / 1_000_000_000).toLocaleString('en-US', { maximumFractionDigits: 2 }) + 'B'
+    if (abs >= 1_000_000) return (val / 1_000_000).toLocaleString('en-US', { maximumFractionDigits: 2 }) + 'M'
+    if (abs >= 1_000) return (val / 1_000).toLocaleString('en-US', { maximumFractionDigits: 2 }) + 'k'
+    return Number(val).toLocaleString('en-US', { maximumFractionDigits: 2 })
+}
+
 const formatCurrency = (val) => {
     if (val == null) return '—'
     const c = selectedCurrency.value
-    if (c.code === 'RWF') {
-        return 'RWF ' + Number(val).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-    }
-    return c.symbol + ' ' + Number(val).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+    const prefix = c.code === 'RWF' ? 'RWF ' : c.symbol + ' '
+    return prefix + Number(val).toLocaleString('en-US', { maximumFractionDigits: 2 })
 }
 
 const formatFines = (val) => {
@@ -309,7 +316,7 @@ const renderCharts = () => {
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
                 scales: {
-                    x: { beginAtZero: true, ticks: { font: { size: 9 }, callback: (v) => selectedCurrency.symbol + (v / 1000).toFixed(0) + 'k' } },
+                    x: { beginAtZero: true, ticks: { font: { size: 9 }, callback: (v) => selectedCurrency.value.symbol + shortenNumber(v) } },
                     y: { ticks: { font: { size: 8 } } }
                 }
             }
@@ -347,14 +354,14 @@ const renderCharts = () => {
         charts.push(new Chart(fineChart.value, {
             type: 'line',
             data: { labels, datasets: [{ label: 'Fine Amount (RWF)', data: amounts, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, tension: 0.3, pointRadius: 3 }] },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: { callbacks: { label: (ctx) => 'RWF ' + Number(ctx.raw).toLocaleString() } }
-                },
-                scales: { y: { beginAtZero: true, ticks: { callback: (v) => 'RWF ' + Number(v).toLocaleString() } } }
-            }
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: (ctx) => 'RWF ' + Number(ctx.raw).toLocaleString('en-US', { maximumFractionDigits: 2 }) } }
+                    },
+                    scales: { y: { beginAtZero: true, ticks: { callback: (v) => 'RWF ' + Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 }) } } }
+                }
         }))
     }
 
@@ -389,15 +396,15 @@ const renderCharts = () => {
                     y: {
                         beginAtZero: true,
                         position: 'left',
-                        title: { display: true, text: 'Revenue (' + selectedCurrency.symbol + ')', font: { size: 9 } },
-                        ticks: { font: { size: 8 }, callback: (v) => selectedCurrency.symbol + (v / 1000).toFixed(0) + 'k' }
+                        title: { display: true, text: 'Revenue (' + selectedCurrency.value.symbol + ')', font: { size: 9 } },
+                        ticks: { font: { size: 8 }, callback: (v) => selectedCurrency.value.symbol + shortenNumber(v) }
                     },
                     y1: {
                         beginAtZero: true,
                         position: 'right',
                         grid: { drawOnChartArea: false },
-                        title: { display: true, text: 'Costs (' + selectedCurrency.symbol + ')', font: { size: 9 } },
-                        ticks: { font: { size: 8 }, callback: (v) => selectedCurrency.symbol + (v / 1000).toFixed(0) + 'k' }
+                        title: { display: true, text: 'Costs (' + selectedCurrency.value.symbol + ')', font: { size: 9 } },
+                        ticks: { font: { size: 8 }, callback: (v) => selectedCurrency.value.symbol + shortenNumber(v) }
                     }
                 }
             }

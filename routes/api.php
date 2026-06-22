@@ -250,6 +250,12 @@ Route::middleware('auth')->group(function () {
         Route::put('currencies/{currency}', [CurrencyController::class, 'update']);
         Route::delete('currencies/{currency}', [CurrencyController::class, 'destroy']);
 
+        // Exchange Rates
+        Route::get('exchange-rates', [\App\Http\Controllers\Api\ExchangeRateController::class, 'index']);
+        Route::post('exchange-rates', [\App\Http\Controllers\Api\ExchangeRateController::class, 'store']);
+        Route::put('exchange-rates/{exchange_rate}', [\App\Http\Controllers\Api\ExchangeRateController::class, 'update']);
+        Route::delete('exchange-rates/{exchange_rate}', [\App\Http\Controllers\Api\ExchangeRateController::class, 'destroy']);
+
         // Workshop & Maintenance
         Route::prefix('workshop')->group(function () {
             Route::get('dashboard', [WsDashboardController::class, 'index']);
