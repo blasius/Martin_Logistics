@@ -1,15 +1,23 @@
 <template>
     <div class="max-w-7xl mx-auto space-y-6">
-        <div class="flex items-center justify-between">
-            <div>
+        <div class="flex items-start justify-between gap-4">
+            <div class="flex-1 min-w-0">
                 <h1 class="text-3xl font-black text-slate-800 tracking-tight uppercase italic leading-none">Fleet Reports</h1>
                 <p class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Real-time fleet intelligence</p>
             </div>
-            <button @click="refresh" :disabled="loading"
-                    class="text-[10px] font-black uppercase px-4 py-2 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 transition active:scale-95 disabled:opacity-40 flex items-center gap-1.5">
-                <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                Refresh
-            </button>
+            <div class="flex items-center gap-3 shrink-0">
+                <select v-model="selectedCurrencyId" @change="onCurrencyChange"
+                        class="text-[10px] font-black uppercase px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 outline-none focus:ring-2 focus:ring-indigo-200 transition cursor-pointer">
+                    <option v-for="c in currencies" :key="c.id" :value="c.id">
+                        {{ c.code }} — {{ c.name }}
+                    </option>
+                </select>
+                <button @click="refresh" :disabled="loading"
+                        class="text-[10px] font-black uppercase px-4 py-2 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 transition active:scale-95 disabled:opacity-40 flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    Refresh
+                </button>
+            </div>
         </div>
 
         <!-- Fleet Overview -->
@@ -106,7 +114,7 @@
                 <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
                     <StatCard label="Total Revenue" :value="formatCurrency(data?.financial?.total_revenue)" color="emerald" />
                     <StatCard label="Total Expenses" :value="formatCurrency(data?.financial?.total_expenses)" color="red" />
-                    <StatCard label="Fine Costs" :value="formatCurrency(data?.financial?.total_fine_cost)" color="amber" />
+                    <StatCard label="Fine Costs" :value="formatFines(data?.financial?.total_fine_cost)" color="amber" />
                     <StatCard label="Net Profit" :value="formatCurrency(data?.financial?.net_profit)" :color="profitColor" />
                     <StatCard label="Profit Margin" :value="data?.financial?.profit_margin + '%'" :color="profitColor" />
                 </div>
@@ -201,11 +209,27 @@ const fineChart = ref(null)
 const fuelChart = ref(null)
 const financialChart = ref(null)
 
+const currencies = ref([])
+const selectedCurrencyId = ref(null)
+
 let charts = []
+
+const selectedCurrency = computed(() => {
+    return currencies.value.find(c => c.id === selectedCurrencyId.value) || { code: 'RWF', symbol: 'RWF' }
+})
 
 const formatCurrency = (val) => {
     if (val == null) return '—'
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val)
+    const c = selectedCurrency.value
+    if (c.code === 'RWF') {
+        return 'RWF ' + Number(val).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+    }
+    return c.symbol + ' ' + Number(val).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+}
+
+const formatFines = (val) => {
+    if (val == null) return '—'
+    return 'RWF ' + Number(val).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 }
 
 const healthColor = computed(() => {
@@ -285,7 +309,7 @@ const renderCharts = () => {
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
                 scales: {
-                    x: { beginAtZero: true, ticks: { font: { size: 9 }, callback: (v) => '$' + (v / 1000).toFixed(0) + 'k' } },
+                    x: { beginAtZero: true, ticks: { font: { size: 9 }, callback: (v) => selectedCurrency.symbol + (v / 1000).toFixed(0) + 'k' } },
                     y: { ticks: { font: { size: 8 } } }
                 }
             }
@@ -316,14 +340,21 @@ const renderCharts = () => {
         }))
     }
 
-    // Fine Trends
+    // Fine Trends (always in RWF)
     if (fineChart.value && d.charts?.fine_trends?.length) {
         const labels = d.charts.fine_trends.map(t => t.date?.slice(5))
         const amounts = d.charts.fine_trends.map(t => Number(t.total_amount))
         charts.push(new Chart(fineChart.value, {
             type: 'line',
-            data: { labels, datasets: [{ label: 'Fine Amount', data: amounts, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, tension: 0.3, pointRadius: 3 }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+            data: { labels, datasets: [{ label: 'Fine Amount (RWF)', data: amounts, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, tension: 0.3, pointRadius: 3 }] },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: (ctx) => 'RWF ' + Number(ctx.raw).toLocaleString() } }
+                },
+                scales: { y: { beginAtZero: true, ticks: { callback: (v) => 'RWF ' + Number(v).toLocaleString() } } }
+            }
         }))
     }
 
@@ -358,15 +389,15 @@ const renderCharts = () => {
                     y: {
                         beginAtZero: true,
                         position: 'left',
-                        title: { display: true, text: 'Revenue ($)', font: { size: 9 } },
-                        ticks: { font: { size: 8 }, callback: (v) => '$' + (v / 1000).toFixed(0) + 'k' }
+                        title: { display: true, text: 'Revenue (' + selectedCurrency.symbol + ')', font: { size: 9 } },
+                        ticks: { font: { size: 8 }, callback: (v) => selectedCurrency.symbol + (v / 1000).toFixed(0) + 'k' }
                     },
                     y1: {
                         beginAtZero: true,
                         position: 'right',
                         grid: { drawOnChartArea: false },
-                        title: { display: true, text: 'Costs ($)', font: { size: 9 } },
-                        ticks: { font: { size: 8 }, callback: (v) => '$' + (v / 1000).toFixed(0) + 'k' }
+                        title: { display: true, text: 'Costs (' + selectedCurrency.symbol + ')', font: { size: 9 } },
+                        ticks: { font: { size: 8 }, callback: (v) => selectedCurrency.symbol + (v / 1000).toFixed(0) + 'k' }
                     }
                 }
             }
@@ -377,8 +408,17 @@ const renderCharts = () => {
 const refresh = async () => {
     loading.value = true
     try {
-        const { data: result } = await api.get('portal/reports')
+        const params = {}
+        if (selectedCurrencyId.value) params.currency_id = selectedCurrencyId.value
+        const { data: result } = await api.get('portal/reports', { params })
         data.value = result
+        if (result.currencies?.length) {
+            currencies.value = result.currencies
+            if (!selectedCurrencyId.value) {
+                const def = result.currencies.find(c => c.is_default) || result.currencies[0]
+                selectedCurrencyId.value = def.id
+            }
+        }
         await nextTick()
         renderCharts()
     } catch (e) {
@@ -386,6 +426,10 @@ const refresh = async () => {
     } finally {
         loading.value = false
     }
+}
+
+const onCurrencyChange = () => {
+    refresh()
 }
 
 let interval

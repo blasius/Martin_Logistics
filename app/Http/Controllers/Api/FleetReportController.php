@@ -13,15 +13,24 @@ use App\Models\Requisition;
 use App\Models\ExpenseType;
 use App\Models\VehicleSnapshot;
 use App\Models\TelemetryEvent;
+use App\Models\Currency;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class FleetReportController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $today = now();
+
+        // ── Currency handling ──
+        $currencies = Currency::all(['id', 'code', 'name', 'symbol', 'is_default']);
+        $defaultCurrency = $currencies->firstWhere('is_default', true) ?? $currencies->first();
+        $selectedCurrencyId = $request->integer('currency_id', $defaultCurrency?->id ?? 2);
+        $selectedCurrency = $currencies->firstWhere('id', $selectedCurrencyId) ?? $defaultCurrency;
+        // Fines are always in RWF regardless of selected currency
+        $rwf = $currencies->firstWhere('code', 'RWF') ?? $defaultCurrency;
         $monthStart = $today->copy()->startOfMonth();
         $yearStart = $today->copy()->startOfYear();
         $twelveMonthsAgo = $today->copy()->subMonths(12);
@@ -289,6 +298,12 @@ class FleetReportController extends Controller
                 'order_status_distribution' => $orderStatusDist,
                 'fine_trends' => $fineTrends,
                 'trip_status_distribution' => $tripStatusDist,
+            ],
+            'currencies' => $currencies->values(),
+            'selected_currency' => [
+                'id' => $selectedCurrency->id,
+                'code' => $selectedCurrency->code,
+                'symbol' => $selectedCurrency->symbol,
             ],
             'last_updated' => $today->toISOString(),
         ]);
