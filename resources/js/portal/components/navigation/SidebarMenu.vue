@@ -7,7 +7,7 @@
 
         <nav class="flex-1 overflow-y-auto px-2 py-4 space-y-2">
             <SidebarItem
-                v-for="item in menu"
+                v-for="item in visibleMenu"
                 :key="item.label"
                 :item="item"
             />
@@ -20,6 +20,32 @@
 </template>
 
 <script setup>
+import { computed } from "vue";
+import { useAuthStore } from "../../store/authStore";
 import { menu } from "@/config/menu.js";
 import SidebarItem from "./SidebarItem.vue";
+
+const authStore = useAuthStore();
+const userRoles = computed(() => authStore.user?.roles_list || []);
+
+function isVisible(item) {
+    if (!item.roles) return true;
+    return item.roles.some(r => userRoles.value.includes(r));
+}
+
+function filterMenu(items) {
+    return items.reduce((acc, item) => {
+        if (!isVisible(item)) return acc;
+        if (item.children) {
+            const filteredChildren = filterMenu(item.children);
+            if (filteredChildren.length === 0) return acc;
+            acc.push({ ...item, children: filteredChildren });
+        } else {
+            acc.push(item);
+        }
+        return acc;
+    }, []);
+}
+
+const visibleMenu = computed(() => filterMenu(menu));
 </script>

@@ -82,9 +82,9 @@ class SearchController extends Controller
             ]);
 
         // 4. ORDERS & CLIENTS: Search by Reference or Client Name
-        $orders = Order::with('client')
+        $orders = Order::with('client.user')
             ->where('reference', 'LIKE', "%{$q}%")
-            ->orWhereHas('client', function($query) use ($q) {
+            ->orWhereHas('client.user', function($query) use ($q) {
                 $query->where('name', 'LIKE', "%{$q}%");
             })
             ->limit(5)
@@ -92,7 +92,7 @@ class SearchController extends Controller
             ->map(fn($o) => [
                 'id' => $o->id,
                 'label' => "Order: {$o->reference}",
-                'sublabel' => "{$o->client->name} | {$o->status}",
+                'sublabel' => "{$o->client->user?->name} | {$o->status}",
                 'type' => 'Order'
             ]);
 
@@ -123,11 +123,11 @@ class SearchController extends Controller
         if (strlen($q) < 2) return response()->json([]);
 
         // Search active orders by reference or client name
-        $orders = Order::with('client')
+        $orders = Order::with('client.user')
             ->where('status', '!=', 'dispatched') // Only un-dispatched orders
             ->where(function($query) use ($q) {
                 $query->where('reference', 'LIKE', "%{$q}%")
-                      ->orWhereHas('client', function($clientQuery) use ($q) {
+                      ->orWhereHas('client.user', function($clientQuery) use ($q) {
                           $clientQuery->where('name', 'LIKE', "%{$q}%");
                       });
             })
@@ -137,7 +137,7 @@ class SearchController extends Controller
                 return [
                     'id' => $order->id,
                     'reference' => $order->reference,
-                    'client_name' => $order->client ? $order->client->name : 'Unknown Client',
+                    'client_name' => $order->client?->user?->name ?? 'Unknown Client',
                     'goods_type' => $order->goods_type ?? 'General Cargo', // Assuming this field exists, modify if needed
                     'tonnage' => $order->tonnage ?? 0, // Assuming this field exists
                     'remaining_tonnage' => $order->remaining_tonnage ?? 0, // Assuming this field exists

@@ -39,6 +39,16 @@ use App\Http\Controllers\Api\Support\SupportTicketMessageController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\AuditLogController;
+use App\Http\Controllers\Api\Workshop\PartController as WsPartController;
+use App\Http\Controllers\Api\Workshop\WarehouseController as WsWarehouseController;
+use App\Http\Controllers\Api\Workshop\StockLevelController as WsStockLevelController;
+use App\Http\Controllers\Api\Workshop\StockMovementController as WsStockMovementController;
+use App\Http\Controllers\Api\Workshop\RepairRequestController as WsRepairRequestController;
+use App\Http\Controllers\Api\Workshop\VendorController as WsVendorController;
+use App\Http\Controllers\Api\Workshop\PurchaseOrderController as WsPurchaseOrderController;
+use App\Http\Controllers\Api\Workshop\WorkshopDashboardController as WsDashboardController;
+use App\Http\Controllers\Api\Workshop\MechanicController as WsMechanicController;
+use App\Http\Controllers\Api\Workshop\PartRequestController as WsPartRequestController;
 use App\Http\Controllers\Api\Customer\AuthController as CustomerAuthController;
 use App\Http\Controllers\Api\Customer\OrderController as CustomerOrderController;
 
@@ -239,6 +249,74 @@ Route::middleware('auth')->group(function () {
         Route::post('currencies', [CurrencyController::class, 'store']);
         Route::put('currencies/{currency}', [CurrencyController::class, 'update']);
         Route::delete('currencies/{currency}', [CurrencyController::class, 'destroy']);
+
+        // Workshop & Maintenance
+        Route::prefix('workshop')->group(function () {
+            Route::get('dashboard', [WsDashboardController::class, 'index']);
+
+            Route::get('mechanics', [WsMechanicController::class, 'index']);
+            Route::post('mechanics', [WsMechanicController::class, 'store']);
+            Route::get('mechanics/search-users', [WsMechanicController::class, 'searchUsers']);
+
+            Route::get('parts', [WsPartController::class, 'index']);
+            Route::post('parts', [WsPartController::class, 'store']);
+            Route::get('parts/{part}', [WsPartController::class, 'show']);
+            Route::put('parts/{part}', [WsPartController::class, 'update']);
+            Route::delete('parts/{part}', [WsPartController::class, 'destroy']);
+
+            Route::get('warehouses', [WsWarehouseController::class, 'index']);
+            Route::post('warehouses', [WsWarehouseController::class, 'store']);
+            Route::get('warehouses/{warehouse}', [WsWarehouseController::class, 'show']);
+            Route::put('warehouses/{warehouse}', [WsWarehouseController::class, 'update']);
+            Route::delete('warehouses/{warehouse}', [WsWarehouseController::class, 'destroy']);
+            Route::get('warehouses-list', [WsWarehouseController::class, 'list']);
+
+            Route::get('stock-levels', [WsStockLevelController::class, 'index']);
+            Route::post('stock-levels', [WsStockLevelController::class, 'store']);
+            Route::put('stock-levels/{stockLevel}', [WsStockLevelController::class, 'update']);
+            Route::post('stock-levels/adjust', [WsStockLevelController::class, 'adjust']);
+
+            Route::get('stock-movements', [WsStockMovementController::class, 'index']);
+
+            Route::get('vendors', [WsVendorController::class, 'index']);
+            Route::post('vendors', [WsVendorController::class, 'store']);
+            Route::get('vendors/{vendor}', [WsVendorController::class, 'show']);
+            Route::put('vendors/{vendor}', [WsVendorController::class, 'update']);
+            Route::delete('vendors/{vendor}', [WsVendorController::class, 'destroy']);
+            Route::get('vendors-list', [WsVendorController::class, 'list']);
+
+            Route::get('repair-requests', [WsRepairRequestController::class, 'index']);
+            Route::post('repair-requests', [WsRepairRequestController::class, 'store']);
+            Route::get('repair-requests/mechanics', [WsRepairRequestController::class, 'mechanics']);
+            Route::get('repair-requests/vehicles', [WsRepairRequestController::class, 'vehicles']);
+            Route::get('repair-requests/search-vehicles', [WsRepairRequestController::class, 'searchVehicles']);
+            Route::get('repair-requests/{repairRequest}', [WsRepairRequestController::class, 'show']);
+            Route::post('repair-requests/{repairRequest}/submit', [WsRepairRequestController::class, 'submit']);
+            Route::post('repair-requests/{repairRequest}/request-approval', [WsRepairRequestController::class, 'requestApproval']);
+            Route::post('repair-requests/{repairRequest}/approve', [WsRepairRequestController::class, 'approve']);
+            Route::post('repair-requests/{repairRequest}/reject', [WsRepairRequestController::class, 'reject']);
+            Route::post('repair-requests/{repairRequest}/assign-mechanic', [WsRepairRequestController::class, 'assignMechanic']);
+            Route::post('repair-requests/{repairRequest}/reassign-mechanic', [WsRepairRequestController::class, 'reassignMechanic']);
+            Route::post('repair-requests/start-work/{assignmentId}', [WsRepairRequestController::class, 'startWork']);
+            Route::post('repair-requests/complete-work/{assignmentId}', [WsRepairRequestController::class, 'completeWork']);
+            Route::post('repair-requests/{repairRequest}/use-parts', [WsRepairRequestController::class, 'useParts']);
+            Route::post('repair-requests/{repairRequest}/release', [WsRepairRequestController::class, 'release']);
+            Route::post('repair-requests/{repairRequest}/cancel', [WsRepairRequestController::class, 'cancel']);
+
+            Route::get('purchase-orders', [WsPurchaseOrderController::class, 'index']);
+            Route::post('purchase-orders', [WsPurchaseOrderController::class, 'store']);
+            Route::get('purchase-orders/{purchaseOrder}', [WsPurchaseOrderController::class, 'show']);
+            Route::post('purchase-orders/{purchaseOrder}/send', [WsPurchaseOrderController::class, 'send']);
+            Route::post('purchase-orders/{purchaseOrder}/confirm', [WsPurchaseOrderController::class, 'confirm']);
+            Route::post('purchase-orders/{purchaseOrder}/receive', [WsPurchaseOrderController::class, 'receive']);
+            Route::post('purchase-orders/{purchaseOrder}/cancel', [WsPurchaseOrderController::class, 'cancel']);
+
+            Route::get('part-requests', [WsPartRequestController::class, 'index']);
+            Route::post('part-requests', [WsPartRequestController::class, 'store']);
+            Route::get('part-requests/{partRequest}', [WsPartRequestController::class, 'show']);
+            Route::post('part-requests/{partRequest}/approve', [WsPartRequestController::class, 'approve']);
+            Route::post('part-requests/{partRequest}/reject', [WsPartRequestController::class, 'reject']);
+        });
 
         // Profile
         Route::get('profile', [ProfileController::class, 'show']);

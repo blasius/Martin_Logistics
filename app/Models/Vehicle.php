@@ -105,6 +105,13 @@ class Vehicle extends Model
             ->withTimestamps();
     }
 
+    public function latestDriverAssignment()
+    {
+        return $this->hasOne(DriverVehicleAssignment::class, 'vehicle_id')
+            ->whereNull('end_date')
+            ->latestOfMany('start_date');
+    }
+
     public function repairRequests()
     {
         return $this->hasMany(RepairRequest::class);

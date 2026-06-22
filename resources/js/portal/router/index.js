@@ -49,6 +49,36 @@ const router = createRouter({
                 { path: "insurances", component: () => import("../pages/Compliance/Insurance.vue") },
                 { path: "inspections", component: () => import("../pages/Compliance/Inspection.vue") },
                 { path: "compliance-summary", component: () => import("../pages/Compliance/Index.vue") },
+
+                // Workshop & Maintenance
+                { path: "workshop/dashboard", component: () => import("../pages/Workshop/Dashboard.vue") },
+                { path: "workshop/parts", component: () => import("../pages/Workshop/Parts/Index.vue") },
+                { path: "workshop/warehouses", component: () => import("../pages/Workshop/Warehouses/Index.vue") },
+                { path: "workshop/stock-levels", component: () => import("../pages/Workshop/StockLevels/Index.vue") },
+                { path: "workshop/mechanics", component: () => import("../pages/Workshop/Mechanics/Index.vue") },
+                { path: "workshop/stock-movements", component: () => import("../pages/Workshop/StockMovements/Index.vue") },
+                { path: "workshop/part-requests", component: () => import("../pages/Workshop/PartRequests/Index.vue") },
+                {
+                    path: "workshop/part-requests/:id",
+                    name: "workshop.part-requests.show",
+                    component: () => import("../pages/Workshop/PartRequests/Show.vue"),
+                    props: true
+                },
+                { path: "workshop/vendors", component: () => import("../pages/Workshop/Vendors/Index.vue") },
+                { path: "workshop/repair-requests", component: () => import("../pages/Workshop/RepairRequests/Index.vue") },
+                {
+                    path: "workshop/repair-requests/:id",
+                    name: "workshop.repair-requests.show",
+                    component: () => import("../pages/Workshop/RepairRequests/Show.vue"),
+                    props: true
+                },
+                { path: "workshop/purchase-orders", component: () => import("../pages/Workshop/PurchaseOrders/Index.vue") },
+                {
+                    path: "workshop/purchase-orders/:id",
+                    name: "workshop.purchase-orders.show",
+                    component: () => import("../pages/Workshop/PurchaseOrders/Show.vue"),
+                    props: true
+                },
                 {
                     path: "drivers/:id",
                     name: "drivers.show",

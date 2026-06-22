@@ -14,6 +14,7 @@ class PurchaseOrderService
     {
         return DB::transaction(function () use ($data, $items) {
             $data['reference'] = $data['reference'] ?? static::generateReference();
+            $data['order_date'] = $data['order_date'] ?? now();
             $data['status'] = 'draft';
 
             $po = PurchaseOrder::create($data);

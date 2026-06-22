@@ -17,7 +17,8 @@ import {
     Crosshair,
     DollarSign,
     Building2,
-    ClipboardList
+    ClipboardList,
+    Wrench,
 } from "lucide-vue-next";
 
 export const menu = [
@@ -91,6 +92,23 @@ export const menu = [
         label: "Reports",
         icon: BarChart3,
         to: "/reports",
+    },
+    {
+        label: "Workshop",
+        icon: Wrench,
+        roles: ['Workshop Manager', 'Admin', 'super_admin', 'Operations Manager', 'Logistics Manager'],
+        children: [
+            { label: "Dashboard", to: "/workshop/dashboard" },
+            { label: "Mechanics", to: "/workshop/mechanics" },
+            { label: "Repair Requests", to: "/workshop/repair-requests" },
+            { label: "Part Requests", to: "/workshop/part-requests" },
+            { label: "Parts Catalog", to: "/workshop/parts" },
+            { label: "Stock Levels", to: "/workshop/stock-levels" },
+            { label: "Stock Movements", to: "/workshop/stock-movements" },
+            { label: "Warehouses", to: "/workshop/warehouses" },
+            { label: "Vendors", to: "/workshop/vendors" },
+            { label: "Purchase Orders", to: "/workshop/purchase-orders" },
+        ],
     },
     {
         label: "Clients",

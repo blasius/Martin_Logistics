@@ -100,11 +100,14 @@ Phase 1: Foundation
   Role Builder & Permissions ──→ All modules (who can do what)
   Currency & Exchange Rates  ──→ All monetary transactions (conversion, display)
 
-Phase 2: Workshop
-  Spare Parts Inventory      │
-  └──→ Repair Request & Approval Workflow (with checklist + released pool)
-        └──→ Procurement (parts purchasing)
-              └──→ Workshop Dashboard (real-time status)
+Phase 2: Yard & Workshop
+  Yard Service Queues (offload → wash → workshop) — geofence-gated requests by Driver App
+  ├── Spare Parts Inventory (SKU/barcode auto-generated, scanner-ready)
+  ├── Mechanic Management (Workshop Manager creates mechanics with user accounts)
+  ├── Repair Request & Multi-Mechanic Assignment (with instructions per mechanic)
+  │     ├── Part Request & Multi-Level Approval Chain (Mech → Proc Clerk → WShop Mgr → Log Mgr → Ops Mgr)
+  │     └── Procurement (PO creation, receiving, stock auto-update)
+  └── Task-Based Release (per-mechanic done signal → Workshop Manager unlocks release → Available Pool)
 
 Phase 3: Fuel
   In-House Fuel Station ──── Routes (existing) → automated dispensing
@@ -326,89 +329,152 @@ transaction has its original currency stored and is convertible to the default c
 
 ---
 
-## Phase 2 — Workshop & Maintenance
+## Phase 2 — Yard & Workshop
 
-*Builds on Phase 1. Covers the full workshop lifecycle: repair request → approval → parts purchase → repair → release.*
+*Builds on Phase 1. Covers the full yard lifecycle: offload → wash → workshop → release → available.
+Requests are initiated by drivers via the Driver Companion App with geofence validation.
+Every service runs on a transparent FIFO/priority queue.*
+
+### 2.0 Yard Service Queues & Geofence Validation
+
+All yard services (offloading, car wash, workshop, fueling) share the same pattern:
+driver submits a request via the Companion App → system validates vehicle is physically
+inside the yard geofence → request enters a FIFO queue with priority override → service
+provider (wash crew, mechanic, fuel attendant) is notified of next in queue.
+
+**Requirements:**
+- `yard_geofences` table: `name` (Main Yard, Branch A, etc.), `latitude`, `longitude`, `radius_meters`, `is_active`
+- `service_queues` table: `vehicle_id`, `service_type` (offload, wash, workshop, fuel), `priority`, `status` (queued, in_progress, completed, skipped), `entered_at`, `started_at`, `completed_at`, `submitted_by` (driver user_id), `coordinates` (JSON — lat/lng at submission time), `geofence_verified` (boolean)
+- On submission: system checks distance between vehicle coordinates and yard geofence center.
+  If outside radius → request rejected with notification to driver's app.
+- Queue is visible in real-time: drivers see their position, managers can reorder for priority.
+- **Why**: Prevents abuse (drivers requesting service from outside the yard), ensures fair
+  FIFO processing, and gives full transparency on wait times.
+
+---
 
 ### 2.1 Spare Parts Inventory
 
-A catalog of spare parts used across the fleet, with stock levels and reorder points.
+A catalog of spare parts with harmonized SKU/barcode system. SKUs are auto-generated
+or scanned via barcode scanner to eliminate manual entry errors.
 
 **Requirements:**
-- `parts` table: `sku`, `name`, `description`, `category` (engine, brake, electrical, body, tires, etc.), `unit_of_measure`, `unit_price`, `compatible_vehicle_makes`
-- `warehouses` table: `name`, `code`, `location`, `is_active` (workshop stores)
+- `parts` table: `sku` (auto-generated from category + sequential number, or barcode-scanned),
+  `name`, `description`, `category` (engine, brake, electrical, body, tires, etc.),
+  `unit_of_measure`, `unit_price`, `compatible_vehicle_makes`, `barcode` (nullable, from scanner)
+- `warehouses` table: `name`, `code`, `location`, `is_active` (yard stores)
 - `stock_levels` table: `warehouse_id`, `part_id`, `quantity`, `min_quantity` (reorder point)
-- `stock_movements` table: `warehouse_id`, `part_id`, `quantity`, `type` (in, out, adjust, transfer), `reference_type`, `reference_id`, `user_id`, `notes`
+- `stock_movements` table: `warehouse_id`, `part_id`, `quantity`, `type` (in, out, adjust, transfer),
+  `reference_type`, `reference_id`, `user_id`, `notes`
 - Reorder alerts when stock falls below minimum
-- Vue pages: parts catalog, stock levels, stock movement log
+- Vue pages: parts catalog (with barcode input), stock levels (with adjust/create), stock movement log
 
 **Why first:** Workshop cannot function without knowing what parts are in stock.
 
 ---
 
-### 2.2 Repair Request & Approval Workflow
+### 2.2 Mechanic Management
 
-Digitizes the paper-based workshop process for 120+ trucks. All steps are fully digital —
-no printing required. Only the final repair cost (if paid in cash) would use Document
-Management for a legal receipt.
+Workshop Manager creates and manages mechanics (who are system users with the `mechanic` role).
 
-**Workflow:**
-1. **Request** — Mechanic submits repair request for a vehicle
-2. **Approval 1** — Logistics Manager approves or rejects
-3. **Approval 2** — Operations Manager approves or rejects
-4. **Parts picklist** — Workshop picks parts from inventory (or triggers procurement if out of stock)
-5. **Repair** — Assigned mechanic works on vehicle
-6. **Release** — Vehicle marked as road-ready and released from workshop
-
-**Step-by-step requirements:**
-
-*Step 1 — Request:*
-- `repair_requests` table: `reference`, `vehicle_id`, `mechanic_id` (user), `driver_id` (who reported issue), `type` (mechanical, electrical, body, tire, brake, etc.), `priority` (low, medium, high, critical), `description`, `status` (draft, pending_approval, approved, parts_pending, in_progress, completed, released, cancelled), `submitted_at`
-- `repair_request_items` table: `repair_request_id`, `description`, `part_id` (nullable, from 2.1), `estimated_quantity`, `estimated_unit_price`, `estimated_total`, `actual_quantity`, `actual_unit_price`, `actual_total`
-- Attach photos or videos of the issue via Document Management (1.1)
-
-*Step 2 & 3 — Two-level approval:*
-- `approvals` table (polymorphic): `approvable_type`, `approvable_id`, `approver_id`, `approver_role`, `stage` (1 or 2), `status` (pending, approved, rejected), `comment`, `decided_at`
-- Stage 1: Logistics Manager approves → Stage 2: Operations Manager approves
-- Rejection at either stage sends request back to mechanic with comments
-
-*Step 4 — Parts fulfillment:*
-- If parts in stock → pick from inventory (stock movement out)
-- If parts out of stock → trigger Procurement (2.3)
-
-*Step 5 — Repair execution:*
-- `repair_assignments` table: `repair_request_id`, `mechanic_id` (user), `assigned_at`, `started_at`, `completed_at`
-- Mechanics log time spent and actual parts used (vs estimated)
-
-*Step 6 — Release:*
-- `repair_releases` table: `repair_request_id`, `released_by`, `released_at`, `odometer_at_release`,
-  `unresolved_issues` (text, **required** — workshop must note any remaining problems, even if minor),
-  `checklist_completed` (boolean — enforces that all required checkups were done)
-- Vehicle status changes from `in_workshop` to `released_from_workshop` (enters a "released pool")
-- The released pool is visible to dispatchers and the Logistics Manager — they decide which
-  vehicles are truly road-ready and can be marked `available` or sent back to workshop if
-  unresolved issues are critical
-- **Enforcement**: the system prevents release if any required checklist items are incomplete
-  (e.g., brake check, fluid levels, tire pressure for trucks that had brake-related repairs),
-  as configured per repair type
-
-*Dashboard & Reporting:*
-- Real-time board: which trucks are in workshop, assigned mechanic, status, ETA
-- Cost per repair, cost per vehicle, cost per part category
-- Average repair time by type and by mechanic
-- Parts consumption trends
-
-**Dependencies:** Spare Parts (2.1) for parts tracking
+**Requirements:**
+- `users` table already exists — mechanics are users with `role: mechanic` (assigned via Spatie roles)
+- Vue page: Workshop Manager can search, create, and deactivate mechanics
+- Each mechanic has a Companion App login to view assigned tasks and mark work done
+- Mechanic profile includes: specialization (engine, brake, electrical, etc.), hourly rate
+  (for future labor cost tracking)
 
 ---
 
-### 2.3 Procurement for Spare Parts
+### 2.3 Repair Request & Multi-Mechanic Assignment
 
-Purchase orders for parts not in stock (triggered by repair workflow).
+Driver submits a repair request via the Companion App (or Workshop Manager enters it on their behalf).
+The request is geofence-validated against the yard location. Workshop Manager assigns one or more
+mechanics, each with specific instructions.
+
+**Workflow:**
+1. **Request** — Driver opens Companion App, selects vehicle, describes issue, takes photo,
+   attaches coordinates. System checks geofence. If valid → request enters service queue.
+2. **Queue** — Repair request appears in the workshop queue with priority level.
+3. **Assignment** — Workshop Manager opens the request, assigns mechanic(s), writes instructions
+   per mechanic ("Check brake drum wear", "Inspect engine mount bolts").
+4. **Task Execution** — Each mechanic sees their assignments in the Companion App with instructions.
+   They complete their assigned tasks and mark each as done.
+5. **Completion Signal** — When all mechanics mark their tasks done, Workshop Manager gets notified.
+6. **Release Decision** — Workshop Manager inspects, writes unresolved issues note, releases vehicle.
+7. **Available Pool** — Released vehicle enters the available pool for dispatchers to assign to trips.
+
+**Requirements:**
+
+*Step 1 — Request (driver-submitted):*
+- `repair_requests` table: `reference`, `vehicle_id`, `driver_id` (who reported), `type`,
+  `priority`, `description`, `status` (queued, assigned, in_progress, completed, released, cancelled),
+  `submitted_at`, `coordinates` (JSON — lat/lng from driver app), `geofence_verified`, `photo_urls` (via DM)
+- `repair_request_items` table: `repair_request_id`, `description`, `part_id` (nullable),
+  `estimated_quantity`, `estimated_unit_price`, `estimated_total`
+
+*Step 3 — Assignment with instructions:*
+- `repair_assignments` table: `repair_request_id`, `mechanic_id` (user), `instructions` (text —
+  required, manager writes what this mechanic should do), `status` (assigned, in_progress, completed),
+  `assigned_at`, `started_at`, `completed_at`, `completed_note` (mechanic's report on what was done)
+
+*Step 6 — Release:*
+- `repair_releases` table: `repair_request_id`, `released_by`, `released_at`, `odometer_at_release`,
+  `unresolved_issues` (text, **required**), `checklist_completed` (boolean)
+- Release is only allowed when ALL mechanic assignments are marked completed
+- Vehicle status: `in_workshop` → `released_from_workshop` → enters Available Pool
+
+*Step 7 — Available Pool:*
+- `available_vehicles` view/logic: vehicles released from workshop are flagged as available
+  for trip planning. Dispatchers see them in trip creation dropdown.
+
+---
+
+### 2.4 Part Request & Multi-Level Approval Chain
+
+When a mechanic needs a spare part, they can either pick from the existing parts catalog or
+submit a new part proposal with full specifications and estimated price. The proposal then
+flows through a multi-level approval chain.
+
+**Workflow:**
+1. **Request** — Mechanic opens repair request in Companion App, clicks "Request Part".
+   - Option A: Select from existing parts catalog → enters quantity needed
+   - Option B: Submit new part → provides: name, specifications, category, unit_of_measure,
+     estimated_unit_price, compatible_vehicle_makes, suggested_vendor_id, photo(s)
+2. **Procurement Clerk Review** — Clerk sees the request, can adjust specifications and price,
+   adds actual vendor/supplier info. Submits for approval.
+3. **Workshop Manager Approval** — Reviews and forwards to Logistics Manager.
+4. **Logistics Manager Approval** — Reviews and forwards to Operations Manager.
+5. **Operations Manager Approval** — Final approval. All approvers see full chain history.
+6. **Procurement & Finance Notified** — On final approval, procurement creates a PO,
+   finance is notified for payment follow-up.
+7. **Part Handover** — When part arrives, procurement clerk records receipt and notifies
+   the requesting mechanic. Part is added to inventory if new.
+
+**Requirements:**
+- `part_requests` table: `repair_request_id`, `requested_by` (mechanic user_id), `part_id` (nullable —
+  null if new part proposal), `status` (draft, under_review, approved, rejected, ordered, received, cancelled),
+  `new_part_name`, `new_part_specifications`, `new_part_category`, `new_part_unit_of_measure`,
+  `new_part_estimated_price`, `new_part_compatible_makes`, `quantity_needed`, `suggested_vendor_id`,
+  `clerk_notes` (procurement clerk adjustments), `clerk_adjusted_price`, `clerk_vendor_id`,
+  `created_at`, `updated_at`
+- Uses polymorphic `approvals` table: `approvable_type` = `part_request`, stages: clerk_review,
+  workshop_manager, logistics_manager, operations_manager
+- On final approval: auto-create PO via existing Procurement (2.5) or flag for manual PO creation
+- Notifications table entries for each stage transition
+- Part photos via Document Management (1.1)
+
+---
+
+### 2.5 Procurement for Spare Parts
+
+Purchase orders for parts not in stock (triggered by repair workflow or part request approval).
 
 **Requirements:**
 - `vendors` table: `name`, `contact`, `email`, `phone`, `address`, `tin`, `payment_terms`, `supply_categories`
-- `purchase_orders` table: `reference`, `vendor_id`, `repair_request_id` (nullable link), `order_date`, `expected_date`, `status` (draft, sent, confirmed, partially_received, received, cancelled), `notes`, `total_amount`, `currency_id`
+- `purchase_orders` table: `reference`, `vendor_id`, `repair_request_id` (nullable), `part_request_id` (nullable),
+  `order_date`, `expected_date`, `status` (draft, sent, confirmed, partially_received, received, cancelled),
+  `notes`, `total_amount`, `currency_id`
 - `po_items` table: `purchase_order_id`, `part_id`, `description`, `quantity`, `unit_price`, `total`
 - Receiving workflow: mark items as received (partial supported) → auto-update stock levels
 - PO attachments via Document Management (1.1)
@@ -418,62 +484,83 @@ Purchase orders for parts not in stock (triggered by repair workflow).
 
 ---
 
-### 2.4 Workshop Dashboard
+### 2.6 Workshop Manager Dashboard & Mechanic Companion App
 
-A real-time operational board for the workshop floor.
+**Workshop Manager Dashboard (Vue):**
+- Live status cards: vehicles in workshop, by status, by mechanic, high-priority repairs
+- Queue view: pending repair requests with vehicle, priority, time in queue
+- Assignment panel: assign/reassign mechanics with instructions
+- Part request approvals: pending requests with full chain visibility
+- Release panel: vehicles ready for release (all mechanics done)
+- Available Pool: list of released vehicles ready for trip planning
 
-**Requirements:**
-- Live status cards showing:
-  - Total trucks in workshop
-  - Trucks by status (pending approval, parts pending, in progress, ready for release)
-  - Trucks by mechanic assignment
-  - High-priority / overdue repairs
-- Vehicle detail view: current repair request, estimated completion time, parts cost so far
-- Time tracking: expected vs actual completion
-- Cost tracking: estimated vs actual parts + labor per repair
-- Vue pages: workshop dashboard (kanban-style), repair request timeline per vehicle
+**Mechanic Companion App (Vue/Mobile):**
+- Login with mechanic user credentials
+- "My Tasks" list: assigned repair requests with instructions
+- Task detail view: vehicle info, repair description, instructions from manager, part requests status
+- Mark task complete: button with optional completion note
+- Request Part: select from catalog or submit new part proposal
+- Notifications: new assignment, part arrived, release confirmed
 
-**Dependencies:** Repair Request Workflow (2.2), Procurement (2.3)
+**Dependencies:** Repair Request (2.3), Part Request (2.4), Procurement (2.5)
 
 ---
 
 ### Real-World Outcome After Phase 2
 
-When a truck comes into the yard after a trip and the driver reports an issue, the mechanic opens
-the system, selects the truck, describes the problem, estimates which parts are needed and how
-much they cost, attaches a photo of the damaged part, and hits submit. Done — no paper.
+A truck arrives at the yard after completing its trip. The driver parks at the yard and,
+from his Companion App, selects "Request Workshop" → chooses the vehicle → describes the
+issue ("Brake pedal feels spongy, pulling left") → attaches a photo of the brake drum →
+submits. The app records his GPS coordinates. The system checks: is this vehicle inside the
+yard geofence? Yes → request enters the workshop queue at position #3 with "high" priority.
+No → request rejected with push notification: "You must be at the yard to request service."
 
-The Logistics Manager opens his pending requests, sees the issue with the photo, and approves
-with a comment: "Check brake drum wear too." It moves to the Operations Manager, who approves
-as well. Both approvals happen in the system — no walking between offices, no paper slips.
+The Workshop Manager opens the dashboard and sees the queue: 3 trucks waiting, 2 being
+worked on, 1 ready for release. He clicks the new request, reads the description, views
+the photo. He creates two mechanic assignments: "Gasana" with instruction "Inspect front
+brake pads and rotors, check fluid level", and "Patrick" with instruction "Test brake
+booster vacuum line, check master cylinder". Both mechanics get push notifications:
+"New task assigned — Workshop Bay 2."
 
-If the parts are in the workshop store, the storekeeper picks them, the system deducts them from
-stock. If parts are out of stock, the system flags it and the manager creates a purchase order
-to the vendor right in the same screen — no separate email or phone call. When the parts arrive,
-the receiving clerk marks them received, and stock updates automatically.
+Gasana opens his Companion App. He sees the task with full instructions. He opens the
+Part Request screen: needs brake pads. He scans the barcode on an existing box in the
+store — system finds the part, shows stock: 4 in stock. He requests 2. But the vehicle
+also needs a new brake master cylinder that isn't in the catalog. He selects "New Part",
+fills: name "Brake Master Cylinder", specs "Compatible with HOWO SHACMAN, 1.5-inch bore",
+estimated price "85,000 RWF". Submits.
 
-The workshop manager opens the dashboard and sees all 120+ trucks at a glance: which are waiting
-for approval, which have parts on order, which are being worked on, which mechanic is assigned,
-and how long each repair is expected to take. He sees that Truck ABC-123 has been in the workshop
-for 3 days and is overdue, and that the engine parts for Truck XYZ-456 are still waiting at the
-supplier.
+The Procurement Clerk sees the new part request. He adjusts the price to 78,000 RWF based
+on the actual supplier quote, sets vendor to "Rwanda Auto Spares Ltd", and forwards to
+Workshop Manager. The Workshop Manager reviews the spec, approves. It goes to Logistics
+Manager, then Operations Manager. Once all approve, Procurement Clerk receives notification:
+"Part request approved — Brake Master Cylinder." He creates a PO, Finance gets notified
+for payment.
 
-When the repair is done, the mechanic marks it complete. A supervisor inspects the truck and
-opens the release screen. The system requires him to complete a checklist based on the repair
-type — since this was a brake job, he must confirm: brake fluid level OK, brake pad wear within
-limits, test drive completed. He also must enter any unresolved issues: "Slight vibration at
-high speed — recommend monitoring." He releases the truck.
+Meanwhile, Gasana completes the brake pad replacement. He marks his task done with note:
+"Front pads replaced, rotors resurfaced. Brake fluid bled." But Patrick is still working.
+The system keeps the repair "in_progress" until all mechanics finish.
 
-But the truck doesn't go directly to "available." It enters the **released pool** — a queue of
-vehicles that have been through workshop but await a dispatcher or Logistics Manager to confirm
-they're road-ready. The Logistics Manager opens the pool, sees the unresolved issues note,
-decides the vibration is acceptable for local routes but not for long-haul. He marks it
-"available for local trips only" or sends it back to workshop if the issue is critical. This
-two-stage gate prevents workshop from dumping trucks back into the fleet without accountability.
+Patrick completes his task: "Master cylinder bypassed temporarily — vehicle drivable but
+advise replacement when part arrives." He marks done. The system notifies the Workshop
+Manager: "All mechanics completed — ready for release decision."
 
-No more clipboards, no more walking to find the manager, no more wondering where a truck is in
-the workshop process, no more Excel sheets to track parts costs. No paper at all — until a cash
-payment needs a legal receipt.
+The Workshop Manager inspects the truck. He opens the release screen, checks the
+unresolved issues from Patrick's note, adds his own: "Master cylinder on order — monitor
+fluid level daily." He checks the brake-test checklist items, enters the odometer reading,
+and releases the truck. The vehicle enters the **Available Pool** — visible to dispatchers
+for their next trip assignment.
+
+The Workshop Manager sees the dashboard: 2 accepted but not yet started from the queue,
+1 truck being worked on, 1 truck ready for dispatching. No paper anywhere.
+
+When the brake master cylinder arrives 3 days later, the Procurement Clerk receives it,
+scans the barcode to add it to inventory, and notifies Gasana: "Part arrived — come collect."
+Gasana collects the part and installs it during the next scheduled maintenance, closing the
+loop.
+
+Every interaction — who assigned what, what instructions were given, which mechanic did
+what, when part was requested/approved/received — is recorded in the audit trail. Printable
+only when needed: supplier invoices, payment receipts, proof of delivery.
 
 ---
 

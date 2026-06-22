@@ -8,48 +8,70 @@ use App\Models\RepairRelease;
 use App\Models\Approval;
 use App\Models\StockLevel;
 use App\Models\StockMovement;
+use App\Notifications\MechanicAssigned;
 use Illuminate\Support\Facades\DB;
 
 class RepairRequestService
 {
     public function submit(RepairRequest $repairRequest): RepairRequest
     {
+        $hasParts = $repairRequest->items()->whereNotNull('part_id')->exists();
+
         $repairRequest->update([
-            'status' => 'pending_approval',
+            'status' => $hasParts ? 'pending_approval' : 'approved',
             'submitted_at' => now(),
         ]);
 
         return $repairRequest->fresh();
     }
 
-    public function approve(RepairRequest $repairRequest, int $approverId, string $approverRole, int $stage, ?string $comment = null): RepairRequest
+    public function requestApproval(RepairRequest $repairRequest, int $userId): RepairRequest
     {
+        abort_if($repairRequest->approval_requested_at, 422, 'Approval already requested for this repair.');
+        abort_if($repairRequest->status !== 'pending_approval', 422, 'Repair request is not in a pending approval state.');
+
+        $hasMechanic = $repairRequest->assignments()->exists();
+        abort_unless($hasMechanic, 422, 'A mechanic must be assigned before requesting approval.');
+
+        $repairRequest->update([
+            'approval_requested_at' => now(),
+            'approval_requested_by' => $userId,
+        ]);
+
+        return $repairRequest->fresh();
+    }
+
+    public function approve(RepairRequest $repairRequest, int $approverId, string $approverRole, ?string $comment = null): RepairRequest
+    {
+        abort_if($repairRequest->status !== 'pending_approval', 422, 'Repair request is not pending approval.');
+        abort_unless($repairRequest->approval_requested_at, 422, 'Approval has not been requested for this repair.');
+
         Approval::create([
             'approvable_type' => RepairRequest::class,
             'approvable_id' => $repairRequest->id,
             'approver_id' => $approverId,
             'approver_role' => $approverRole,
-            'stage' => $stage,
+            'stage' => 1,
             'status' => 'approved',
             'comment' => $comment,
             'decided_at' => now(),
         ]);
 
-        if ($stage === 2 || ($stage === 1 && $repairRequest->items()->whereNull('part_id')->exists())) {
-            $repairRequest->update(['status' => 'approved']);
-        }
+        $repairRequest->update(['status' => 'approved']);
 
         return $repairRequest->fresh();
     }
 
-    public function reject(RepairRequest $repairRequest, int $approverId, string $approverRole, int $stage, ?string $comment = null): RepairRequest
+    public function reject(RepairRequest $repairRequest, int $approverId, string $approverRole, ?string $comment = null): RepairRequest
     {
+        abort_if($repairRequest->status !== 'pending_approval', 422, 'Repair request is not pending approval.');
+
         Approval::create([
             'approvable_type' => RepairRequest::class,
             'approvable_id' => $repairRequest->id,
             'approver_id' => $approverId,
             'approver_role' => $approverRole,
-            'stage' => $stage,
+            'stage' => 1,
             'status' => 'rejected',
             'comment' => $comment,
             'decided_at' => now(),
@@ -60,15 +82,24 @@ class RepairRequestService
         return $repairRequest->fresh();
     }
 
-    public function assignMechanic(RepairRequest $repairRequest, int $mechanicId): RepairAssignment
+    public function assignMechanic(RepairRequest $repairRequest, int $mechanicId, ?string $instructions = null): RepairAssignment
     {
         $assignment = RepairAssignment::create([
             'repair_request_id' => $repairRequest->id,
             'mechanic_id' => $mechanicId,
+            'instructions' => $instructions,
+            'status' => 'assigned',
             'assigned_at' => now(),
         ]);
 
-        $repairRequest->update(['status' => 'in_progress']);
+        if ($repairRequest->status === 'approved') {
+            $repairRequest->update(['status' => 'in_progress']);
+        }
+
+        $mechanic = \App\Models\User::find($mechanicId);
+        if ($mechanic) {
+            $mechanic->notify(new MechanicAssigned($repairRequest, $assignment));
+        }
 
         return $assignment;
     }
@@ -76,19 +107,49 @@ class RepairRequestService
     public function startWork(int $assignmentId): RepairAssignment
     {
         $assignment = RepairAssignment::findOrFail($assignmentId);
-        $assignment->update(['started_at' => now()]);
+        $assignment->update(['started_at' => now(), 'status' => 'in_progress']);
 
         return $assignment->fresh();
     }
 
-    public function completeWork(int $assignmentId): RepairAssignment
+    public function completeWork(int $assignmentId, ?string $completedNote = null): RepairAssignment
     {
         $assignment = RepairAssignment::findOrFail($assignmentId);
-        $assignment->update(['completed_at' => now()]);
+        $assignment->update([
+            'completed_at' => now(),
+            'status' => 'completed',
+            'completed_note' => $completedNote,
+        ]);
 
-        $assignment->repairRequest->update(['status' => 'completed']);
+        $allDone = $assignment->repairRequest->assignments()
+            ->where('status', '!=', 'completed')
+            ->doesntExist();
+
+        if ($allDone) {
+            $assignment->repairRequest->update(['status' => 'completed']);
+        }
 
         return $assignment->fresh();
+    }
+
+    public function reassignMechanic(RepairRequest $repairRequest, int $mechanicId, ?string $instructions = null): RepairAssignment
+    {
+        $assignment = RepairAssignment::create([
+            'repair_request_id' => $repairRequest->id,
+            'mechanic_id' => $mechanicId,
+            'instructions' => $instructions,
+            'status' => 'assigned',
+            'assigned_at' => now(),
+        ]);
+
+        $repairRequest->update(['status' => 'in_progress']);
+
+        $mechanic = \App\Models\User::find($mechanicId);
+        if ($mechanic) {
+            $mechanic->notify(new MechanicAssigned($repairRequest, $assignment));
+        }
+
+        return $assignment;
     }
 
     public function release(
@@ -98,6 +159,12 @@ class RepairRequestService
         bool $checklistCompleted,
         ?float $odometer = null
     ): RepairRelease {
+        $allCompleted = $repairRequest->assignments()
+            ->where('status', '!=', 'completed')
+            ->doesntExist();
+
+        abort_unless($allCompleted, 422, 'Cannot release: not all mechanics have completed their tasks.');
+
         $release = RepairRelease::create([
             'repair_request_id' => $repairRequest->id,
             'released_by' => $releasedBy,
