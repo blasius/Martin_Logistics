@@ -73,9 +73,13 @@ class FleetReportController extends Controller
 
         // Top profitable clients
         $topClients = (clone $orderRevenueQuery)
-            ->select('orders.client_id', 'clients.name', DB::raw('SUM(orders.price) as total_revenue'), DB::raw('COUNT(*) as order_count'))
-            ->join('clients', 'orders.client_id', '=', 'clients.id')
-            ->groupBy('orders.client_id', 'clients.name')
+            ->select('orders.client_id',
+                DB::raw('COALESCE(users.name, clients.contact_person) as name'),
+                DB::raw('SUM(orders.price) as total_revenue'),
+                DB::raw('COUNT(*) as order_count'))
+            ->leftJoin('clients', 'orders.client_id', '=', 'clients.id')
+            ->leftJoin('users', 'clients.user_id', '=', 'users.id')
+            ->groupBy('orders.client_id', 'users.name', 'clients.contact_person')
             ->orderByDesc('total_revenue')
             ->take(10)
             ->get()
