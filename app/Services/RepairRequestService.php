@@ -43,35 +43,57 @@ class RepairRequestService
 
     public function approve(RepairRequest $repairRequest, int $approverId, string $approverRole, ?string $comment = null): RepairRequest
     {
-        abort_if($repairRequest->status !== 'pending_approval', 422, 'Repair request is not pending approval.');
         abort_unless($repairRequest->approval_requested_at, 422, 'Approval has not been requested for this repair.');
+
+        $roleLower = strtolower($approverRole);
+        $isAdmin = in_array($roleLower, ['super_admin', 'admin']);
+        $isLogistics = $isAdmin || str_contains($roleLower, 'logistics');
+        $isOps = $isAdmin || str_contains($roleLower, 'operations');
+        $isFirstLevel = $repairRequest->status === 'pending_approval';
+        $isSecondLevel = $repairRequest->status === 'pending_ops_approval';
+
+        abort_unless($isFirstLevel || $isSecondLevel, 422, 'Repair request is not in an approvable state.');
+
+        if ($isFirstLevel) {
+            abort_unless($isLogistics, 403, 'Only Logistics Manager (or Admin) can give first-level approval.');
+            $nextStatus = 'pending_ops_approval';
+            $stage = 1;
+        } else {
+            abort_unless($isOps, 403, 'Only Operations Manager (or Admin) can give second-level approval.');
+            $nextStatus = 'approved';
+            $stage = 2;
+        }
 
         Approval::create([
             'approvable_type' => RepairRequest::class,
             'approvable_id' => $repairRequest->id,
             'approver_id' => $approverId,
             'approver_role' => $approverRole,
-            'stage' => 1,
+            'stage' => $stage,
             'status' => 'approved',
             'comment' => $comment,
             'decided_at' => now(),
         ]);
 
-        $repairRequest->update(['status' => 'approved']);
+        $repairRequest->update(['status' => $nextStatus]);
+
+        if ($nextStatus === 'approved') {
+            $this->notifyAssignedMechanics($repairRequest);
+        }
 
         return $repairRequest->fresh();
     }
 
     public function reject(RepairRequest $repairRequest, int $approverId, string $approverRole, ?string $comment = null): RepairRequest
     {
-        abort_if($repairRequest->status !== 'pending_approval', 422, 'Repair request is not pending approval.');
+        abort_unless(in_array($repairRequest->status, ['pending_approval', 'pending_ops_approval']), 422, 'Repair request is not in an approvable state.');
 
         Approval::create([
             'approvable_type' => RepairRequest::class,
             'approvable_id' => $repairRequest->id,
             'approver_id' => $approverId,
             'approver_role' => $approverRole,
-            'stage' => 1,
+            'stage' => $repairRequest->status === 'pending_ops_approval' ? 2 : 1,
             'status' => 'rejected',
             'comment' => $comment,
             'decided_at' => now(),
@@ -94,11 +116,7 @@ class RepairRequestService
 
         if ($repairRequest->status === 'approved') {
             $repairRequest->update(['status' => 'in_progress']);
-        }
-
-        $mechanic = \App\Models\User::find($mechanicId);
-        if ($mechanic) {
-            $mechanic->notify(new MechanicAssigned($repairRequest, $assignment));
+            $this->notifyMechanic($mechanicId, $repairRequest, $assignment);
         }
 
         return $assignment;
@@ -143,11 +161,7 @@ class RepairRequestService
         ]);
 
         $repairRequest->update(['status' => 'in_progress']);
-
-        $mechanic = \App\Models\User::find($mechanicId);
-        if ($mechanic) {
-            $mechanic->notify(new MechanicAssigned($repairRequest, $assignment));
-        }
+        $this->notifyMechanic($mechanicId, $repairRequest, $assignment);
 
         return $assignment;
     }
@@ -220,5 +234,20 @@ class RepairRequestService
         $seq = $last ? (int) substr($last->reference, -4) + 1 : 1;
 
         return "{$prefix}{$date}-" . str_pad($seq, 4, '0', STR_PAD_LEFT);
+    }
+
+    protected function notifyMechanic(int $mechanicId, RepairRequest $repairRequest, RepairAssignment $assignment): void
+    {
+        $mechanic = \App\Models\User::find($mechanicId);
+        if ($mechanic) {
+            $mechanic->notify(new MechanicAssigned($repairRequest, $assignment));
+        }
+    }
+
+    protected function notifyAssignedMechanics(RepairRequest $repairRequest): void
+    {
+        foreach ($repairRequest->assignments as $assignment) {
+            $this->notifyMechanic($assignment->mechanic_id, $repairRequest, $assignment);
+        }
     }
 }

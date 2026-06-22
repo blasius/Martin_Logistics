@@ -16,7 +16,7 @@
                                 <h2 class="font-black text-slate-800">Repair Details</h2>
                                 <p class="text-xs text-slate-400">Type: {{ rr.type }}</p>
                             </div>
-                            <span class="text-[10px] font-black px-3 py-1.5 rounded-full" :class="statusBadge(rr.status)">{{ rr.status }}</span>
+                            <span class="text-[10px] font-black px-3 py-1.5 rounded-full" :class="statusBadge(rr.status)">{{ displayStatus(rr.status) }}</span>
                         </div>
                         <div class="grid grid-cols-2 gap-4 mb-4 text-sm">
                             <div>
@@ -43,7 +43,7 @@
                     </div>
 
                     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                        <h3 class="text-xs font-black text-slate-500 uppercase tracking-wider mb-4">Items & Parts</h3>
+                        <h3 class="text-xs font-black text-slate-500 uppercase tracking-wider mb-4">Items &amp; Parts</h3>
                         <table class="w-full text-left">
                             <thead class="text-[10px] font-black text-slate-400 uppercase border-b">
                                 <tr>
@@ -67,7 +67,7 @@
                                 </tr>
                             </tbody>
                         </table>
-                        <p v-if="hasParts" class="mt-2 text-[10px] font-bold text-amber-600">Parts involved — Operations Manager approval required before work can proceed.</p>
+                        <p v-if="hasParts" class="mt-2 text-[10px] font-bold text-amber-600">Parts involved — requires Logistics Manager → Operations Manager approval.</p>
                     </div>
 
                     <div v-if="rr.assignments?.length" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
@@ -94,14 +94,19 @@
 
                     <div v-if="rr.approvals?.length" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                         <h3 class="text-xs font-black text-slate-500 uppercase tracking-wider mb-4">Approvals</h3>
-                        <div v-for="ap in rr.approvals" :key="ap.id" class="flex items-center justify-between py-2 border-b border-slate-50">
-                            <div>
-                                <p class="font-bold text-sm text-slate-800">{{ ap.approver_role }}</p>
-                                <p v-if="ap.comment" class="text-xs text-slate-500 italic">"{{ ap.comment }}"</p>
+                        <div class="space-y-3">
+                            <div v-for="ap in rr.approvals" :key="ap.id" class="flex items-center justify-between py-2 px-3 rounded-lg border" :class="approvalBorder(ap)">
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <p class="font-bold text-sm text-slate-800">{{ ap.approver_role }}</p>
+                                        <span class="text-[10px] font-black uppercase text-slate-400">Stage {{ ap.stage }}</span>
+                                    </div>
+                                    <p v-if="ap.comment" class="text-xs text-slate-500 italic">"{{ ap.comment }}"</p>
+                                </div>
+                                <span class="text-[10px] font-black px-2 py-1 rounded-full" :class="ap.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'">
+                                    {{ ap.status }}
+                                </span>
                             </div>
-                            <span class="text-[10px] font-black px-2 py-1 rounded-full" :class="ap.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'">
-                                {{ ap.status }}
-                            </span>
                         </div>
                     </div>
                 </div>
@@ -120,10 +125,16 @@
                                 <p class="text-[10px] text-slate-400 text-center font-bold">Assign a mechanic first before requesting approval</p>
                             </div>
 
-                            <div v-if="can('approve')" class="flex gap-2">
-                                <input v-model="approveComment" placeholder="Comment (optional)" class="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
-                                <button @click="approveRequest" class="px-4 py-2 bg-emerald-600 text-white rounded-xl font-black text-xs uppercase">Approve</button>
-                            </div>
+                            <template v-if="can('approve')">
+                                <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-2">
+                                    <p class="text-[10px] font-black text-amber-700 uppercase text-center">{{ approvalHint }}</p>
+                                </div>
+                                <div class="flex gap-2">
+                                    <input v-model="approveComment" placeholder="Comment (optional)" class="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
+                                    <button @click="approveRequest" class="px-4 py-2 bg-emerald-600 text-white rounded-xl font-black text-xs uppercase">Approve</button>
+                                </div>
+                            </template>
+
                             <div v-if="can('reject')" class="flex gap-2">
                                 <input v-model="rejectComment" placeholder="Reason" class="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
                                 <button @click="rejectRequest" class="px-4 py-2 bg-rose-600 text-white rounded-xl font-black text-xs uppercase">Reject</button>
@@ -217,12 +228,14 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
+import { useAuthStore } from '../../../store/authStore';
 import { repairRequestsApi } from '../../../api/workshop/repair-requests';
 import { warehousesApi } from '../../../api/workshop/warehouses';
 import { partsApi } from '../../../api/workshop/parts';
 import { ArrowLeft, X } from 'lucide-vue-next';
 
 const route = useRoute();
+const authStore = useAuthStore();
 const loading = ref(true);
 const rr = ref(null);
 const mechanics = ref([]);
@@ -236,7 +249,18 @@ const showUseParts = ref(false);
 const partsForm = ref({ warehouse_id: '', part_id: '', quantity: 0 });
 const releaseForm = ref({ odometer_at_release: null, unresolved_issues: '', checklist_completed: false });
 
+const userRoles = computed(() => authStore.user?.roles_list || []);
 const hasParts = computed(() => rr.value?.items?.some(i => i.part_id) ?? false);
+
+const isAdmin = computed(() => ['super_admin', 'Admin'].some(r => userRoles.value.includes(r)));
+const isLogisticsManager = computed(() => isAdmin.value || userRoles.value.some(r => r.toLowerCase().includes('logistics')));
+const isOpsManager = computed(() => isAdmin.value || userRoles.value.some(r => r.toLowerCase().includes('operations')));
+
+const approvalHint = computed(() => {
+    if (rr.value?.status === 'pending_approval') return 'You are approving as Logistics Manager (Stage 1)';
+    if (rr.value?.status === 'pending_ops_approval') return 'You are approving as Operations Manager (Stage 2)';
+    return '';
+});
 
 async function load() {
     loading.value = true;
@@ -271,6 +295,20 @@ async function loadParts() {
     } catch (e) { console.error(e); }
 }
 
+function displayStatus(s) {
+    const map = {
+        draft: 'Draft',
+        pending_approval: 'Pending (Logistics)',
+        pending_ops_approval: 'Pending (Operations)',
+        approved: 'Approved',
+        in_progress: 'In Progress',
+        completed: 'Completed',
+        released: 'Released',
+        cancelled: 'Cancelled',
+    };
+    return map[s] || s;
+}
+
 function can(action) {
     if (!rr.value) return false;
     const s = rr.value.status;
@@ -278,15 +316,21 @@ function can(action) {
     switch (action) {
         case 'submit': return s === 'draft';
         case 'request_approval': return s === 'pending_approval' && hasMechanic && !rr.value.approval_requested_at;
-        case 'approve': return s === 'pending_approval' && !!rr.value.approval_requested_at;
-        case 'reject': return s === 'pending_approval' && !!rr.value.approval_requested_at;
-        case 'assign': return s === 'approved' || (s === 'pending_approval' && !hasMechanic);
+        case 'approve':
+            if (s === 'pending_approval' && rr.value.approval_requested_at) return isLogisticsManager.value;
+            if (s === 'pending_ops_approval') return isOpsManager.value;
+            return false;
+        case 'reject':
+            if (s === 'pending_approval' && rr.value.approval_requested_at) return isLogisticsManager.value;
+            if (s === 'pending_ops_approval') return isOpsManager.value;
+            return false;
+        case 'assign': return (s === 'approved' || (s === 'pending_approval' && !hasMechanic)) && !isAdmin.value;
         case 'reassign': return s === 'completed';
         case 'start_work': return s === 'in_progress' && rr.value.assignments?.some(a => a.status === 'assigned');
         case 'complete_work': return s === 'in_progress' && rr.value.assignments?.some(a => a.status === 'in_progress');
         case 'use_parts': return s === 'in_progress';
         case 'release': return s === 'completed';
-        case 'cancel': return ['draft', 'pending_approval', 'approved', 'in_progress'].includes(s);
+        case 'cancel': return ['draft', 'pending_approval', 'pending_ops_approval', 'approved', 'in_progress'].includes(s);
         default: return false;
     }
 }
@@ -381,13 +425,27 @@ async function cancelRequest() {
 }
 
 function statusBadge(s) {
-    const map = { draft: 'bg-slate-100 text-slate-600', pending_approval: 'bg-amber-100 text-amber-700', approved: 'bg-blue-100 text-blue-700', in_progress: 'bg-indigo-100 text-indigo-700', completed: 'bg-emerald-100 text-emerald-700', released: 'bg-green-100 text-green-700', cancelled: 'bg-rose-100 text-rose-700' };
+    const map = {
+        draft: 'bg-slate-100 text-slate-600',
+        pending_approval: 'bg-amber-100 text-amber-700',
+        pending_ops_approval: 'bg-orange-100 text-orange-700',
+        approved: 'bg-blue-100 text-blue-700',
+        in_progress: 'bg-indigo-100 text-indigo-700',
+        completed: 'bg-emerald-100 text-emerald-700',
+        released: 'bg-green-100 text-green-700',
+        cancelled: 'bg-rose-100 text-rose-700',
+    };
     return map[s] || 'bg-slate-100 text-slate-600';
 }
 
 function assignmentStatusBadge(s) {
     const map = { assigned: 'bg-slate-100 text-slate-600', in_progress: 'bg-blue-100 text-blue-700', completed: 'bg-emerald-100 text-emerald-700' };
     return map[s] || 'bg-slate-100 text-slate-600';
+}
+
+function approvalBorder(ap) {
+    if (ap.status === 'approved') return 'border-emerald-200 bg-emerald-50/30';
+    return 'border-rose-200 bg-rose-50/30';
 }
 
 function formatAmount(v) { return (v || v === 0) ? v.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '-'; }

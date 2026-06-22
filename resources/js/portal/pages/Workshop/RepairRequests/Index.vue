@@ -38,7 +38,8 @@
             <select v-model="filters.status" @change="fetch" class="bg-slate-50 border-none rounded-xl text-xs font-bold px-3 outline-none">
                 <option value="">All Statuses</option>
                 <option value="draft">Draft</option>
-                <option value="pending_approval">Pending Approval</option>
+                <option value="pending_approval">Pending (Logistics)</option>
+                <option value="pending_ops_approval">Pending (Operations)</option>
                 <option value="approved">Approved</option>
                 <option value="in_progress">In Progress</option>
                 <option value="completed">Completed</option>
@@ -64,7 +65,7 @@
                     <div class="flex items-center gap-3">
                         <router-link :to="`/workshop/repair-requests/${rr.id}`" class="font-black text-indigo-600 hover:text-indigo-800 text-sm">{{ rr.reference }}</router-link>
                         <span class="text-[10px] font-black px-2 py-1 rounded-full" :class="priorityBadge(rr.priority)">{{ rr.priority }}</span>
-                        <span class="text-[10px] font-black px-2 py-1 rounded-full" :class="statusBadge(rr.status)">{{ rr.status }}</span>
+                        <span class="text-[10px] font-black px-2 py-1 rounded-full" :class="statusBadge(rr.status)">{{ displayStatus(rr.status) }}</span>
                     </div>
                     <div class="text-xs font-bold text-slate-400">
                         {{ rr.vehicle?.plate_number }}
@@ -266,10 +267,25 @@ async function createRequest() {
     }
 }
 
+function displayStatus(s) {
+    const map = {
+        draft: 'Draft',
+        pending_approval: 'Pending (Logistics)',
+        pending_ops_approval: 'Pending (Operations)',
+        approved: 'Approved',
+        in_progress: 'In Progress',
+        completed: 'Completed',
+        released: 'Released',
+        cancelled: 'Cancelled',
+    };
+    return map[s] || s;
+}
+
 function statusBadge(s) {
     const map = {
         draft: 'bg-slate-100 text-slate-600',
         pending_approval: 'bg-amber-100 text-amber-700',
+        pending_ops_approval: 'bg-orange-100 text-orange-700',
         approved: 'bg-blue-100 text-blue-700',
         in_progress: 'bg-indigo-100 text-indigo-700',
         completed: 'bg-emerald-100 text-emerald-700',

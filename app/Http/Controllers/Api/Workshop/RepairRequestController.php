@@ -46,14 +46,14 @@ class RepairRequestController extends Controller
             });
         }
 
-        $query->orderByRaw("FIELD(status, 'draft', 'pending_approval', 'approved', 'in_progress', 'completed', 'released', 'cancelled')")
+        $query->orderByRaw("FIELD(status, 'draft', 'pending_approval', 'pending_ops_approval', 'approved', 'in_progress', 'completed', 'released', 'cancelled')")
             ->orderByRaw("FIELD(priority, 'critical', 'high', 'medium', 'low')");
 
         return response()->json([
             'repair_requests' => $query->paginate($request->per_page ?? 15),
             'stats' => [
                 'total' => RepairRequest::count(),
-                'pending_approval' => RepairRequest::where('status', 'pending_approval')->count(),
+                'pending_approval' => RepairRequest::whereIn('status', ['pending_approval', 'pending_ops_approval'])->count(),
                 'in_progress' => RepairRequest::where('status', 'in_progress')->count(),
                 'completed' => RepairRequest::where('status', 'completed')->count(),
                 'released' => RepairRequest::where('status', 'released')->count(),
