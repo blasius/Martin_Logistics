@@ -103,11 +103,18 @@ Phase 1: Foundation
 Phase 2: Yard & Workshop
   Yard Service Queues (offload → wash → workshop) — geofence-gated requests by Driver App
   ├── Spare Parts Inventory (SKU/barcode auto-generated, scanner-ready)
-  ├── Mechanic Management (Workshop Manager creates mechanics with user accounts)
-  ├── Repair Request & Multi-Mechanic Assignment (with instructions per mechanic)
-  │     ├── Part Request & Multi-Level Approval Chain (Mech → Proc Clerk → WShop Mgr → Log Mgr → Ops Mgr)
-  │     └── Procurement (PO creation, receiving, stock auto-update)
-  └── Task-Based Release (per-mechanic done signal → Workshop Manager unlocks release → Available Pool)
+  ├── Mechanic Management (Workshop Manager manages existing users, assigns mechanic role via Spatie)
+  ├── Repair Request & Multi-Mechanic Assignment
+  │     ├── 1 active request per driver (non-released/non-cancelled)
+  │     ├── No parts → auto-approved; parts → 2-level approval (Logistics → Ops)
+  │     ├── Approval button gated by mechanic assignment; 1 approval per request
+  │     ├── Mechanic notification deferred until full approval chain closes
+  │     ├── Time tracking per assignment (duration computed: started_at → completed_at)
+  │     ├── Reassign mechanic from completed status (creates new assignment, back to in_progress)
+  │     └── Menu role-gated: Workshop Manager, Admin, super_admin, Ops Mgr, Logistics Mgr
+  ├── Part Request & Multi-Level Approval Chain (Mech → Proc Clerk → WShop Mgr → Log Mgr → Ops Mgr) [future]
+  ├── Procurement (PO creation, receiving, stock auto-update) [future]
+  └── Task-Based Release (all mechanics done → Workshop Manager releases → Available Pool)
 
 Phase 3: Fuel
   In-House Fuel Station ──── Routes (existing) → automated dispensing
@@ -375,12 +382,13 @@ or scanned via barcode scanner to eliminate manual entry errors.
 
 ### 2.2 Mechanic Management
 
-Workshop Manager creates and manages mechanics (who are system users with the `mechanic` role).
+Workshop Manager manages mechanics (who are existing system users with the `mechanic` role assigned via Spatie permission).
 
 **Requirements:**
 - `users` table already exists — mechanics are users with `role: mechanic` (assigned via Spatie roles)
-- Vue page: Workshop Manager can search, create, and deactivate mechanics
-- Each mechanic has a Companion App login to view assigned tasks and mark work done
+- Vue page: Workshop Manager can search existing users and assign the mechanic role to them (no user creation on the mechanic page)
+- The system detects if the `mechanic` role does not exist in Spatie permissions and links to `/admin/roles` Filament page
+- Each mechanic has a Companion App login to view assigned tasks, mark work done, and mark tasks complete
 - Mechanic profile includes: specialization (engine, brake, electrical, etc.), hourly rate
   (for future labor cost tracking)
 
@@ -395,36 +403,73 @@ mechanics, each with specific instructions.
 **Workflow:**
 1. **Request** — Driver opens Companion App, selects vehicle, describes issue, takes photo,
    attaches coordinates. System checks geofence. If valid → request enters service queue.
+   A driver can only have 1 active (non-released, non-cancelled) request at a time.
 2. **Queue** — Repair request appears in the workshop queue with priority level.
-3. **Assignment** — Workshop Manager opens the request, assigns mechanic(s), writes instructions
-   per mechanic ("Check brake drum wear", "Inspect engine mount bolts").
-4. **Task Execution** — Each mechanic sees their assignments in the Companion App with instructions.
-   They complete their assigned tasks and mark each as done.
-5. **Completion Signal** — When all mechanics mark their tasks done, Workshop Manager gets notified.
-6. **Release Decision** — Workshop Manager inspects, writes unresolved issues note, releases vehicle.
-7. **Available Pool** — Released vehicle enters the available pool for dispatchers to assign to trips.
+3. **Parts Check** — If any item has a `part_id` (spare parts needed), status goes to `pending_approval`
+   and a 2-level approval chain is triggered. If no parts, status goes to `approved` and the request
+   is ready for mechanic assignment.
+4. **Assignment** — Workshop Manager opens the request, assigns mechanic(s), writes instructions
+   per mechanic. If request is `pending_approval` (parts pending), no notification is sent to mechanic yet.
+   If request is `approved` (no parts), notification fires immediately.
+5. **Approval (only if parts involved)** — Logistics Manager (Stage 1) approves → status becomes
+   `pending_ops_approval`. Operations Manager (Stage 2) approves → status becomes `approved`.
+   Only 1 approval request can be submitted per repair request (`approval_requested_at` set once).
+   The approval button is active only after a mechanic has been assigned. Super Admin / Admin can
+   bypass both levels. When Stage 2 approval completes, all assigned mechanics receive notifications.
+   Rejection at any level returns request to `draft`.
+6. **Task Execution** — Each mechanic sees their assignments in the Companion App with instructions.
+   They complete their assigned tasks and mark each as done. Time tracking per assignment is computed
+   from `started_at` → `completed_at` (or current time if still in progress), displayed as "Xh Ym".
+7. **Completion Signal** — When all mechanics mark their tasks done, Workshop Manager gets notified.
+8. **Reassign (if needed)** — Workshop Manager can reassign a mechanic from `completed` status.
+   Creates a new RepairAssignment, sets request back to `in_progress`, sends notification to new mechanic.
+9. **Release Decision** — Workshop Manager inspects, writes unresolved issues note, releases vehicle.
+10. **Available Pool** — Released vehicle enters the available pool (`released_from_workshop` status)
+   for dispatchers to assign to trips.
 
 **Requirements:**
 
 *Step 1 — Request (driver-submitted):*
 - `repair_requests` table: `reference`, `vehicle_id`, `driver_id` (who reported), `type`,
-  `priority`, `description`, `status` (queued, assigned, in_progress, completed, released, cancelled),
-  `submitted_at`, `coordinates` (JSON — lat/lng from driver app), `geofence_verified`, `photo_urls` (via DM)
+  `priority`, `description`, `status` (draft, pending_approval, pending_ops_approval, approved,
+  in_progress, completed, released, cancelled), `approval_requested_at` (timestamp, set once),
+  `approval_requested_by` (FK users), `submitted_at`, `coordinates` (JSON — lat/lng from driver app),
+  `geofence_verified`, `photo_urls` (via DM)
 - `repair_request_items` table: `repair_request_id`, `description`, `part_id` (nullable),
   `estimated_quantity`, `estimated_unit_price`, `estimated_total`
+- **1 active request rule**: `RepairRequestController@store` checks for existing non-released/non-cancelled
+  requests by `driver_id` before creating a new one
 
-*Step 3 — Assignment with instructions:*
+*Step 3 — Parts-based approval branching:*
+- No `part_id` items → status set to `approved`, mechanic can be assigned immediately
+- Any item has `part_id` → status set to `pending_approval`, must go through 2-level chain
+- `approval_requested_at` gating: only 1 approval request per repair request; button disabled once set
+- Approval button only active when `rr.assignments.length > 0` (mechanic already assigned)
+
+*Step 4 — Assignment with instructions:*
 - `repair_assignments` table: `repair_request_id`, `mechanic_id` (user), `instructions` (text —
   required, manager writes what this mechanic should do), `status` (assigned, in_progress, completed),
   `assigned_at`, `started_at`, `completed_at`, `completed_note` (mechanic's report on what was done)
+- `$appends = ['duration']` computed attribute: `started_at` → `completed_at` (or now if still running)
+- Notification: `MechanicAssigned` notification sent immediately if status is `approved`; deferred
+  until final (Stage 2) approval if status is still pending
 
-*Step 6 — Release:*
-- `repair_releases` table: `repair_request_id`, `released_by`, `released_at`, `odometer_at_release`,
-  `unresolved_issues` (text, **required**), `checklist_completed` (boolean)
-- Release is only allowed when ALL mechanic assignments are marked completed
+*Step 5 — 2-Level Approval Chain (modelled in RepairRequestService@approve):*
+- Stage 1: Logistics Manager → status transitions to `pending_ops_approval`
+- Stage 2: Operations Manager → status transitions to `approved`, triggers `notifyAssignedMechanics()`
+- `super_admin` and `Admin` can approve at either level
+- `reject()` returns to `draft`
+- Frontend `Show.vue` computes `isLogisticsManager`/`isOpsManager` from auth (case-insensitive + admin fallback)
+  and shows stage hints like "You are approving as Logistics Manager (Stage 1)"
+
+*Step 8 — Reassign:*
+- `reassignMechanic` endpoint: creates new `RepairAssignment`, sets request to `in_progress`, sends notification
+
+*Step 9 — Release:*
 - Vehicle status: `in_workshop` → `released_from_workshop` → enters Available Pool
+- All mechanic assignments must be completed before release
 
-*Step 7 — Available Pool:*
+*Step 10 — Available Pool:*
 - `available_vehicles` view/logic: vehicles released from workshop are flagged as available
   for trip planning. Dispatchers see them in trip creation dropdown.
 
@@ -490,9 +535,16 @@ Purchase orders for parts not in stock (triggered by repair workflow or part req
 - Live status cards: vehicles in workshop, by status, by mechanic, high-priority repairs
 - Queue view: pending repair requests with vehicle, priority, time in queue
 - Assignment panel: assign/reassign mechanics with instructions
-- Part request approvals: pending requests with full chain visibility
+- Approval panel: 1-click "Request Approval" button (gated by mechanic assignment, disabled after 1 use)
+- Part request approvals: pending requests with full chain visibility (future Phase 2.4)
 - Release panel: vehicles ready for release (all mechanics done)
 - Available Pool: list of released vehicles ready for trip planning
+
+**Navigation Access:**
+- Workshop menu visible only to users with roles: Workshop Manager, Admin, `super_admin`,
+  Operations Manager, Logistics Manager
+- Role gating enforced on both frontend (SidebarMenu.vue filtering via `authStore.user.roles_list`)
+  and backend (RepairRequestService role checks with 403 on unauthorized)
 
 **Mechanic Companion App (Vue/Mobile):**
 - Login with mechanic user credentials
@@ -512,55 +564,58 @@ A truck arrives at the yard after completing its trip. The driver parks at the y
 from his Companion App, selects "Request Workshop" → chooses the vehicle → describes the
 issue ("Brake pedal feels spongy, pulling left") → attaches a photo of the brake drum →
 submits. The app records his GPS coordinates. The system checks: is this vehicle inside the
-yard geofence? Yes → request enters the workshop queue at position #3 with "high" priority.
-No → request rejected with push notification: "You must be at the yard to request service."
+yard geofence? Yes → request enters the workshop queue. No → rejected with push notification:
+"You must be at the yard to request service." The system also ensures the driver only has 1
+active request — if they already have one in a non-released/non-cancelled status, the new
+one is blocked.
 
-The Workshop Manager opens the dashboard and sees the queue: 3 trucks waiting, 2 being
-worked on, 1 ready for release. He clicks the new request, reads the description, views
-the photo. He creates two mechanic assignments: "Gasana" with instruction "Inspect front
-brake pads and rotors, check fluid level", and "Patrick" with instruction "Test brake
-booster vacuum line, check master cylinder". Both mechanics get push notifications:
-"New task assigned — Workshop Bay 2."
+The Workshop Manager opens the dashboard and sees the queue. He clicks the new request,
+reads the description, views the photo. He creates two mechanic assignments: "Gasana" with
+instruction "Inspect front brake pads and rotors, check fluid level", and "Patrick" with
+instruction "Test brake booster vacuum line, check master cylinder".
 
-Gasana opens his Companion App. He sees the task with full instructions. He opens the
-Part Request screen: needs brake pads. He scans the barcode on an existing box in the
-store — system finds the part, shows stock: 4 in stock. He requests 2. But the vehicle
-also needs a new brake master cylinder that isn't in the catalog. He selects "New Part",
-fills: name "Brake Master Cylinder", specs "Compatible with HOWO SHACMAN, 1.5-inch bore",
-estimated price "85,000 RWF". Submits.
+The request includes a part (brake pads from catalog). The system detects `part_id` in the
+items and sets status to `pending_approval`. The Workshop Manager cannot approve it himself —
+he must submit an approval request, but the button is inactive until a mechanic is assigned.
+Once both mechanics are assigned, the button becomes active. He clicks "Request Approval".
+The button disables immediately — only 1 approval request per repair request.
 
-The Procurement Clerk sees the new part request. He adjusts the price to 78,000 RWF based
-on the actual supplier quote, sets vendor to "Rwanda Auto Spares Ltd", and forwards to
-Workshop Manager. The Workshop Manager reviews the spec, approves. It goes to Logistics
-Manager, then Operations Manager. Once all approve, Procurement Clerk receives notification:
-"Part request approved — Brake Master Cylinder." He creates a PO, Finance gets notified
-for payment.
+Logistics Manager receives a notification. She opens the request, sees the repair context
+and the parts involved, and approves (Stage 1). Status becomes `pending_ops_approval`.
+Operations Manager reviews next, approves (Stage 2). Status becomes `approved`. Now both
+mechanics receive push notifications: "New task assigned — Workshop Bay 2" — with full
+context (reference, vehicle, type, priority, description, instructions).
 
-Meanwhile, Gasana completes the brake pad replacement. He marks his task done with note:
-"Front pads replaced, rotors resurfaced. Brake fluid bled." But Patrick is still working.
-The system keeps the repair "in_progress" until all mechanics finish.
+If the request had no parts needed, it would go straight to `approved` and mechanics would
+be notified immediately on assignment — skipping the approval chain entirely.
+
+Gasana opens his Companion App. He sees the task with full instructions. He marks it in
+progress, works on it, completes it with note: "Front pads replaced, rotors resurfaced.
+Brake fluid bled." The system tracks his time: started at 09:15, completed at 11:30 =
+2h 15m displayed on the assignment card.
 
 Patrick completes his task: "Master cylinder bypassed temporarily — vehicle drivable but
 advise replacement when part arrives." He marks done. The system notifies the Workshop
-Manager: "All mechanics completed — ready for release decision."
+Manager: "All mechanics completed — ready for release decision." But the Workshop Manager
+decides the master cylinder issue needs immediate attention after all. He clicks "Reassign
+Mechanic" on Patrick's assignment, assigns a new mechanic "David" with fresh instructions.
+David gets a notification. The request goes back to `in_progress`.
 
+David completes the brake master cylinder replacement and marks done. All mechanics done now.
 The Workshop Manager inspects the truck. He opens the release screen, checks the
-unresolved issues from Patrick's note, adds his own: "Master cylinder on order — monitor
-fluid level daily." He checks the brake-test checklist items, enters the odometer reading,
-and releases the truck. The vehicle enters the **Available Pool** — visible to dispatchers
-for their next trip assignment.
+unresolved issues, enters the odometer reading, and releases the truck. The vehicle enters
+the **Available Pool** — visible to dispatchers for their next trip assignment with
+`released_from_workshop` status.
 
-The Workshop Manager sees the dashboard: 2 accepted but not yet started from the queue,
-1 truck being worked on, 1 truck ready for dispatching. No paper anywhere.
+The Workshop Manager sees the dashboard: requests by status (draft, pending_approval,
+pending_ops_approval, approved, in_progress, completed, released). He can filter by any
+status. Each card shows a human-readable label like "Pending (Operations)" with appropriate
+color coding. No paper anywhere.
 
-When the brake master cylinder arrives 3 days later, the Procurement Clerk receives it,
-scans the barcode to add it to inventory, and notifies Gasana: "Part arrived — come collect."
-Gasana collects the part and installs it during the next scheduled maintenance, closing the
-loop.
-
-Every interaction — who assigned what, what instructions were given, which mechanic did
-what, when part was requested/approved/received — is recorded in the audit trail. Printable
-only when needed: supplier invoices, payment receipts, proof of delivery.
+Every interaction — who assigned what mechanic, what instructions were given, which mechanic
+did what for how long, who approved at which stage, when any action occurred — is recorded
+in the audit trail. Printable only when needed: supplier invoices, payment receipts,
+proof of delivery.
 
 ---
 
