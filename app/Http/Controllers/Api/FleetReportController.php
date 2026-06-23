@@ -166,8 +166,8 @@ class FleetReportController extends Controller
         $totalFinePaid = (float) TrafficFine::where('status', 'PAID')->sum('paid_amount');
         $convertedRevenue = $currencyService->convert($totalRevenue, $usd, $selectedCurrency);
         $convertedExpenses = $currencyService->convert($totalExpenses, $usd, $selectedCurrency);
-        // Fines are always in RWF — convert to selected currency for net profit calculation but keep RWF display
         $convertedFineCost = $currencyService->convert($totalFineCost, $rwf, $selectedCurrency);
+        $convertedFinePaid = $currencyService->convert($totalFinePaid, $rwf, $selectedCurrency);
         $netProfit = $convertedRevenue - $convertedExpenses - $convertedFineCost;
         $profitMargin = $convertedRevenue > 0 ? round(($netProfit / $convertedRevenue) * 100, 1) : 0;
 
@@ -220,22 +220,29 @@ class FleetReportController extends Controller
             ->orderByDesc('amount')
             ->get();
 
+        // Merge fines into total expenses (no special treatment)
+        $convertedTotalExpenses = $convertedExpenses + $convertedFineCost;
+        $mergedMonthlyExpenses = array_map(fn($e, $f) => $e + $f, $monthlyExpensesSeries, $monthlyFinesSeries);
+
+        // Build cost breakdown including fines
+        $costBreakdown = $costBreakdown->map(fn ($c) => [
+            'name' => $c->name,
+            'amount' => (float) $currencyService->convert((float) $c->amount, $usd, $selectedCurrency),
+        ]);
+        // Back-calculate total fines in selected currency for cost breakdown
+        $totalFinesConverted = $currencyService->convert($totalFineCost, $rwf, $selectedCurrency);
+        $costBreakdown->push(['name' => 'Fines', 'amount' => $totalFinesConverted]);
+        $costBreakdown = $costBreakdown->sortByDesc('amount')->values();
+
         $financial = [
             'total_revenue' => $convertedRevenue,
-            'total_expenses' => $convertedExpenses,
-            'total_fine_cost' => $totalFineCost,
-            'total_fine_paid' => $totalFinePaid,
+            'total_expenses' => $convertedTotalExpenses,
             'net_profit' => $netProfit,
             'profit_margin' => $profitMargin,
             'monthly_labels' => $monthlyLabels,
             'monthly_revenue' => $monthlyRevenueSeries,
-            'monthly_expenses' => $monthlyExpensesSeries,
-            'monthly_fines' => $monthlyFinesSeries,
-            'cost_breakdown' => $costBreakdown->map(fn ($c) => [
-                'name' => $c->name,
-                'amount' => (float) $currencyService->convert((float) $c->amount, $usd, $selectedCurrency),
-            ]),
-            'fine_currency' => 'RWF',
+            'monthly_expenses' => $mergedMonthlyExpenses,
+            'cost_breakdown' => $costBreakdown,
         ];
 
         // ── Fuel Overview ──
@@ -293,7 +300,12 @@ class FleetReportController extends Controller
             ->selectRaw('DATE(issued_at) as date, COUNT(*) as count, SUM(ticket_amount) as total_amount')
             ->groupBy('date')
             ->orderBy('date')
-            ->get();
+            ->get()
+            ->map(fn ($f) => [
+                'date' => $f->date,
+                'count' => (int) $f->count,
+                'total_amount' => (float) $currencyService->convert((float) $f->total_amount, $rwf, $selectedCurrency),
+            ]);
 
         $tripStatusDist = Trip::selectRaw('status, COUNT(*) as count')
             ->groupBy('status')

@@ -111,10 +111,9 @@
                 </span>
             </div>
             <div class="p-6">
-                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     <StatCard label="Total Revenue" :value="formatCurrency(data?.financial?.total_revenue)" color="emerald" />
                     <StatCard label="Total Expenses" :value="formatCurrency(data?.financial?.total_expenses)" color="red" />
-                    <StatCard label="Fine Costs" :value="formatFines(data?.financial?.total_fine_cost)" color="amber" />
                     <StatCard label="Net Profit" :value="formatCurrency(data?.financial?.net_profit)" :color="profitColor" />
                     <StatCard label="Profit Margin" :value="data?.financial?.profit_margin + '%'" :color="profitColor" />
                 </div>
@@ -234,11 +233,6 @@ const formatCurrency = (val) => {
     return prefix + Number(val).toLocaleString('en-US', { maximumFractionDigits: 2 })
 }
 
-const formatFines = (val) => {
-    if (val == null) return '—'
-    return 'RWF ' + Number(val).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-}
-
 const healthColor = computed(() => {
     const h = data.value?.compliance?.health_percentage ?? 100
     if (h >= 80) return 'bg-emerald-100 text-emerald-700'
@@ -347,20 +341,22 @@ const renderCharts = () => {
         }))
     }
 
-    // Fine Trends (always in RWF)
+    // Fine Trends
     if (fineChart.value && d.charts?.fine_trends?.length) {
+        const c = selectedCurrency.value
         const labels = d.charts.fine_trends.map(t => t.date?.slice(5))
         const amounts = d.charts.fine_trends.map(t => Number(t.total_amount))
+        const prefix = c.code === 'RWF' ? 'RWF ' : c.symbol + ' '
         charts.push(new Chart(fineChart.value, {
             type: 'line',
-            data: { labels, datasets: [{ label: 'Fine Amount (RWF)', data: amounts, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, tension: 0.3, pointRadius: 3 }] },
+            data: { labels, datasets: [{ label: 'Fine Amount (' + c.code + ')', data: amounts, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, tension: 0.3, pointRadius: 3 }] },
                 options: {
                     responsive: true, maintainAspectRatio: false,
                     plugins: {
                         legend: { display: false },
-                        tooltip: { callbacks: { label: (ctx) => 'RWF ' + Number(ctx.raw).toLocaleString('en-US', { maximumFractionDigits: 2 }) } }
+                        tooltip: { callbacks: { label: (ctx) => prefix + Number(ctx.raw).toLocaleString('en-US', { maximumFractionDigits: 2 }) } }
                     },
-                    scales: { y: { beginAtZero: true, ticks: { callback: (v) => 'RWF ' + Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 }) } } }
+                    scales: { y: { beginAtZero: true, ticks: { callback: (v) => prefix + Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 }) } } }
                 }
         }))
     }
@@ -376,7 +372,7 @@ const renderCharts = () => {
         }))
     }
 
-    // Financial Chart — dual y-axis so revenue (~$18K) isn't crushed by fines (~$3M)
+    // Financial Chart — dual y-axis for revenue vs expenses
     if (financialChart.value && d.financial?.monthly_labels?.length) {
         charts.push(new Chart(financialChart.value, {
             type: 'bar',
@@ -385,7 +381,6 @@ const renderCharts = () => {
                 datasets: [
                     { label: 'Revenue', data: d.financial.monthly_revenue, backgroundColor: '#10b981', borderRadius: 3, yAxisID: 'y' },
                     { label: 'Expenses', data: d.financial.monthly_expenses, backgroundColor: '#ef4444', borderRadius: 3, yAxisID: 'y1' },
-                    { label: 'Fines', data: d.financial.monthly_fines, backgroundColor: '#8b5cf6', borderRadius: 3, yAxisID: 'y1' },
                 ]
             },
             options: {
