@@ -33,6 +33,7 @@ use App\Http\Controllers\Api\UserManagementController;
 use App\Http\Controllers\Api\RoleManagementController;
 use App\Http\Controllers\Api\CurrencyController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\MobileSupportTicketController;
 use App\Http\Controllers\Api\Support\SupportCategoryController;
@@ -327,6 +328,11 @@ Route::middleware('auth')->group(function () {
             Route::post('part-requests/{partRequest}/approve', [WsPartRequestController::class, 'approve']);
             Route::post('part-requests/{partRequest}/reject', [WsPartRequestController::class, 'reject']);
         });
+
+        // Settings
+        Route::get('settings', [SettingsController::class, 'index'])->middleware('role:super_admin|Admin');
+        Route::put('settings', [SettingsController::class, 'update'])->middleware('role:super_admin|Admin');
+        Route::get('settings/firebase', [SettingsController::class, 'firebaseConfig']);
 
         // Profile
         Route::get('profile', [ProfileController::class, 'show']);

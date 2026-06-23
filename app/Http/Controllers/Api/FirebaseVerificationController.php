@@ -5,30 +5,25 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Contact;
 use Illuminate\Http\Request;
-use Kreait\Firebase\Auth as FirebaseAuth;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 class FirebaseVerificationController extends Controller
 {
-    protected FirebaseAuth $auth;
-
-    public function __construct(FirebaseAuth $auth)
-    {
-        $this->auth = $auth;
-    }
-
-    /**
-     * Verify a phone contact using Firebase ID token.
-     * The client must first complete Firebase phone auth and send us the idToken.
-     */
     public function verify(Contact $contact, Request $request)
     {
         abort_unless($contact->user_id === Auth::id(), 403);
         $request->validate(['idToken' => 'required|string']);
 
         try {
-            $verifiedToken = $this->auth->verifyIdToken($request->idToken);
+            $firebaseAuth = app(\Kreait\Firebase\Contract\Auth::class);
+        } catch (\Throwable $e) {
+            Log::warning('Firebase not configured: '.$e->getMessage());
+            return response()->json(['message' => 'Firebase is not configured. Contact support.'], 503);
+        }
+
+        try {
+            $verifiedToken = $firebaseAuth->verifyIdToken($request->idToken);
             $phoneNumber   = $verifiedToken->claims()->get('phone_number');
 
             if (! $phoneNumber) {

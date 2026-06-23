@@ -28,5 +28,10 @@ class AppServiceProvider extends ServiceProvider
 
         Role::observe(RolePermissionObserver::class);
         Permission::observe(RolePermissionObserver::class);
+
+        $dynamicPath = storage_path('app/firebase/dynamic.json');
+        if (file_exists($dynamicPath)) {
+            config()->set('firebase.projects.app.credentials', $dynamicPath);
+        }
     }
 }

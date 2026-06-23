@@ -12,16 +12,23 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { auth, RecaptchaVerifier, signInWithPhoneNumber } from '@/plugins/firebase'
+import { ref, onMounted } from 'vue'
+import { auth, RecaptchaVerifier, signInWithPhoneNumber, initFirebase } from '@/plugins/firebase'
 import { api } from '../../plugins/axios'
 
 const fullNumber = ref('')
 const smsCode = ref('')
 const showCode = ref(false)
+const firebaseReady = ref(false)
 let confirmationResult = null
 
+onMounted(async () => {
+    await initFirebase()
+    firebaseReady.value = !!auth
+})
+
 async function sendSms() {
+    if (!auth) { alert('Firebase is not configured'); return }
     try {
         window.recaptchaVerifier = new RecaptchaVerifier('recaptcha-container', {
             size: 'invisible'

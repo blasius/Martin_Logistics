@@ -291,6 +291,47 @@
                     </div>
                 </div>
 
+                <!-- Firebase -->
+                <div v-if="activeSection === 'firebase'">
+                    <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden mb-6">
+                        <div class="p-6 border-b border-slate-100 bg-slate-50/50">
+                            <h2 class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Firebase Configuration</h2>
+                        </div>
+
+                        <div class="p-6 space-y-5">
+                            <div>
+                                <label class="text-[10px] font-black text-slate-400 uppercase ml-1 block mb-2 tracking-wide">Web API Key</label>
+                                <input v-model="firebaseForm.apiKey" type="text" placeholder="AIzaSy..."
+                                       class="border-slate-200 px-4 py-3.5 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 w-full max-w-lg transition-all font-mono" />
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-black text-slate-400 uppercase ml-1 block mb-2 tracking-wide">Auth Domain</label>
+                                <input v-model="firebaseForm.authDomain" type="text" placeholder="your-project.firebaseapp.com"
+                                       class="border-slate-200 px-4 py-3.5 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 w-full max-w-lg transition-all" />
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-black text-slate-400 uppercase ml-1 block mb-2 tracking-wide">Project ID</label>
+                                <input v-model="firebaseForm.projectId" type="text" placeholder="your-project-id"
+                                       class="border-slate-200 px-4 py-3.5 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 w-full max-w-lg transition-all" />
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-black text-slate-400 uppercase ml-1 block mb-2 tracking-wide">Service Account Credentials (JSON)</label>
+                                <textarea v-model="firebaseForm.credentialsJson" rows="8" placeholder='{ "type": "service_account", ... }'
+                                          class="border-slate-200 px-4 py-3.5 rounded-xl text-[11px] font-mono leading-relaxed focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 w-full max-w-lg transition-all" spellcheck="false"></textarea>
+                            </div>
+                            <div class="flex items-center gap-3 pt-2">
+                                <button @click="saveFirebase"
+                                        :disabled="firebaseSaving"
+                                        class="bg-indigo-600 hover:bg-indigo-700 text-white px-10 py-3.5 rounded-2xl text-xs font-black transition-all shadow-lg shadow-indigo-200 active:scale-95 disabled:opacity-40 disabled:shadow-none uppercase tracking-widest">
+                                    {{ firebaseSaving ? 'Saving...' : 'Save' }}
+                                </button>
+                                <span v-if="firebaseSaved" class="text-emerald-600 text-[10px] font-bold">Saved</span>
+                                <span v-if="firebaseError" class="text-red-500 text-[10px] font-bold">{{ firebaseError }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Profile -->
                 <div v-if="activeSection === 'profile'">
                     <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden mb-6">
@@ -628,6 +669,13 @@ const sections = [
         description: 'Personal information & contacts',
         icon: User,
         roles: null,
+    },
+    {
+        id: 'firebase',
+        label: 'Firebase',
+        description: 'Firebase Cloud Messaging & Auth',
+        icon: Settings2,
+        roles: ['super_admin', 'admin'],
     },
     {
         id: 'integrations',
@@ -974,6 +1022,113 @@ const deleteRole = async () => {
     }
 }
 
+// Firebase
+const firebaseForm = ref({ apiKey: '', authDomain: '', projectId: '', credentialsJson: '' })
+const firebaseSaving = ref(false)
+const firebaseSaved = ref(false)
+const firebaseError = ref('')
+
+const fetchFirebaseSettings = async () => {
+    try {
+        const { data } = await api.get('portal/settings')
+        const config = data.find(s => s.key === 'firebase_config')
+        if (config && config.value) {
+            try {
+                const parsed = JSON.parse(config.value)
+                firebaseForm.value = {
+                    apiKey: parsed.api_key || '',
+                    authDomain: parsed.auth_domain || '',
+                    projectId: parsed.project_id || '',
+                    credentialsJson: '',
+                }
+                const creds = parsed.credentials_json
+                if (creds) {
+                    const parsedCreds = typeof creds === 'string' ? JSON.parse(creds) : creds
+                    firebaseForm.value.credentialsJson = JSON.stringify(parsedCreds, null, 2)
+                }
+            } catch {
+                // reset all fields on parse failure
+                firebaseForm.value = { apiKey: '', authDomain: '', projectId: '', credentialsJson: '' }
+            }
+        } else {
+            firebaseForm.value = { apiKey: '', authDomain: '', projectId: '', credentialsJson: '' }
+        }
+    } catch (e) {
+        console.error('Failed to load Firebase settings', e)
+    }
+}
+
+const saveFirebase = async () => {
+    firebaseError.value = ''
+
+    const { apiKey, authDomain, projectId, credentialsJson } = firebaseForm.value
+    if (!apiKey.trim() || !authDomain.trim() || !projectId.trim() || !credentialsJson.trim()) {
+        firebaseError.value = 'All Firebase fields are required and cannot be empty.'
+        return
+    }
+    if (!apiKey.trim().startsWith('AIza')) {
+        firebaseError.value = 'Web API Key must start with "AIza".'
+        return
+    }
+    if (!authDomain.trim().includes('.')) {
+        firebaseError.value = 'Auth Domain must be a valid domain (e.g. project.firebaseapp.com).'
+        return
+    }
+    if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/i.test(projectId.trim())) {
+        firebaseError.value = 'Project ID appears to be invalid.'
+        return
+    }
+
+    firebaseSaving.value = true
+    firebaseSaved.value = false
+    try {
+        let credsParsed
+        try {
+            credsParsed = JSON.parse(credentialsJson)
+        } catch {
+            firebaseError.value = 'Service Account Credentials must be valid JSON.'
+            firebaseSaving.value = false
+            return
+        }
+        if (typeof credsParsed !== 'object' || credsParsed === null || Array.isArray(credsParsed)) {
+            firebaseError.value = 'Service Account Credentials must be a JSON object.'
+            firebaseSaving.value = false
+            return
+        }
+        const requiredCredFields = ['type', 'project_id', 'private_key', 'client_email']
+        for (const field of requiredCredFields) {
+            if (!credsParsed[field] || !String(credsParsed[field]).trim()) {
+                firebaseError.value = `Service Account Credentials is missing required field: ${field}.`
+                firebaseSaving.value = false
+                return
+            }
+        }
+        if (credsParsed.type !== 'service_account') {
+            firebaseError.value = 'Service Account Credentials must have type "service_account".'
+            firebaseSaving.value = false
+            return
+        }
+
+        const config = JSON.stringify({
+            api_key: apiKey.trim(),
+            auth_domain: authDomain.trim(),
+            project_id: projectId.trim(),
+            credentials_json: JSON.stringify(credsParsed),
+        })
+
+        const settings = [
+            { key: 'firebase_config', value: config },
+        ]
+        await api.put('portal/settings', { settings })
+        firebaseSaved.value = true
+        setTimeout(() => firebaseSaved.value = false, 3000)
+    } catch (e) {
+        firebaseError.value = e.response?.data?.message || 'Failed to save Firebase settings.'
+    } finally {
+        firebaseSaving.value = false
+    }
+}
+
 // Profile
 const profileForm = ref({ name: '', email: '' })
 const profileErrors = ref({})
@@ -1029,6 +1184,7 @@ onMounted(() => {
         fetchUsers()
         fetchRolesWithDetails()
         fetchAllPermissions()
+        fetchFirebaseSettings()
     }
 })
 </script>
