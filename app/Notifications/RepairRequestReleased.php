@@ -2,16 +2,18 @@
 
 namespace App\Notifications;
 
+use App\Models\RepairRelease;
 use App\Models\RepairRequest;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 
-class RepairRequestCreated extends Notification
+class RepairRequestReleased extends Notification
 {
     use Queueable;
 
     public function __construct(
-        public RepairRequest $repairRequest
+        public RepairRequest $repairRequest,
+        public RepairRelease $release
     ) {}
 
     public function via(object $notifiable): array
@@ -26,19 +28,19 @@ class RepairRequestCreated extends Notification
             'reference' => $this->repairRequest->reference,
             'vehicle' => $this->repairRequest->vehicle?->plate_number,
             'type' => $this->repairRequest->type,
-            'priority' => $this->repairRequest->priority,
-            'description' => $this->repairRequest->description,
-            'message' => "A repair request ({$this->repairRequest->reference}) has been created for {$this->repairRequest->vehicle?->plate_number}. Please review in your app.",
+            'released_at' => $this->release->released_at,
+            'unresolved_issues' => $this->release->unresolved_issues,
+            'message' => "Your vehicle {$this->repairRequest->vehicle?->plate_number} has been released from the workshop.",
         ];
     }
 
     public function toFcm(object $notifiable): array
     {
         return [
-            'title' => 'Repair Request Created',
-            'body' => "{$this->repairRequest->reference} created for {$this->repairRequest->vehicle?->plate_number}.",
+            'title' => 'Vehicle Released',
+            'body' => "{$this->repairRequest->vehicle?->plate_number} has been released from the workshop ({$this->repairRequest->reference}).",
             'data' => [
-                'type' => 'repair_created',
+                'type' => 'repair_released',
                 'repair_request_id' => (string) $this->repairRequest->id,
                 'reference' => $this->repairRequest->reference,
             ],

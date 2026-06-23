@@ -9,6 +9,7 @@ use App\Models\Approval;
 use App\Models\StockLevel;
 use App\Models\StockMovement;
 use App\Notifications\MechanicAssigned;
+use App\Notifications\RepairRequestReleased;
 use Illuminate\Support\Facades\DB;
 
 class RepairRequestService
@@ -190,6 +191,10 @@ class RepairRequestService
 
         $repairRequest->vehicle->update(['status' => 'released_from_workshop']);
         $repairRequest->update(['status' => 'released']);
+
+        if ($repairRequest->driver) {
+            $repairRequest->driver->notify(new RepairRequestReleased($repairRequest, $release));
+        }
 
         return $release;
     }

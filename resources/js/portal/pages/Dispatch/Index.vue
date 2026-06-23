@@ -95,9 +95,9 @@
                     <h1 class="text-xl font-black text-slate-800 uppercase leading-none">Fleet Control</h1>
                     <div class="flex items-center gap-3 mt-1.5">
                         <div class="flex bg-slate-100 p-0.5 rounded-lg">
-                            <button v-for="s in ['active', 'maintenance', 'inactive']" :key="s" @click="statusFilter = s"
+                            <button v-for="s in ['active', 'maintenance', 'inactive', 'released_from_workshop']" :key="s" @click="statusFilter = s"
                                     class="px-3 py-1 text-[9px] font-black uppercase rounded-md transition-all"
-                                    :class="statusFilter === s ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'">{{ s }}</button>
+                                    :class="statusFilter === s ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'">{{ s === 'released_from_workshop' ? 'Released' : s }}</button>
                         </div>
                         <span v-if="!canEdit" class="text-[8px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full font-black border border-amber-100 uppercase flex items-center gap-1"><Lock class="w-2.5 h-2.5" /> View Only</span>
                     </div>
@@ -133,12 +133,13 @@
                     <button @click="showInfo(v)" class="p-1 text-slate-300 hover:text-indigo-600 transition-colors">
                         <Info class="w-4 h-4" />
                     </button>
-                    <div class="text-[8px] font-black px-1.5 py-0.5 rounded inline-block uppercase"
+                     <div class="text-[8px] font-black px-1.5 py-0.5 rounded inline-block uppercase"
                          :class="{
                              'bg-emerald-100 text-emerald-700': v.status === 'active',
                              'bg-amber-100 text-amber-700': v.status === 'maintenance',
-                             'bg-rose-100 text-rose-700': v.status === 'inactive'
-                         }">{{ v.status }}</div>
+                             'bg-rose-100 text-rose-700': v.status === 'inactive',
+                             'bg-purple-100 text-purple-700': v.status === 'released_from_workshop'
+                         }">{{ v.status === 'released_from_workshop' ? 'Released' : v.status }}</div>
                 </div>
 
                 <div class="col-span-2 text-xs text-slate-500 font-medium">{{ v.make }} {{ v.model }}</div>

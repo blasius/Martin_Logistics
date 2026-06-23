@@ -29,6 +29,7 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
         'password',
         'email_verification_code',
         'email_verification_code_expires_at',
+        'fcm_token',
     ];
 
     protected $hidden = [

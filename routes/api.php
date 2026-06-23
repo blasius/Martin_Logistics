@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\MobileAuthController;
 use App\Http\Controllers\Api\MobileTripController;
+use App\Http\Controllers\Api\Mobile\FcmTokenController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Api\ComplianceSummaryController;
@@ -97,6 +98,9 @@ Route::prefix('mobile')->middleware('auth:sanctum')->group(function () {
         Route::get('tickets/{ticket}', [MobileSupportTicketController::class, 'show']);
         Route::post('tickets/{ticket}/messages', [MobileSupportTicketController::class, 'addMessage']);
     });
+
+    // FCM Token Registration
+    Route::post('fcm-token', [FcmTokenController::class, 'update']);
 });
 
 // Password reset (no auth — accessed via emailed link)

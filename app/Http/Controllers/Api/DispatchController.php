@@ -37,8 +37,13 @@ class DispatchController extends Controller
 
             $vehicle->current_driver = $currentDriver;
 
-            // Ensure status is lowercase to match the Vue filter 'active'|'maintenance'|'inactive'
-            $vehicle->status = strtolower($vehicle->status);
+            // Map statuses to filter-friendly values
+            $status = strtolower($vehicle->status);
+            if (in_array($status, ['active', 'maintenance', 'inactive', 'released_from_workshop'])) {
+                $vehicle->status = $status;
+            } else {
+                $vehicle->status = 'inactive';
+            }
 
             return $vehicle;
         });
