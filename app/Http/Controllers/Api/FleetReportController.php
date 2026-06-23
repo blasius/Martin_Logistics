@@ -296,16 +296,11 @@ class FleetReportController extends Controller
             ->groupBy('status')
             ->get();
 
-        $fineTrends = TrafficFine::whereBetween('issued_at', [$weekStart, $today])
-            ->selectRaw('DATE(issued_at) as date, COUNT(*) as count, SUM(ticket_amount) as total_amount')
+        $orderTimeline = Order::whereBetween('created_at', [$weekStart, $today])
+            ->selectRaw('DATE(created_at) as date, COUNT(*) as count')
             ->groupBy('date')
             ->orderBy('date')
-            ->get()
-            ->map(fn ($f) => [
-                'date' => $f->date,
-                'count' => (int) $f->count,
-                'total_amount' => (float) $currencyService->convert((float) $f->total_amount, $rwf, $selectedCurrency),
-            ]);
+            ->get();
 
         $tripStatusDist = Trip::selectRaw('status, COUNT(*) as count')
             ->groupBy('status')
@@ -320,7 +315,7 @@ class FleetReportController extends Controller
             'charts' => [
                 'trip_timeline' => $tripTimeline,
                 'order_status_distribution' => $orderStatusDist,
-                'fine_trends' => $fineTrends,
+                'order_timeline' => $orderTimeline,
                 'trip_status_distribution' => $tripStatusDist,
             ],
             'currencies' => $currencies->values(),

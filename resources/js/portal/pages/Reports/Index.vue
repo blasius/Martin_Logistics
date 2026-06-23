@@ -169,13 +169,13 @@
                 </div>
             </section>
 
-            <!-- Fine Trends -->
+            <!-- Orders This Week -->
             <section class="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden">
                 <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-                    <h2 class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Fine Trends This Week</h2>
+                    <h2 class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Orders This Week</h2>
                 </div>
                 <div class="p-4" style="height: 200px">
-                    <canvas ref="fineChart"></canvas>
+                    <canvas ref="orderTimelineChart"></canvas>
                 </div>
             </section>
 
@@ -204,7 +204,7 @@ const data = ref(null)
 const clientChart = ref(null)
 const tripChart = ref(null)
 const orderChart = ref(null)
-const fineChart = ref(null)
+const orderTimelineChart = ref(null)
 const fuelChart = ref(null)
 const financialChart = ref(null)
 
@@ -341,23 +341,18 @@ const renderCharts = () => {
         }))
     }
 
-    // Fine Trends
-    if (fineChart.value && d.charts?.fine_trends?.length) {
-        const c = selectedCurrency.value
-        const labels = d.charts.fine_trends.map(t => t.date?.slice(5))
-        const amounts = d.charts.fine_trends.map(t => Number(t.total_amount))
-        const prefix = c.code === 'RWF' ? 'RWF ' : c.symbol + ' '
-        charts.push(new Chart(fineChart.value, {
-            type: 'line',
-            data: { labels, datasets: [{ label: 'Fine Amount (' + c.code + ')', data: amounts, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, tension: 0.3, pointRadius: 3 }] },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: { callbacks: { label: (ctx) => prefix + Number(ctx.raw).toLocaleString('en-US', { maximumFractionDigits: 2 }) } }
-                    },
-                    scales: { y: { beginAtZero: true, ticks: { callback: (v) => prefix + Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 }) } } }
-                }
+    // Orders This Week
+    if (orderTimelineChart.value && d.charts?.order_timeline?.length) {
+        const labels = d.charts.order_timeline.map(t => t.date?.slice(5))
+        const counts = d.charts.order_timeline.map(t => t.count)
+        charts.push(new Chart(orderTimelineChart.value, {
+            type: 'bar',
+            data: { labels, datasets: [{ label: 'Orders', data: counts, backgroundColor: '#3b82f6', borderRadius: 4 }] },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+            }
         }))
     }
 
