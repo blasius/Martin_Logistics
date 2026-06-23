@@ -165,7 +165,7 @@ const manualCheck = async () => {
     } catch (e) { console.error(e); }
 };
 
-const formatAmount = (num) => num ? Number(num).toLocaleString() : '0';
+const formatAmount = (num) => num ? Number(num).toLocaleString('en-US', { maximumFractionDigits: 2 }) : '0';
 
 const statusClass = (s) => {
     if (s === 'PAID') return 'bg-emerald-100 text-emerald-700';

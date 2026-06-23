@@ -163,7 +163,7 @@
                     </div>
                     <div class="text-right">
                         <p class="text-xs text-orange-300 font-medium uppercase tracking-wider">Total Fleet</p>
-                        <p class="text-3xl font-black text-white">{{ fuelManagementData.total_fuel_capacity.toLocaleString() }}L</p>
+                        <p class="text-3xl font-black text-white">{{ fuelManagementData.total_fuel_capacity.toLocaleString('en-US', { maximumFractionDigits: 2 }) }}L</p>
                     </div>
                 </div>
 
@@ -248,16 +248,16 @@
                         <div class="space-y-4">
                             <div class="flex items-center justify-between">
                                 <span class="text-sm font-medium text-orange-200">Total Consumed Today</span>
-                                <span class="text-2xl font-black text-orange-400">{{ fuelManagementData.total_consumed.toLocaleString() }}L</span>
+                                <span class="text-2xl font-black text-orange-400">{{ fuelManagementData.total_consumed.toLocaleString('en-US', { maximumFractionDigits: 2 }) }}L</span>
                             </div>
                             <div class="flex items-center justify-between">
                                 <span class="text-sm font-medium text-emerald-200">Total Filled Today</span>
-                                <span class="text-2xl font-black text-emerald-400">{{ fuelManagementData.total_filled.toLocaleString() }}L</span>
+                                <span class="text-2xl font-black text-emerald-400">{{ fuelManagementData.total_filled.toLocaleString('en-US', { maximumFractionDigits: 2 }) }}L</span>
                             </div>
                             <div class="border-t border-white/20 pt-4">
                                 <div class="flex items-center justify-between">
                                     <span class="text-sm font-medium text-white">Net Consumption</span>
-                                    <span class="text-2xl font-black text-white">{{ fuelManagementData.net_consumption.toLocaleString() }}L</span>
+                                    <span class="text-2xl font-black text-white">{{ fuelManagementData.net_consumption.toLocaleString('en-US', { maximumFractionDigits: 2 }) }}L</span>
                                 </div>
                                 <div class="mt-2 w-full bg-white/20 rounded-full h-3">
                                     <div class="bg-gradient-to-r from-emerald-400 to-orange-400 h-3 rounded-full transition-all duration-500" :style="{ width: `${(fuelManagementData.net_consumption / fuelManagementData.total_filled) * 100}%` }"></div>

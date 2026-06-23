@@ -46,7 +46,7 @@
                             <span class="font-black text-sm text-slate-800">{{ rate.target_currency?.code || rate.target_currency }}</span>
                         </td>
                         <td class="p-5 text-right font-bold text-sm text-slate-700 tabular-nums">
-                            {{ Number(rate.rate).toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 6 }) }}
+                            {{ Number(rate.rate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
                         </td>
                         <td class="p-5">
                             <span class="text-xs font-semibold text-slate-600">{{ formatDate(rate.valid_from) }}</span>

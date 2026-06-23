@@ -448,7 +448,7 @@ function approvalBorder(ap) {
     return 'border-rose-200 bg-rose-50/30';
 }
 
-function formatAmount(v) { return (v || v === 0) ? v.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '-'; }
+function formatAmount(v) { return (v || v === 0) ? v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'; }
 function formatDate(d) { return d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''; }
 
 onMounted(async () => {

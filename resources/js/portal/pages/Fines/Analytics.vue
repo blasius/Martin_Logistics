@@ -227,7 +227,7 @@ async function fetchModalPage(page) {
     } catch (e) { console.error(e); }
 }
 
-const formatCurrency = (n) => Number(n || 0).toLocaleString() + ' RWF';
+const formatCurrency = (n) => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' RWF';
 const calculateRatio = () => summary.value.total_count ? Math.round((summary.value.total_paid / summary.value.total_count) * 100) : 0;
 const closeModal = () => showModal.value = false;
 const handleModalSearch = () => { clearTimeout(searchDebounce); searchDebounce = setTimeout(() => fetchModalPage(1), 400); };

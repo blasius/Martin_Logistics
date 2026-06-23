@@ -230,7 +230,7 @@ const formatCurrency = (val) => {
     if (val == null) return '—'
     const c = selectedCurrency.value
     const prefix = c.code === 'RWF' ? 'RWF ' : c.symbol + ' '
-    return prefix + Number(val).toLocaleString('en-US', { maximumFractionDigits: 2 })
+    return prefix + Number(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 const healthColor = computed(() => {

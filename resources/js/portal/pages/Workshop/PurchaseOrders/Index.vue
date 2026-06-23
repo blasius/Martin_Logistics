@@ -175,7 +175,7 @@ function statusBadge(s) {
     return map[s] || 'bg-slate-100 text-slate-600';
 }
 
-function formatAmount(v) { return (v || v === 0) ? v.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '-'; }
+function formatAmount(v) { return (v || v === 0) ? v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'; }
 function formatDate(d) { return d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''; }
 
 onMounted(async () => {
