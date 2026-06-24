@@ -161,6 +161,12 @@
                                     </div>
                                 </div>
 
+                                <div>
+                                    <button @click="openConvertToExpense"
+                                        class="w-full text-[10px] font-black uppercase px-4 py-3 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition active:scale-95 flex items-center justify-center gap-2 mb-2">
+                                        <DollarSign class="w-3.5 h-3.5" /> Convert to Expense
+                                    </button>
+                                </div>
                                 <div class="space-y-2">
                                     <select v-model="statusUpdate" @change="updateTicketStatus" class="w-full text-[10px] font-black bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 uppercase tracking-wider">
                                         <option value="" disabled>Change Status</option>
@@ -231,6 +237,85 @@
                                 </button>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </Transition>
+
+        <!-- Convert to Expense Modal -->
+        <Transition name="slide">
+            <div v-if="showConvertExpense" class="fixed inset-0 z-[200] flex items-center justify-center">
+                <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="showConvertExpense = false"></div>
+                <div class="relative bg-white rounded-3xl shadow-2xl max-w-lg w-full mx-4 p-8 border-l-8 border-emerald-500 max-h-[90vh] overflow-y-auto">
+                    <h3 class="text-lg font-black text-slate-900 uppercase mb-1">Convert to Expense</h3>
+                    <p class="text-xs font-medium text-slate-500 mb-6">Create an expense from ticket {{ ticketDetail?.reference }}</p>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Expense Type (optional)</label>
+                            <select v-model="convertForm.expense_type_id" @change="onConvertTypeChange"
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold">
+                                <option :value="null">-- Select from catalog --</option>
+                                <option v-for="et in expenseTypes" :key="et.id" :value="et.id">
+                                    {{ et.name }} {{ et.default_amount ? `(${Number(et.default_amount).toLocaleString()})` : '' }}
+                                </option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Name <span class="text-red-500">*</span></label>
+                            <input v-model="convertForm.name" required
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Amount <span class="text-red-500">*</span></label>
+                                <input v-model.number="convertForm.amount" type="number" min="0" step="0.01" required
+                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold">
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Category</label>
+                                <select v-model="convertForm.category"
+                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold">
+                                    <option value="">--</option>
+                                    <option v-for="c in expenseCategories" :key="c" :value="c">{{ c }}</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Description</label>
+                            <textarea v-model="convertForm.description" rows="2"
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold"></textarea>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Class</label>
+                                <select v-model="convertForm.expense_class"
+                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold">
+                                    <option value="variable">Variable (needs approval)</option>
+                                    <option value="fixed">Fixed (auto-approved)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Location</label>
+                                <input v-model="convertForm.location"
+                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-3 mt-6 pt-4 border-t border-slate-100">
+                        <button @click="submitConvertExpense" :disabled="convertingExpense || !convertForm.name || !convertForm.amount"
+                            class="flex-1 text-[10px] font-black uppercase px-4 py-3 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition active:scale-95 disabled:opacity-40">
+                            {{ convertingExpense ? 'Converting...' : 'Convert to Expense' }}
+                        </button>
+                        <button @click="showConvertExpense = false"
+                            class="flex-1 text-[10px] font-black uppercase px-4 py-3 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 transition active:scale-95">
+                            Cancel
+                        </button>
                     </div>
                 </div>
             </div>
@@ -430,7 +515,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { api } from '../../../plugins/axios'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import { LifeBuoy, X, Send, Search, Plus, Settings, Pencil, Trash2, AlertTriangle } from 'lucide-vue-next'
+import { LifeBuoy, X, Send, Search, Plus, Settings, Pencil, Trash2, AlertTriangle, DollarSign } from 'lucide-vue-next'
 
 dayjs.extend(relativeTime)
 
@@ -477,6 +562,21 @@ const savingCategory = ref(false)
 const deletingCategory = ref(false)
 const deleteConfirmCategoryId = ref(null)
 const deleteConfirmCategoryName = ref('')
+
+// Convert to Expense
+const showConvertExpense = ref(false)
+const convertingExpense = ref(false)
+const expenseTypes = ref([])
+const expenseCategories = ref([])
+const convertForm = ref({
+    expense_type_id: null,
+    name: '',
+    description: '',
+    category: '',
+    amount: null,
+    expense_class: 'variable',
+    location: '',
+})
 
 watch(activeCategoryId, () => { fetchTickets() })
 
@@ -826,6 +926,48 @@ const deleteCategory = async () => {
         console.error('Failed to delete category', e)
     } finally {
         deletingCategory.value = false
+    }
+}
+
+const openConvertToExpense = async () => {
+    convertForm.value = { expense_type_id: null, name: '', description: '', category: '', amount: null, expense_class: 'variable', location: '' }
+    showConvertExpense.value = true
+    if (!expenseTypes.value.length) {
+        try {
+            const { expenseTypesApi } = await import('../../api/expense-types')
+            const [etRes, catRes] = await Promise.all([
+                expenseTypesApi.getAll({ active_only: '1' }),
+                expenseTypesApi.categories(),
+            ])
+            expenseTypes.value = etRes.data.data ?? etRes.data
+            expenseCategories.value = catRes.data
+        } catch {}
+    }
+}
+
+const onConvertTypeChange = () => {
+    const t = expenseTypes.value.find(et => et.id === convertForm.value.expense_type_id)
+    if (t) {
+        convertForm.value.name = t.name
+        convertForm.value.category = t.category ?? ''
+        convertForm.value.expense_class = t.expense_class
+        if (t.default_amount != null) convertForm.value.amount = Number(t.default_amount)
+    }
+}
+
+const submitConvertExpense = async () => {
+    if (!convertForm.value.name || !convertForm.value.amount || !ticketDetail.value) return
+    convertingExpense.value = true
+    try {
+        const { expensesApi } = await import('../../api/expenses')
+        await expensesApi.convertFromTicket(ticketDetail.value.id, convertForm.value)
+        showConvertExpense.value = false
+        convertForm.value = { expense_type_id: null, name: '', description: '', category: '', amount: null, expense_class: 'variable', location: '' }
+    } catch (e) {
+        console.error('Failed to convert to expense', e)
+        alert(e?.response?.data?.message || 'Failed to convert ticket to expense')
+    } finally {
+        convertingExpense.value = false
     }
 }
 

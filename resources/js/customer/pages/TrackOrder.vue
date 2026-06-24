@@ -100,6 +100,47 @@
                     Last updated {{ formatDate(order.updated_at) }}
                 </div>
             </div>
+
+            <div v-if="pod" class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8 mt-6">
+                <h2 class="text-lg font-bold text-slate-800 mb-4">Proof of Delivery</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mb-4">
+                    <div>
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Received By</p>
+                        <p class="font-semibold text-slate-800">{{ pod.received_by_name }}</p>
+                        <p v-if="pod.received_by_relation" class="text-xs text-slate-400">{{ pod.received_by_relation }}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Delivered At</p>
+                        <p class="font-semibold text-slate-800">{{ formatDate(pod.delivered_at) }}</p>
+                    </div>
+                    <div v-if="pod.trip?.vehicle">
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Vehicle</p>
+                        <p class="font-semibold text-slate-800">{{ pod.trip.vehicle.plate }}</p>
+                    </div>
+                    <div v-if="pod.trip?.driver?.user">
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Driver</p>
+                        <p class="font-semibold text-slate-800">{{ pod.trip.driver.user.name }}</p>
+                    </div>
+                </div>
+                <div v-if="pod.notes" class="mb-4">
+                    <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Notes</p>
+                    <p class="text-sm text-slate-600 bg-slate-50 p-3 rounded-xl">{{ pod.notes }}</p>
+                </div>
+                <div v-if="pod.signature_data" class="border-t border-slate-100 pt-4">
+                    <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Signature</p>
+                    <div class="bg-slate-50 rounded-xl p-4 inline-flex">
+                        <img v-if="pod.signature_data.startsWith('data:')" :src="pod.signature_data" class="max-h-20" alt="Signature">
+                        <img v-else-if="!pod.signature_data.startsWith('<svg')" :src="'data:image/png;base64,' + pod.signature_data" class="max-h-20" alt="Signature">
+                        <span v-else v-html="pod.signature_data" class="[&>svg]:max-h-20"></span>
+                    </div>
+                </div>
+            </div>
+            <div v-else-if="podLoading && order.status === 'delivered'" class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 mt-6">
+                <div class="animate-pulse space-y-3">
+                    <div class="h-4 bg-slate-100 rounded w-1/3"></div>
+                    <div class="h-4 bg-slate-50 rounded w-1/2"></div>
+                </div>
+            </div>
         </div>
 
         <div v-else class="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center">
@@ -118,11 +159,13 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { fetchOrder } from '../api/orders'
+import { fetchOrder, fetchOrderPod } from '../api/orders'
 
 const props = defineProps({ id: [String, Number] })
 const order = ref(null)
 const loading = ref(true)
+const pod = ref(null)
+const podLoading = ref(false)
 
 const steps = [
     { key: 'placed', label: 'Placed' },
@@ -145,7 +188,13 @@ const progressPercent = computed(() => {
 })
 
 onMounted(async () => {
-    try { order.value = await fetchOrder(props.id) } catch {} finally { loading.value = false }
+    try {
+        order.value = await fetchOrder(props.id)
+        if (order.value.status === 'delivered') {
+            podLoading.value = true
+            try { pod.value = await fetchOrderPod(props.id) } catch {} finally { podLoading.value = false }
+        }
+    } catch {} finally { loading.value = false }
 })
 
 function formatDate(d) {

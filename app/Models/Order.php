@@ -25,6 +25,16 @@ class Order extends Model
     {
         return $this->belongsTo(Client::class);
     }
+
+    public function trips()
+    {
+        return $this->hasMany(Trip::class);
+    }
+
+    public function proofOfDelivery()
+    {
+        return $this->hasOne(ProofOfDelivery::class);
+    }
     protected static function booted()
     {
         static::creating(function ($order) {

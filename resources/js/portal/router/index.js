@@ -77,6 +77,7 @@ const router = createRouter({
                 { path: "workshop/purchase-orders", component: () => import("../pages/Workshop/PurchaseOrders/Index.vue") },
                 { path: "workshop/available-pool", component: () => import("../pages/Workshop/AvailablePool/Index.vue") },
                 { path: "workshop/service-queue", component: () => import("../pages/Workshop/ServiceQueue/Index.vue") },
+                { path: "workshop/yard", component: () => import("../pages/YardManagement/Index.vue") },
                 { path: "workshop/maintenance", component: () => import("../pages/Workshop/Maintenance/Index.vue") },
 
                 // Fuel Management
@@ -108,6 +109,32 @@ const router = createRouter({
                     name: "orders.show",
                     component: () => import("../pages/Orders/Show.vue"),
                     props: true
+                },
+                {
+                    path: "proofs-of-delivery",
+                    component: () => import("../pages/POD/Index.vue"),
+                },
+                {
+                    path: "proofs-of-delivery/create",
+                    component: () => import("../pages/POD/Create.vue"),
+                },
+                {
+                    path: "proofs-of-delivery/:id",
+                    name: "pod.show",
+                    component: () => import("../pages/POD/Show.vue"),
+                    props: true,
+                },
+
+                // Finance / Expense Management
+                { path: "finance/expense-types", component: () => import("../pages/Finance/ExpenseTypes/Index.vue") },
+                { path: "finance/expense-types/create", component: () => import("../pages/Finance/ExpenseTypes/Create.vue") },
+                { path: "finance/expenses", component: () => import("../pages/Finance/Expenses/Index.vue") },
+                { path: "finance/expenses/create", component: () => import("../pages/Finance/Expenses/Create.vue") },
+                {
+                    path: "finance/expenses/:id",
+                    name: "finance.expenses.show",
+                    component: () => import("../pages/Finance/Expenses/Show.vue"),
+                    props: true,
                 },
             ],
         },

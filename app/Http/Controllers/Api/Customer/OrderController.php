@@ -61,4 +61,21 @@ class OrderController extends Controller
 
         return response()->json($order->load('client.user:id,name'));
     }
+
+    public function pod(Order $order, Request $request)
+    {
+        $user = $request->user();
+
+        if ($order->client_id !== $user->client?->id) {
+            return response()->json(['message' => 'Order not found.'], 404);
+        }
+
+        $pod = $order->proofOfDelivery;
+
+        if (!$pod) {
+            return response()->json(['message' => 'No proof of delivery yet.'], 404);
+        }
+
+        return response()->json($pod->load('trip.vehicle', 'trip.driver.user:id,name'));
+    }
 }

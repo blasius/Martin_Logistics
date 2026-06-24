@@ -20,6 +20,7 @@ import {
     ClipboardList,
     Wrench,
     Fuel,
+    Receipt,
 } from "lucide-vue-next";
 
 export const menu = [
@@ -116,6 +117,7 @@ export const menu = [
             { label: "Purchase Orders", to: "/workshop/purchase-orders" },
             { label: "Available Pool", to: "/workshop/available-pool" },
             { label: "Yard Queue", to: "/workshop/service-queue" },
+            { label: "Yard Management", to: "/workshop/yard" },
             { label: "Maintenance", to: "/workshop/maintenance" },
         ],
     },
@@ -136,9 +138,20 @@ export const menu = [
         to: "/clients",
     },
     {
+        label: "Finance",
+        icon: Receipt,
+        children: [
+            { label: "Expenses", to: "/finance/expenses" },
+            { label: "Expense Types", to: "/finance/expense-types" },
+        ],
+    },
+    {
         label: "Orders",
         icon: ClipboardList,
-        to: "/orders",
+        children: [
+            { label: "All Orders", to: "/orders" },
+            { label: "Proof of Delivery", to: "/proofs-of-delivery" },
+        ],
     },
     {
         label: "Settings",

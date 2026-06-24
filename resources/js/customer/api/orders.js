@@ -14,3 +14,8 @@ export async function createOrder(data) {
     const res = await customerApi.post('/customer/orders', data)
     return res.data
 }
+
+export async function fetchOrderPod(orderId) {
+    const res = await customerApi.get(`/customer/orders/${orderId}/pod`)
+    return res.data
+}

@@ -73,6 +73,11 @@ class Trip extends Model
         return $this->hasMany(TripHistory::class);
     }
 
+    public function proofOfDelivery()
+    {
+        return $this->hasOne(ProofOfDelivery::class);
+    }
+
     public static function boot()
     {
         parent::boot();

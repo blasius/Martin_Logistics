@@ -47,7 +47,11 @@ use App\Http\Controllers\Api\Support\SupportCategoryController;
 use App\Http\Controllers\Api\Support\SupportTicketMessageController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\ProofOfDeliveryController;
+use App\Http\Controllers\Api\Mobile\MobilePODController;
 use App\Http\Controllers\Api\AuditLogController;
+use App\Http\Controllers\Api\ExpenseTypeController;
+use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\Workshop\PartController as WsPartController;
 use App\Http\Controllers\Api\Workshop\WarehouseController as WsWarehouseController;
 use App\Http\Controllers\Api\Workshop\StockLevelController as WsStockLevelController;
@@ -60,6 +64,7 @@ use App\Http\Controllers\Api\Workshop\MechanicController as WsMechanicController
 use App\Http\Controllers\Api\Workshop\PartRequestController as WsPartRequestController;
 use App\Http\Controllers\Api\Workshop\AvailablePoolController;
 use App\Http\Controllers\Api\Workshop\ServiceQueueController;
+use App\Http\Controllers\Api\Workshop\YardManagementController;
 use App\Http\Controllers\Api\Workshop\MaintenanceScheduleController;
 use App\Http\Controllers\Api\Customer\AuthController as CustomerAuthController;
 use App\Http\Controllers\Api\Customer\OrderController as CustomerOrderController;
@@ -112,6 +117,18 @@ Route::prefix('mobile')->middleware('auth:sanctum')->group(function () {
 
     // FCM Token Registration
     Route::post('fcm-token', [FcmTokenController::class, 'update']);
+
+    // Mobile Proof of Delivery
+    Route::prefix('pod')->group(function () {
+        Route::post('submit', [MobilePODController::class, 'submit']);
+    });
+
+    // Mobile Yard Check-in
+    Route::prefix('yard')->group(function () {
+        Route::post('check-in', [\App\Http\Controllers\Api\Mobile\MobileYardController::class, 'checkIn']);
+        Route::get('my-queue', [\App\Http\Controllers\Api\Mobile\MobileYardController::class, 'myQueue']);
+        Route::post('check-out', [\App\Http\Controllers\Api\Mobile\MobileYardController::class, 'checkOut']);
+    });
 
     // Mobile Workshop (Mechanic Companion)
     Route::prefix('workshop')->group(function () {
@@ -235,6 +252,30 @@ Route::middleware('auth')->group(function () {
         Route::get('orders/{order}', [OrderController::class, 'show']);
         Route::put('orders/{order}', [OrderController::class, 'update']);
         Route::delete('orders/{order}', [OrderController::class, 'destroy']);
+
+        // Proof of Delivery
+        Route::get('proofs-of-delivery', [ProofOfDeliveryController::class, 'index']);
+        Route::post('proofs-of-delivery', [ProofOfDeliveryController::class, 'store']);
+        Route::get('proofs-of-delivery/{proofOfDelivery}', [ProofOfDeliveryController::class, 'show']);
+        Route::put('proofs-of-delivery/{proofOfDelivery}', [ProofOfDeliveryController::class, 'update']);
+        Route::post('proofs-of-delivery/{proofOfDelivery}/confirm', [ProofOfDeliveryController::class, 'confirm']);
+        Route::get('proofs-of-delivery/{proofOfDelivery}/pdf', [ProofOfDeliveryController::class, 'downloadPdf']);
+
+        // Expense Management (Phase 5.4)
+        Route::get('expense-types/categories', [ExpenseTypeController::class, 'categories']);
+        Route::post('expense-types/{id}/submit', [ExpenseTypeController::class, 'submit']);
+        Route::post('expense-types/{id}/approve', [ExpenseTypeController::class, 'approveType']);
+        Route::post('expense-types/{id}/reject', [ExpenseTypeController::class, 'rejectType']);
+        Route::apiResource('expense-types', ExpenseTypeController::class);
+
+        Route::get('expenses/dashboard', [ExpenseController::class, 'dashboard']);
+        Route::get('expenses/reports/by-vehicle', [ExpenseController::class, 'reportByVehicle']);
+        Route::get('expenses/reports/by-category', [ExpenseController::class, 'reportByCategory']);
+        Route::post('expenses/{id}/approve', [ExpenseController::class, 'approve']);
+        Route::post('expenses/{id}/reject', [ExpenseController::class, 'reject']);
+        Route::post('expenses/{id}/pay', [ExpenseController::class, 'pay']);
+        Route::post('expenses/convert-from-ticket/{ticketId}', [ExpenseController::class, 'convertFromTicket']);
+        Route::apiResource('expenses', ExpenseController::class);
 
         // Trip Lifecycle
         Route::post('/trips', [TripController::class, 'store']);
@@ -365,6 +406,20 @@ Route::middleware('auth')->group(function () {
             Route::post('service-queue/{serviceQueue}/complete', [ServiceQueueController::class, 'complete']);
             Route::post('service-queue/{serviceQueue}/skip', [ServiceQueueController::class, 'skip']);
             Route::post('service-queue/{serviceQueue}/reorder', [ServiceQueueController::class, 'reorder']);
+
+            // Yard Management (Phase 5.3)
+            Route::get('yard/dashboard', [YardManagementController::class, 'dashboard']);
+            Route::get('yard/dock-doors', [YardManagementController::class, 'dockDoors']);
+            Route::post('yard/dock-doors', [YardManagementController::class, 'storeDockDoor']);
+            Route::put('yard/dock-doors/{dockDoor}', [YardManagementController::class, 'updateDockDoor']);
+            Route::delete('yard/dock-doors/{dockDoor}', [YardManagementController::class, 'destroyDockDoor']);
+            Route::post('yard/assign-dock-door', [YardManagementController::class, 'assignDockDoor']);
+            Route::post('yard/dock-doors/{dockDoor}/release', [YardManagementController::class, 'releaseDockDoor']);
+            Route::get('yard/entries', [YardManagementController::class, 'yardEntries']);
+            Route::post('yard/check-in', [YardManagementController::class, 'checkIn']);
+            Route::post('yard/entries/{yardEntry}/check-out', [YardManagementController::class, 'checkOut']);
+            Route::get('yard/queue/{serviceType}', [YardManagementController::class, 'queueByType']);
+            Route::get('yard/wait-time/{serviceType}', [YardManagementController::class, 'waitTime']);
         });
 
         // Fuel Management
@@ -454,5 +509,6 @@ Route::middleware('auth')->group(function () {
         Route::get('orders', [CustomerOrderController::class, 'index']);
         Route::post('orders', [CustomerOrderController::class, 'store']);
         Route::get('orders/{order}', [CustomerOrderController::class, 'show']);
+        Route::get('orders/{order}/pod', [CustomerOrderController::class, 'pod']);
     });
 });

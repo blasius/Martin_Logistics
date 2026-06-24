@@ -10,6 +10,7 @@ class ServiceQueue extends Model
         'vehicle_id', 'service_type', 'priority', 'status',
         'entered_at', 'started_at', 'completed_at',
         'submitted_by', 'coordinates', 'geofence_verified', 'position',
+        'assigned_station', 'driver_phone',
     ];
 
     protected function casts(): array
