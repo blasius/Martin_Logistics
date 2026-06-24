@@ -50,6 +50,10 @@ use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ProofOfDeliveryController;
 use App\Http\Controllers\Api\Mobile\MobilePODController;
 use App\Http\Controllers\Api\AuditLogController;
+use App\Http\Controllers\Api\RateCardController;
+use App\Http\Controllers\Api\ContractController;
+use App\Http\Controllers\Api\TruckRequestController;
+use App\Http\Controllers\Api\DispatchPreparationController;
 use App\Http\Controllers\Api\ExpenseTypeController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\Workshop\PartController as WsPartController;
@@ -260,6 +264,30 @@ Route::middleware('auth')->group(function () {
         Route::put('proofs-of-delivery/{proofOfDelivery}', [ProofOfDeliveryController::class, 'update']);
         Route::post('proofs-of-delivery/{proofOfDelivery}/confirm', [ProofOfDeliveryController::class, 'confirm']);
         Route::get('proofs-of-delivery/{proofOfDelivery}/pdf', [ProofOfDeliveryController::class, 'downloadPdf']);
+
+        // Rate Cards (Phase 6.1)
+        Route::post('rate-cards/calculate', [RateCardController::class, 'calculate']);
+        Route::post('rate-cards/preview', [RateCardController::class, 'preview']);
+        Route::apiResource('rate-cards', RateCardController::class);
+
+        // Contracts (Phase 6.2)
+        Route::get('contracts/expiry-warnings', [ContractController::class, 'expiryWarnings']);
+        Route::get('contracts/sla-status', [ContractController::class, 'slaStatus']);
+        Route::apiResource('contracts', ContractController::class);
+
+        // Truck Requests (Phase 6.3)
+        Route::get('truck-requests/queue', [TruckRequestController::class, 'queue']);
+        Route::post('truck-requests/{truck_request}/assign', [TruckRequestController::class, 'assign']);
+        Route::get('truck-requests/{truck_request}/available-vehicles', [TruckRequestController::class, 'availableVehicles']);
+        Route::apiResource('truck-requests', TruckRequestController::class);
+
+        // Dispatch Preparation (Phase 6.3)
+        Route::get('dispatch-preparation/needs-preparation', [DispatchPreparationController::class, 'needsPreparation']);
+        Route::get('dispatch-preparation/ready-to-depart', [DispatchPreparationController::class, 'readyToDepart']);
+        Route::get('dispatch-preparation/my-trips', [DispatchPreparationController::class, 'dispatcherTrips']);
+        Route::get('dispatch-preparation/{trip}', [DispatchPreparationController::class, 'show']);
+        Route::put('dispatch-preparation/{trip}', [DispatchPreparationController::class, 'update']);
+        Route::post('dispatch-preparation/{trip}/mark-ready', [DispatchPreparationController::class, 'markReady']);
 
         // Expense Management (Phase 5.4)
         Route::get('expense-types/categories', [ExpenseTypeController::class, 'categories']);

@@ -4,11 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\HasAuditTrail;
+use App\Models\TripPreparation;
+use App\Models\TruckRequest;
 
 class Trip extends Model
 {
     use HasAuditTrail;
     protected $fillable = [
+        'reference',
         'order_id', 'vehicle_id', 'driver_id',
         'status', 'departure_time', 'arrival_time',
         'vehicle_plate_snapshot', 'driver_name_snapshot', 'trailer_plate_snapshot',
@@ -78,9 +81,32 @@ class Trip extends Model
         return $this->hasOne(ProofOfDelivery::class);
     }
 
+    public function preparation()
+    {
+        return $this->hasOne(TripPreparation::class);
+    }
+
+    public function truckRequest()
+    {
+        return $this->hasOne(TruckRequest::class);
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->whereIn('status', ['pre_departure', 'assigned', 'on_route']);
+    }
+
     public static function boot()
     {
         parent::boot();
+
+        static::creating(function ($trip) {
+            if (!$trip->reference) {
+                $year = now()->year;
+                $count = static::whereYear('created_at', $year)->count() + 1;
+                $trip->reference = 'T-' . $year . '-' . str_pad($count, 5, '0', STR_PAD_LEFT);
+            }
+        });
 
         static::saving(function ($trip) {
             if (! $trip->driver_id && ! $trip->vehicle_id) {

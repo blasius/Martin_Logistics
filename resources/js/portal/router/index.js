@@ -125,6 +125,28 @@ const router = createRouter({
                     props: true,
                 },
 
+                // Rate Cards / Commercial
+                { path: "rate-cards", component: () => import("../pages/RateCards/Index.vue") },
+                { path: "rate-cards/create", component: () => import("../pages/RateCards/Create.vue") },
+                { path: "contracts", component: () => import("../pages/Contracts/Index.vue") },
+                { path: "contracts/create", component: () => import("../pages/Contracts/Create.vue") },
+                {
+                    path: "contracts/:id",
+                    name: "contracts.show",
+                    component: () => import("../pages/Contracts/Show.vue"),
+                    props: true,
+                },
+                { path: "truck-requests", component: () => import("../pages/TruckRequests/Index.vue") },
+                { path: "truck-requests/create", component: () => import("../pages/TruckRequests/Create.vue") },
+                {
+                    path: "truck-requests/:id",
+                    name: "truck-requests.show",
+                    component: () => import("../pages/TruckRequests/Show.vue"),
+                    props: true,
+                },
+                { path: "logistics/queue", component: () => import("../pages/Logistics/Queue.vue") },
+                { path: "dispatcher", component: () => import("../pages/Dispatcher/Index.vue") },
+
                 // Finance / Expense Management
                 { path: "finance/expense-types", component: () => import("../pages/Finance/ExpenseTypes/Index.vue") },
                 { path: "finance/expense-types/create", component: () => import("../pages/Finance/ExpenseTypes/Create.vue") },

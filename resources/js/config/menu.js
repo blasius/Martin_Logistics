@@ -21,6 +21,9 @@ import {
     Wrench,
     Fuel,
     Receipt,
+    Calculator,
+    Truck,
+    ClipboardCheck,
 } from "lucide-vue-next";
 
 export const menu = [
@@ -165,6 +168,21 @@ export const menu = [
             { label: "Manage Currencies", to: "/currencies" },
             { label: "Exchange Rates", to: "/exchange-rates" },
         ],
+    },
+    {
+        label: "Commercial",
+        icon: Calculator,
+        children: [
+            { label: "Rate Cards", to: "/rate-cards" },
+            { label: "Contracts", to: "/contracts" },
+            { label: "Truck Requests", to: "/truck-requests" },
+            { label: "Logistics Queue", to: "/logistics/queue" },
+        ],
+    },
+    {
+        label: "Dispatch Prep",
+        icon: ClipboardCheck,
+        to: "/dispatcher",
     },
     {
         label: "Audit Logs",
