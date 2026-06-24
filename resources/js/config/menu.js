@@ -109,6 +109,7 @@ export const menu = [
             { label: "Vendors", to: "/workshop/vendors" },
             { label: "Purchase Orders", to: "/workshop/purchase-orders" },
             { label: "Available Pool", to: "/workshop/available-pool" },
+            { label: "Yard Queue", to: "/workshop/service-queue" },
         ],
     },
     {

@@ -53,6 +53,7 @@ use App\Http\Controllers\Api\Workshop\WorkshopDashboardController as WsDashboard
 use App\Http\Controllers\Api\Workshop\MechanicController as WsMechanicController;
 use App\Http\Controllers\Api\Workshop\PartRequestController as WsPartRequestController;
 use App\Http\Controllers\Api\Workshop\AvailablePoolController;
+use App\Http\Controllers\Api\Workshop\ServiceQueueController;
 use App\Http\Controllers\Api\Customer\AuthController as CustomerAuthController;
 use App\Http\Controllers\Api\Customer\OrderController as CustomerOrderController;
 
@@ -342,6 +343,14 @@ Route::middleware('auth')->group(function () {
 
             Route::get('available-pool', [AvailablePoolController::class, 'index']);
             Route::get('available-pool/{vehicle}', [AvailablePoolController::class, 'show']);
+
+            Route::get('service-queue/stats', [ServiceQueueController::class, 'stats']);
+            Route::get('service-queue', [ServiceQueueController::class, 'index']);
+            Route::post('service-queue', [ServiceQueueController::class, 'store']);
+            Route::post('service-queue/{serviceQueue}/start', [ServiceQueueController::class, 'start']);
+            Route::post('service-queue/{serviceQueue}/complete', [ServiceQueueController::class, 'complete']);
+            Route::post('service-queue/{serviceQueue}/skip', [ServiceQueueController::class, 'skip']);
+            Route::post('service-queue/{serviceQueue}/reorder', [ServiceQueueController::class, 'reorder']);
         });
 
         // Settings
