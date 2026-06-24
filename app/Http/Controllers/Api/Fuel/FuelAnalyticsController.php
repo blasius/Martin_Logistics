@@ -4,13 +4,17 @@ namespace App\Http\Controllers\Api\Fuel;
 
 use App\Http\Controllers\Controller;
 use App\Services\FuelManagementService;
+use App\Services\RouteIntelligenceService;
 use App\Models\TripFuelAnalysis;
 use App\Models\DriverFuelRating;
 use Illuminate\Http\Request;
 
 class FuelAnalyticsController extends Controller
 {
-    public function __construct(protected FuelManagementService $fuelService) {}
+    public function __construct(
+        protected FuelManagementService $fuelService,
+        protected RouteIntelligenceService $intelligenceService,
+    ) {}
 
     public function tripAnalysis(TripFuelAnalysis $tripFuelAnalysis)
     {
@@ -21,9 +25,19 @@ class FuelAnalyticsController extends Controller
     {
         $validated = $request->validate([
             'trip_id' => 'required|exists:trips,id',
+            'auto_ticket' => 'nullable|boolean',
         ]);
 
-        return $this->fuelService->analyseTrip($validated['trip_id']);
+        $analysis = $this->fuelService->analyseTrip($validated['trip_id']);
+
+        if (!empty($validated['auto_ticket']) && $analysis->flag === 'excessive') {
+            $analysis->load('trip', 'vehicle');
+            if (!$analysis->trip?->auto_ticket_id) {
+                $this->intelligenceService->createExcessiveFuelTicket($analysis);
+            }
+        }
+
+        return $analysis->load('trip', 'vehicle:id,plate_number,make,model', 'route');
     }
 
     public function driverRating(DriverFuelRating $driverFuelRating)

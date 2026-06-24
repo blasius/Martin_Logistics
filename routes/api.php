@@ -39,6 +39,7 @@ use App\Http\Controllers\Api\Fuel\FuelTankController;
 use App\Http\Controllers\Api\Fuel\FuelDeliveryController;
 use App\Http\Controllers\Api\Fuel\FuelDispenseController;
 use App\Http\Controllers\Api\Fuel\FuelAnalyticsController;
+use App\Http\Controllers\Api\RouteIntelligenceController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\MobileSupportTicketController;
@@ -399,6 +400,14 @@ Route::middleware('auth')->group(function () {
             Route::get('analytics/driver-ratings/{driverFuelRating}', [FuelAnalyticsController::class, 'driverRating']);
             Route::get('analytics/driver-rankings', [FuelAnalyticsController::class, 'driverRankings']);
             Route::get('analytics/pump-to-tank-variance', [FuelAnalyticsController::class, 'pumpToTankVariance']);
+        });
+
+        // Route Intelligence
+        Route::prefix('intelligence')->group(function () {
+            Route::get('dashboard', [RouteIntelligenceController::class, 'dashboard']);
+            Route::post('check-deviation', [RouteIntelligenceController::class, 'checkDeviation']);
+            Route::post('batch-check', [RouteIntelligenceController::class, 'batchCheckDeviation']);
+            Route::post('auto-ticket', [RouteIntelligenceController::class, 'createAutoTicket']);
         });
 
         // Settings

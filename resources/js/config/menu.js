@@ -39,6 +39,11 @@ export const menu = [
         to: "/dispatch",
     },
     {
+        label: "Route Intelligence",
+        icon: Crosshair,
+        to: "/intelligence",
+    },
+    {
         label: "Regulatory",
         icon: Ticket,
         children: [

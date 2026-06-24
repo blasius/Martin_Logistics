@@ -13,6 +13,19 @@ class Trip extends Model
         'status', 'departure_time', 'arrival_time',
         'vehicle_plate_snapshot', 'driver_name_snapshot', 'trailer_plate_snapshot',
         'created_by',
+        'route_id', 'dispatcher_id',
+        'planned_distance_km', 'actual_distance_km',
+        'start_odometer', 'end_odometer',
+        'is_deviated', 'deviation_detected_at',
+        'deviation_duration_minutes', 'deviation_max_distance_meters',
+        'auto_ticket_id',
+    ];
+
+    protected $casts = [
+        'is_deviated' => 'boolean',
+        'deviation_detected_at' => 'datetime',
+        'departure_time' => 'datetime',
+        'arrival_time' => 'datetime',
     ];
 
     public function order()
@@ -33,6 +46,26 @@ class Trip extends Model
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function dispatcher()
+    {
+        return $this->belongsTo(User::class, 'dispatcher_id');
+    }
+
+    public function route()
+    {
+        return $this->belongsTo(Route::class);
+    }
+
+    public function deviationLogs()
+    {
+        return $this->hasMany(RouteDeviationLog::class);
+    }
+
+    public function autoTicket()
+    {
+        return $this->belongsTo(SupportTicket::class, 'auto_ticket_id');
     }
 
     public function histories()

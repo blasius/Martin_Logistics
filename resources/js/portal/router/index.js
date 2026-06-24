@@ -47,6 +47,7 @@ const router = createRouter({
                 { path: "audit-logs", component: () => import("../pages/AuditLogs/Index.vue") },
                 { path: "control-tower", component: () => import("../pages/ControlTower/Index.vue") },
                 { path: "dispatch", component: () => import("../pages/Dispatch/Index.vue") },
+                { path: "intelligence", component: () => import("../pages/RouteIntelligence/Index.vue") },
                 { path: "insurances", component: () => import("../pages/Compliance/Insurance.vue") },
                 { path: "inspections", component: () => import("../pages/Compliance/Inspection.vue") },
                 { path: "compliance-summary", component: () => import("../pages/Compliance/Index.vue") },
