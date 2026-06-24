@@ -54,6 +54,8 @@ use App\Http\Controllers\Api\RateCardController;
 use App\Http\Controllers\Api\ContractController;
 use App\Http\Controllers\Api\TruckRequestController;
 use App\Http\Controllers\Api\DispatchPreparationController;
+use App\Http\Controllers\Api\InvoiceController;
+use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ExpenseTypeController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\Workshop\PartController as WsPartController;
@@ -288,6 +290,21 @@ Route::middleware('auth')->group(function () {
         Route::get('dispatch-preparation/{trip}', [DispatchPreparationController::class, 'show']);
         Route::put('dispatch-preparation/{trip}', [DispatchPreparationController::class, 'update']);
         Route::post('dispatch-preparation/{trip}/mark-ready', [DispatchPreparationController::class, 'markReady']);
+
+        // Invoices (Phase 7.1)
+        Route::post('invoices/generate-from-order/{order}', [InvoiceController::class, 'generateFromOrder']);
+        Route::post('invoices/{invoice}/mark-sent', [InvoiceController::class, 'markSent']);
+        Route::post('invoices/{invoice}/mark-paid', [InvoiceController::class, 'markPaid']);
+        Route::post('invoices/{invoice}/mark-overdue', [InvoiceController::class, 'markOverdue']);
+        Route::post('invoices/{invoice}/mark-cancelled', [InvoiceController::class, 'markCancelled']);
+        Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'downloadPdf']);
+        Route::apiResource('invoices', InvoiceController::class);
+
+        // Payments / Accounts Receivable (Phase 7.2)
+        Route::get('payments/aging', [PaymentController::class, 'aging']);
+        Route::get('payments/client-statement/{client}', [PaymentController::class, 'clientStatement']);
+        Route::get('payments/client-statement/{client}/pdf', [PaymentController::class, 'downloadClientStatement']);
+        Route::apiResource('payments', PaymentController::class);
 
         // Expense Management (Phase 5.4)
         Route::get('expense-types/categories', [ExpenseTypeController::class, 'categories']);

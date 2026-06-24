@@ -12,12 +12,15 @@ class Order extends Model
 
     protected $fillable = [
         'client_id',
+        'contract_id',
         'reference',
         'origin',
         'destination',
         'pickup_date',
         'status',
         'price',
+        'currency_id',
+        'weight_kg',
         'notes',
     ];
 

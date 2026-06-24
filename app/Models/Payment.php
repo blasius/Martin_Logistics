@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Payment extends Model
 {
     protected $fillable = [
+        'invoice_id',
         'requisition_id',
         'paid_by_user_id',
         'amount',
@@ -19,6 +20,7 @@ class Payment extends Model
 
     protected $dates = ['paid_at'];
 
+    public function invoice() { return $this->belongsTo(Invoice::class); }
     public function requisition() { return $this->belongsTo(Requisition::class); }
     public function cashier() { return $this->belongsTo(User::class, 'paid_by_user_id'); }
 }

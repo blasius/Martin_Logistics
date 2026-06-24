@@ -147,6 +147,20 @@ const router = createRouter({
                 { path: "logistics/queue", component: () => import("../pages/Logistics/Queue.vue") },
                 { path: "dispatcher", component: () => import("../pages/Dispatcher/Index.vue") },
 
+                // Invoices
+                { path: "invoices", component: () => import("../pages/Invoices/Index.vue") },
+                { path: "invoices/create", component: () => import("../pages/Invoices/Create.vue") },
+                {
+                    path: "invoices/:id",
+                    name: "invoices.show",
+                    component: () => import("../pages/Invoices/Show.vue"),
+                    props: true,
+                },
+
+                // Payments / Accounts Receivable
+                { path: "payments", component: () => import("../pages/Payments/Index.vue") },
+                { path: "payments/aging", component: () => import("../pages/Payments/AgingReport.vue") },
+
                 // Finance / Expense Management
                 { path: "finance/expense-types", component: () => import("../pages/Finance/ExpenseTypes/Index.vue") },
                 { path: "finance/expense-types/create", component: () => import("../pages/Finance/ExpenseTypes/Create.vue") },

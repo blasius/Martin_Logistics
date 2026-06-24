@@ -96,7 +96,11 @@ export const menu = [
     {
         label: "Billing",
         icon: FileText,
-        to: "/billing",
+        children: [
+            { label: "Invoices", to: "/invoices" },
+            { label: "Payments", to: "/payments" },
+            { label: "Aging Report", to: "/payments/aging" },
+        ],
     },
     {
         label: "Reports",
