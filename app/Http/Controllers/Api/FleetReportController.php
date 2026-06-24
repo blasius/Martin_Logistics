@@ -163,12 +163,10 @@ class FleetReportController extends Controller
         // ── Financial: Cost vs Revenue ──
         $totalExpenses = (float) Requisition::whereIn('status', ['paid', 'approved'])->sum('amount');
         $totalFineCost = (float) TrafficFine::sum('ticket_amount');
-        $totalFinePaid = (float) TrafficFine::where('status', 'PAID')->sum('paid_amount');
         $convertedRevenue = $currencyService->convert($totalRevenue, $usd, $selectedCurrency);
         $convertedExpenses = $currencyService->convert($totalExpenses, $usd, $selectedCurrency);
         $convertedFineCost = $currencyService->convert($totalFineCost, $rwf, $selectedCurrency);
-        $convertedFinePaid = $currencyService->convert($totalFinePaid, $rwf, $selectedCurrency);
-        $netProfit = $convertedRevenue - $convertedExpenses - $convertedFineCost;
+        $netProfit = $convertedRevenue - $convertedExpenses;
         $profitMargin = $convertedRevenue > 0 ? round(($netProfit / $convertedRevenue) * 100, 1) : 0;
 
         // Monthly revenue trend — same order base as top clients
@@ -187,25 +185,16 @@ class FleetReportController extends Controller
             ->orderBy('month')
             ->pluck('value', 'month');
 
-        // Monthly fine costs
-        $monthlyFines = TrafficFine::where('created_at', '>=', $twelveMonthsAgo)
-            ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as month, SUM(ticket_amount) as value")
-            ->groupBy('month')
-            ->orderBy('month')
-            ->pluck('value', 'month');
-
         // Build combined monthly labels & series (convert to selected currency)
         $monthlyLabels = [];
         $monthlyRevenueSeries = [];
         $monthlyExpensesSeries = [];
-        $monthlyFinesSeries = [];
         for ($d = $twelveMonthsAgo->copy(); $d->lte($today); $d->addMonth()) {
             $key = $d->format('Y-m');
             $label = $d->format('M');
             $monthlyLabels[] = $label;
             $monthlyRevenueSeries[] = (float) $currencyService->convert($monthlyRevenue[$key] ?? 0, $usd, $selectedCurrency);
             $monthlyExpensesSeries[] = (float) $currencyService->convert($monthlyExpenses[$key] ?? 0, $usd, $selectedCurrency);
-            $monthlyFinesSeries[] = (float) $currencyService->convert($monthlyFines[$key] ?? 0, $rwf, $selectedCurrency);
         }
 
         // Cost breakdown by expense type
@@ -220,28 +209,23 @@ class FleetReportController extends Controller
             ->orderByDesc('amount')
             ->get();
 
-        // Merge fines into total expenses (no special treatment)
-        $convertedTotalExpenses = $convertedExpenses + $convertedFineCost;
-        $mergedMonthlyExpenses = array_map(fn($e, $f) => $e + $f, $monthlyExpensesSeries, $monthlyFinesSeries);
-
-        // Build cost breakdown including fines
+        // Build cost breakdown including fines (kept here as placeholder until expenses feature is ready)
         $costBreakdown = $costBreakdown->map(fn ($c) => [
             'name' => $c->name,
             'amount' => (float) $currencyService->convert((float) $c->amount, $usd, $selectedCurrency),
         ]);
-        // Back-calculate total fines in selected currency for cost breakdown
         $totalFinesConverted = $currencyService->convert($totalFineCost, $rwf, $selectedCurrency);
         $costBreakdown->push(['name' => 'Fines', 'amount' => $totalFinesConverted]);
         $costBreakdown = $costBreakdown->sortByDesc('amount')->values();
 
         $financial = [
             'total_revenue' => $convertedRevenue,
-            'total_expenses' => $convertedTotalExpenses,
+            'total_expenses' => $convertedExpenses,
             'net_profit' => $netProfit,
             'profit_margin' => $profitMargin,
             'monthly_labels' => $monthlyLabels,
             'monthly_revenue' => $monthlyRevenueSeries,
-            'monthly_expenses' => $mergedMonthlyExpenses,
+            'monthly_expenses' => $monthlyExpensesSeries,
             'cost_breakdown' => $costBreakdown,
         ];
 
