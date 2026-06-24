@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\MobileAuthController;
 use App\Http\Controllers\Api\MobileTripController;
 use App\Http\Controllers\Api\Mobile\FcmTokenController;
+use App\Http\Controllers\Api\Mobile\MobileWorkshopController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Api\ComplianceSummaryController;
@@ -51,6 +52,7 @@ use App\Http\Controllers\Api\Workshop\PurchaseOrderController as WsPurchaseOrder
 use App\Http\Controllers\Api\Workshop\WorkshopDashboardController as WsDashboardController;
 use App\Http\Controllers\Api\Workshop\MechanicController as WsMechanicController;
 use App\Http\Controllers\Api\Workshop\PartRequestController as WsPartRequestController;
+use App\Http\Controllers\Api\Workshop\AvailablePoolController;
 use App\Http\Controllers\Api\Customer\AuthController as CustomerAuthController;
 use App\Http\Controllers\Api\Customer\OrderController as CustomerOrderController;
 
@@ -102,6 +104,14 @@ Route::prefix('mobile')->middleware('auth:sanctum')->group(function () {
 
     // FCM Token Registration
     Route::post('fcm-token', [FcmTokenController::class, 'update']);
+
+    // Mobile Workshop (Mechanic Companion)
+    Route::prefix('workshop')->group(function () {
+        Route::get('my-tasks', [MobileWorkshopController::class, 'myTasks']);
+        Route::get('tasks/{assignment}', [MobileWorkshopController::class, 'taskDetail']);
+        Route::post('tasks/{assignment}/start', [MobileWorkshopController::class, 'startWork']);
+        Route::post('tasks/{assignment}/complete', [MobileWorkshopController::class, 'completeWork']);
+    });
 });
 
 // Password reset (no auth — accessed via emailed link)
@@ -267,6 +277,7 @@ Route::middleware('auth')->group(function () {
 
             Route::get('mechanics', [WsMechanicController::class, 'index']);
             Route::post('mechanics', [WsMechanicController::class, 'store']);
+            Route::put('mechanics/{user}', [WsMechanicController::class, 'update']);
             Route::get('mechanics/search-users', [WsMechanicController::class, 'searchUsers']);
 
             Route::get('parts', [WsPartController::class, 'index']);
@@ -311,6 +322,7 @@ Route::middleware('auth')->group(function () {
             Route::post('repair-requests/start-work/{assignmentId}', [WsRepairRequestController::class, 'startWork']);
             Route::post('repair-requests/complete-work/{assignmentId}', [WsRepairRequestController::class, 'completeWork']);
             Route::post('repair-requests/{repairRequest}/use-parts', [WsRepairRequestController::class, 'useParts']);
+            Route::post('repair-requests/{repairRequest}/update-item', [WsRepairRequestController::class, 'updateItem']);
             Route::post('repair-requests/{repairRequest}/release', [WsRepairRequestController::class, 'release']);
             Route::post('repair-requests/{repairRequest}/cancel', [WsRepairRequestController::class, 'cancel']);
 
@@ -327,6 +339,9 @@ Route::middleware('auth')->group(function () {
             Route::get('part-requests/{partRequest}', [WsPartRequestController::class, 'show']);
             Route::post('part-requests/{partRequest}/approve', [WsPartRequestController::class, 'approve']);
             Route::post('part-requests/{partRequest}/reject', [WsPartRequestController::class, 'reject']);
+
+            Route::get('available-pool', [AvailablePoolController::class, 'index']);
+            Route::get('available-pool/{vehicle}', [AvailablePoolController::class, 'show']);
         });
 
         // Settings

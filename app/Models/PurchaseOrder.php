@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class PurchaseOrder extends Model
 {
     protected $fillable = [
-        'reference', 'vendor_id', 'repair_request_id', 'order_date',
+        'reference', 'vendor_id', 'repair_request_id', 'part_request_id', 'order_date',
         'expected_date', 'status', 'notes', 'total_amount', 'currency_id',
     ];
 
@@ -37,5 +37,10 @@ class PurchaseOrder extends Model
     public function items()
     {
         return $this->hasMany(PoItem::class);
+    }
+
+    public function partRequest()
+    {
+        return $this->belongsTo(PartRequest::class);
     }
 }

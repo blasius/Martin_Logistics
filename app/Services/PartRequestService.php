@@ -22,6 +22,8 @@ class PartRequestService
         4 => 'pending_ops_manager',
     ];
 
+    public function __construct(protected PurchaseOrderService $poService) {}
+
     public function create(array $data): PartRequest
     {
         $data['requested_at'] = $data['requested_at'] ?? now();
@@ -59,10 +61,33 @@ class PartRequestService
                 $pr->update([
                     'status' => 'approved',
                 ]);
+
+                $pr->load('part');
+                $this->createPoFromPartRequest($pr);
             }
 
             return $pr->fresh();
         });
+    }
+
+    protected function createPoFromPartRequest(PartRequest $pr): void
+    {
+        if (! $pr->part) {
+            return;
+        }
+
+        $items = [[
+            'part_id' => $pr->part_id,
+            'description' => $pr->part->name,
+            'quantity' => $pr->quantity,
+            'unit_price' => $pr->part->unit_price ?? 0,
+        ]];
+
+        $this->poService->create([
+            'repair_request_id' => $pr->repair_request_id,
+            'part_request_id' => $pr->id,
+            'notes' => "Auto-created from Part Request {$pr->reference}",
+        ], $items);
     }
 
     public function reject(int $id, int $rejectedBy, string $reason): PartRequest

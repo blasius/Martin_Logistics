@@ -52,6 +52,9 @@
                                     <th class="pb-3 text-right">Est. Qty</th>
                                     <th class="pb-3 text-right">Est. Price</th>
                                     <th class="pb-3 text-right">Est. Total</th>
+                                    <th class="pb-3 text-right">Actual Qty</th>
+                                    <th class="pb-3 text-right">Actual Price</th>
+                                    <th class="pb-3 text-right">Actual Total</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -61,9 +64,25 @@
                                     <td class="py-3 text-right text-sm">{{ item.estimated_quantity || '-' }}</td>
                                     <td class="py-3 text-right text-sm">{{ formatAmount(item.estimated_unit_price) }}</td>
                                     <td class="py-3 text-right text-sm font-bold">{{ formatAmount(item.estimated_total) }}</td>
+                                    <td class="py-3 text-right">
+                                        <input v-if="item.editing" v-model.number="item.edit_actual_qty" type="number" step="0.01" min="0" class="w-20 p-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-right">
+                                        <span v-else class="text-sm font-bold text-slate-800">{{ item.actual_quantity ?? '—' }}</span>
+                                    </td>
+                                    <td class="py-3 text-right">
+                                        <input v-if="item.editing" v-model.number="item.edit_actual_price" type="number" step="0.01" min="0" class="w-24 p-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-right">
+                                        <span v-else class="text-sm text-slate-700">{{ formatAmount(item.actual_unit_price) }}</span>
+                                    </td>
+                                    <td class="py-3 text-right text-sm font-bold text-slate-800">{{ formatAmount(item.actual_total) }}</td>
+                                    <td class="py-3">
+                                        <button v-if="!item.editing" @click="enableItemEdit(item)" class="text-indigo-600 hover:text-indigo-800"><Pencil class="w-3.5 h-3.5 inline" /></button>
+                                        <div v-else class="flex gap-1">
+                                            <button @click="saveItem(item)" class="text-emerald-600"><Check class="w-3.5 h-3.5 inline" /></button>
+                                            <button @click="cancelItemEdit(item)" class="text-slate-400"><X class="w-3.5 h-3.5 inline" /></button>
+                                        </div>
+                                    </td>
                                 </tr>
                                 <tr v-if="!rr.items?.length">
-                                    <td colspan="5" class="py-6 text-center text-slate-400 text-xs font-bold uppercase">No items</td>
+                                    <td colspan="9" class="py-6 text-center text-slate-400 text-xs font-bold uppercase">No items</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -232,7 +251,7 @@ import { useAuthStore } from '../../../store/authStore';
 import { repairRequestsApi } from '../../../api/workshop/repair-requests';
 import { warehousesApi } from '../../../api/workshop/warehouses';
 import { partsApi } from '../../../api/workshop/parts';
-import { ArrowLeft, X } from 'lucide-vue-next';
+import { ArrowLeft, X, Pencil, Check } from 'lucide-vue-next';
 
 const route = useRoute();
 const authStore = useAuthStore();
@@ -397,6 +416,30 @@ async function completeWork() {
     if (!assignment) return;
     try {
         await repairRequestsApi.completeWork(assignment.id);
+        await load();
+    } catch (e) { console.error(e); }
+}
+
+function enableItemEdit(item) {
+    item.editing = true;
+    item.edit_actual_qty = item.actual_quantity ?? item.estimated_quantity ?? 0;
+    item.edit_actual_price = item.actual_unit_price ?? item.estimated_unit_price ?? 0;
+}
+
+function cancelItemEdit(item) {
+    item.editing = false;
+    delete item.edit_actual_qty;
+    delete item.edit_actual_price;
+}
+
+async function saveItem(item) {
+    try {
+        await repairRequestsApi.updateItem(rr.value.id, {
+            id: item.id,
+            actual_quantity: item.edit_actual_qty,
+            actual_unit_price: item.edit_actual_price,
+        });
+        item.editing = false;
         await load();
     } catch (e) { console.error(e); }
 }

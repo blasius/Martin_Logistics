@@ -10,6 +10,7 @@ class RepairRequest extends Model
         'reference', 'vehicle_id', 'mechanic_id', 'driver_id',
         'type', 'priority', 'description', 'status', 'submitted_at',
         'approval_requested_at', 'approval_requested_by',
+        'coordinates', 'geofence_verified', 'photo_urls',
     ];
 
     protected function casts(): array
@@ -17,6 +18,9 @@ class RepairRequest extends Model
         return [
             'submitted_at' => 'datetime',
             'approval_requested_at' => 'datetime',
+            'coordinates' => 'array',
+            'geofence_verified' => 'boolean',
+            'photo_urls' => 'array',
         ];
     }
 

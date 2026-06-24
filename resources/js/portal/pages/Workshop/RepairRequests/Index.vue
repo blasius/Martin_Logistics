@@ -129,13 +129,21 @@
                     </div>
                     <div>
                         <label class="text-[10px] font-black text-slate-400 uppercase">Estimated Items</label>
-                        <div v-for="(item, i) in createForm.items" :key="i" class="flex gap-2 mt-2">
-                            <input v-model="item.description" placeholder="Description" class="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
+                        <div v-for="(item, i) in createForm.items" :key="i" class="flex gap-2 mt-2 items-start">
+                            <div class="flex-1 relative">
+                                <input v-model="item.part_search" @input="onPartSearchInput(i)" @focus="onPartSearchFocus(i)" @blur="onPartSearchBlur(i)" type="text" placeholder="Search part or type description..." class="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
+                                <ul v-if="item.show_part_dropdown && item.part_results?.length" class="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                                    <li v-for="p in item.part_results" :key="p.id" @mousedown.prevent="selectPart(i, p)" class="px-3 py-2 text-xs font-bold hover:bg-indigo-50 cursor-pointer border-b border-slate-100">
+                                        <span class="text-slate-800">{{ p.name }}</span>
+                                        <span class="text-slate-400 ml-1">({{ p.sku }})</span>
+                                    </li>
+                                </ul>
+                            </div>
                             <input v-model.number="item.estimated_quantity" type="number" step="0.01" placeholder="Qty" class="w-20 p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
                             <input v-model.number="item.estimated_unit_price" type="number" step="0.01" placeholder="Price" class="w-24 p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
-                            <button type="button" @click="createForm.items.splice(i, 1)" class="text-rose-500"><X class="w-4 h-4" /></button>
+                            <button type="button" @click="createForm.items.splice(i, 1)" class="mt-2 text-rose-500"><X class="w-4 h-4" /></button>
                         </div>
-                        <button type="button" @click="createForm.items.push({ description: '', estimated_quantity: null, estimated_unit_price: null, part_id: null })" class="mt-2 text-xs font-bold text-indigo-600">+ Add Item</button>
+                        <button type="button" @click="addItem" class="mt-2 text-xs font-bold text-indigo-600">+ Add Item</button>
                     </div>
                     <div class="flex gap-3 pt-2">
                         <button type="button" @click="showCreateModal = false" class="flex-1 px-4 py-3 bg-slate-100 text-slate-600 text-xs font-black rounded-xl uppercase">Cancel</button>
@@ -152,6 +160,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { repairRequestsApi } from '../../../api/workshop/repair-requests';
+import { partsApi } from '../../../api/workshop/parts';
 import { Plus, Search, X } from 'lucide-vue-next';
 
 const loading = ref(true);
@@ -174,6 +183,7 @@ const vehicleSearchQuery = ref('');
 const vehicleSearchResults = ref([]);
 const showVehicleDropdown = ref(false);
 const vehicleSearchRef = ref(null);
+const partCatalog = ref([]);
 let debounceTimer;
 let vehicleSearchTimer;
 
@@ -248,11 +258,56 @@ function selectVehicle(v) {
 function openCreateModal() {
     showCreateModal.value = true;
     createForm.value = { vehicle_id: '', driver_id: '', driver_name: '', type: '', priority: 'medium', description: '', items: [] };
-    vehicleSearchQuery.value = '';
-    vehicleSearchResults.value = [];
-    showVehicleDropdown.value = true;
-    setTimeout(() => vehicleSearchRef.value?.focus(), 100);
-}
+        vehicleSearchQuery.value = '';
+        vehicleSearchResults.value = [];
+        showVehicleDropdown.value = true;
+        partCatalog.value = [];
+        setTimeout(() => vehicleSearchRef.value?.focus(), 100);
+    }
+
+    function addItem() {
+        createForm.value.items.push({
+            description: '', estimated_quantity: null, estimated_unit_price: null, part_id: null, part_search: '',
+            part_results: [], show_part_dropdown: false,
+        });
+    }
+
+    let partSearchTimers = {};
+
+    function onPartSearchInput(i) {
+        const item = createForm.value.items[i];
+        clearTimeout(partSearchTimers[i]);
+        if (item.part_search.length < 1) {
+            item.part_results = [];
+            item.show_part_dropdown = false;
+            return;
+        }
+        partSearchTimers[i] = setTimeout(() => {
+            const q = item.part_search.toLowerCase();
+            item.part_results = partCatalog.value.filter(p =>
+                p.name.toLowerCase().includes(q) || (p.sku && p.sku.toLowerCase().includes(q))
+            ).slice(0, 8);
+            item.show_part_dropdown = item.part_results.length > 0;
+        }, 200);
+    }
+
+    function onPartSearchFocus(i) {
+        const item = createForm.value.items[i];
+        if (item.part_results.length) item.show_part_dropdown = true;
+    }
+
+    function onPartSearchBlur(i) {
+        setTimeout(() => { createForm.value.items[i].show_part_dropdown = false; }, 200);
+    }
+
+    function selectPart(i, p) {
+        const item = createForm.value.items[i];
+        item.part_id = p.id;
+        item.part_search = `${p.name} (${p.sku})`;
+        item.description = p.name;
+        item.estimated_unit_price = p.unit_price || item.estimated_unit_price;
+        item.show_part_dropdown = false;
+    }
 
 async function createRequest() {
     creating.value = true;
@@ -305,5 +360,15 @@ function priorityBadge(p) {
     return map[p] || 'bg-slate-100 text-slate-600';
 }
 
-onMounted(fetch);
+async function loadParts() {
+    try {
+        const { data } = await partsApi.index({ per_page: 500 });
+        partCatalog.value = data.parts?.data || [];
+    } catch (e) { console.error(e); }
+}
+
+onMounted(async () => {
+    await loadParts();
+    await fetch();
+});
 </script>

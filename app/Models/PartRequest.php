@@ -53,4 +53,9 @@ class PartRequest extends Model
     {
         return $this->hasMany(PartRequestApproval::class);
     }
+
+    public function purchaseOrders()
+    {
+        return $this->hasMany(PurchaseOrder::class);
+    }
 }

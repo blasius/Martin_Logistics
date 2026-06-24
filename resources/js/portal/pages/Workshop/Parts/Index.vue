@@ -62,13 +62,17 @@
                 <form @submit.prevent="save" class="p-6 space-y-4">
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="text-[10px] font-black text-slate-400 uppercase">SKU</label>
-                            <input v-model="form.sku" required class="w-full mt-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
+                            <label class="text-[10px] font-black text-slate-400 uppercase">SKU <span class="text-slate-300 font-normal">(auto)</span></label>
+                            <input v-model="form.sku" class="w-full mt-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" placeholder="Leave blank to auto-generate">
                         </div>
                         <div>
                             <label class="text-[10px] font-black text-slate-400 uppercase">Name</label>
                             <input v-model="form.name" required class="w-full mt-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
                         </div>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-black text-slate-400 uppercase">Barcode</label>
+                        <input v-model="form.barcode" class="w-full mt-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
                     </div>
                     <div>
                         <label class="text-[10px] font-black text-slate-400 uppercase">Description</label>
@@ -116,7 +120,7 @@ const editing = ref(null);
 const parts = ref([]);
 const categories = ref([]);
 const filters = ref({ search: '', category: '' });
-const form = ref({ sku: '', name: '', description: '', category: '', unit_of_measure: '', unit_price: 0, compatible_vehicle_makes: '' });
+const form = ref({ sku: '', barcode: '', name: '', description: '', category: '', unit_of_measure: '', unit_price: 0, compatible_vehicle_makes: '' });
 
 let debounceTimer;
 
@@ -140,7 +144,7 @@ async function fetch() {
 
 function openCreateModal() {
     editing.value = null;
-    form.value = { sku: '', name: '', description: '', category: '', unit_of_measure: '', unit_price: 0, compatible_vehicle_makes: '' };
+    form.value = { sku: '', barcode: '', name: '', description: '', category: '', unit_of_measure: '', unit_price: 0, compatible_vehicle_makes: '' };
     showModal.value = true;
 }
 

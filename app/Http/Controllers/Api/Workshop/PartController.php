@@ -32,7 +32,8 @@ class PartController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'sku' => 'required|string|unique:parts,sku',
+            'sku' => 'nullable|string|unique:parts,sku',
+            'barcode' => 'nullable|string|unique:parts,barcode',
             'name' => 'required|string',
             'description' => 'nullable|string',
             'category' => 'nullable|string',
@@ -52,7 +53,8 @@ class PartController extends Controller
     public function update(Request $request, Part $part)
     {
         $validated = $request->validate([
-            'sku' => 'required|string|unique:parts,sku,' . $part->id,
+            'sku' => 'nullable|string|unique:parts,sku,' . $part->id,
+            'barcode' => 'nullable|string|unique:parts,barcode,' . $part->id,
             'name' => 'required|string',
             'description' => 'nullable|string',
             'category' => 'nullable|string',

@@ -74,6 +74,7 @@ const router = createRouter({
                     props: true
                 },
                 { path: "workshop/purchase-orders", component: () => import("../pages/Workshop/PurchaseOrders/Index.vue") },
+                { path: "workshop/available-pool", component: () => import("../pages/Workshop/AvailablePool/Index.vue") },
                 {
                     path: "workshop/purchase-orders/:id",
                     name: "workshop.purchase-orders.show",

@@ -119,4 +119,9 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
     {
         return $this->hasOne(Driver::class);
     }
+
+    public function mechanicProfile()
+    {
+        return $this->hasOne(MechanicProfile::class);
+    }
 }

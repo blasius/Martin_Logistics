@@ -189,7 +189,11 @@ class RepairRequestService
             'checklist_completed' => $checklistCompleted,
         ]);
 
-        $repairRequest->vehicle->update(['status' => 'released_from_workshop']);
+        $vehicle = $repairRequest->vehicle;
+        $vehicle->update([
+            'status' => 'released_from_workshop',
+            'last_odometer' => $odometer ?? $vehicle->last_odometer,
+        ]);
         $repairRequest->update(['status' => 'released']);
 
         if ($repairRequest->driver) {

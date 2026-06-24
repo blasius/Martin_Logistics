@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Workshop;
 
 use App\Http\Controllers\Controller;
+use App\Models\MechanicProfile;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Spatie\Permission\Models\Role;
@@ -21,7 +22,9 @@ class MechanicController extends Controller
         }
 
         return response()->json([
-            'mechanics' => User::role('mechanic')->get(['id', 'name', 'email']),
+            'mechanics' => User::role('mechanic')
+                ->with('mechanicProfile')
+                ->get(['id', 'name', 'email']),
             'role_missing' => false,
         ]);
     }
@@ -39,12 +42,36 @@ class MechanicController extends Controller
 
         $validated = $request->validate([
             'user_id' => 'required|exists:users,id',
+            'specialization' => 'nullable|string|max:100',
+            'hourly_rate' => 'nullable|numeric|min:0',
         ]);
 
         $user = User::findOrFail($validated['user_id']);
         $user->assignRole('mechanic');
 
-        return $user->only(['id', 'name', 'email']);
+        $user->mechanicProfile()->create([
+            'specialization' => $validated['specialization'] ?? null,
+            'hourly_rate' => $validated['hourly_rate'] ?? null,
+        ]);
+
+        return $user->load('mechanicProfile')->only(['id', 'name', 'email', 'mechanicProfile']);
+    }
+
+    public function update(Request $request, User $user)
+    {
+        if (!$user->hasRole('mechanic')) {
+            abort(422, 'User is not a mechanic.');
+        }
+
+        $validated = $request->validate([
+            'specialization' => 'nullable|string|max:100',
+            'hourly_rate' => 'nullable|numeric|min:0',
+        ]);
+
+        $profile = $user->mechanicProfile ?: $user->mechanicProfile()->create([]);
+        $profile->update($validated);
+
+        return $user->load('mechanicProfile')->only(['id', 'name', 'email', 'mechanicProfile']);
     }
 
     public function searchUsers(Request $request)

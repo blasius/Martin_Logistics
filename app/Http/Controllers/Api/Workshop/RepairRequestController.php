@@ -77,14 +77,18 @@ class RepairRequestController extends Controller
             'items.*.part_id' => 'nullable|exists:parts,id',
             'items.*.estimated_quantity' => 'nullable|numeric|min:0',
             'items.*.estimated_unit_price' => 'nullable|numeric|min:0',
+            'photo_urls' => 'nullable|array',
+            'photo_urls.*' => 'nullable|string',
         ]);
 
+        $coordinates = null;
+        $geofenceVerified = false;
         if ($request->filled('latitude') && $request->filled('longitude')) {
-            $inYard = $this->yardService->isVehicleInYardByCoordinates(
-                (float) $validated['latitude'],
-                (float) $validated['longitude']
+            $coordinates = ['lat' => (float) $validated['latitude'], 'lng' => (float) $validated['longitude']];
+            $geofenceVerified = $this->yardService->isVehicleInYardByCoordinates(
+                $coordinates['lat'], $coordinates['lng']
             );
-            abort_unless($inYard, 422, 'Vehicle is not inside the yard. Service requests can only be submitted from within the yard.');
+            abort_unless($geofenceVerified, 422, 'Vehicle is not inside the yard. Service requests can only be submitted from within the yard.');
         }
 
         if ($driverId = $validated['driver_id'] ?? null) {
@@ -103,6 +107,9 @@ class RepairRequestController extends Controller
             'priority' => $validated['priority'],
             'description' => $validated['description'],
             'status' => 'draft',
+            'coordinates' => $coordinates,
+            'geofence_verified' => $geofenceVerified,
+            'photo_urls' => $validated['photo_urls'] ?? null,
         ]);
 
         if (!empty($validated['items'])) {
@@ -134,6 +141,24 @@ class RepairRequestController extends Controller
             'purchaseOrders:id,reference,status,total_amount',
             'approvalRequester:id,name',
         ]);
+    }
+
+    public function updateItem(Request $request, RepairRequest $repairRequest)
+    {
+        $validated = $request->validate([
+            'id' => 'required|exists:repair_request_items,id',
+            'actual_quantity' => 'nullable|numeric|min:0',
+            'actual_unit_price' => 'nullable|numeric|min:0',
+        ]);
+
+        $item = $repairRequest->items()->findOrFail($validated['id']);
+        $item->update([
+            'actual_quantity' => $validated['actual_quantity'],
+            'actual_unit_price' => $validated['actual_unit_price'],
+            'actual_total' => ($validated['actual_quantity'] ?? 0) * ($validated['actual_unit_price'] ?? 0),
+        ]);
+
+        return $item->fresh();
     }
 
     public function submit(RepairRequest $repairRequest)

@@ -43,6 +43,9 @@ export const repairRequestsApi = {
     cancel(id) {
         return api.post(`/portal/workshop/repair-requests/${id}/cancel`);
     },
+    updateItem(id, data) {
+        return api.post(`/portal/workshop/repair-requests/${id}/update-item`, data);
+    },
     mechanics() {
         return api.get('/portal/workshop/repair-requests/mechanics');
     },
