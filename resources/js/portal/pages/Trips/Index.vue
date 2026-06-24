@@ -72,6 +72,10 @@
                     <span v-if="isFormValid" class="px-3 py-1 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg text-[10px] font-black uppercase tracking-wider">Ready</span>
                     <span v-else class="px-3 py-1 bg-slate-800 text-slate-400 rounded-lg text-[10px] font-bold uppercase tracking-wider">Draft</span>
 
+                    <button @click="checkClearance" :disabled="!form.value.assignment || clearance.loading"
+                            class="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-xl text-xs font-black shadow-lg active:scale-95 disabled:opacity-30 transition-all uppercase tracking-wider">
+                        {{ clearance.loading ? '...' : 'Check' }}
+                    </button>
                     <button @click="confirmTrip" :disabled="!isFormValid || saving"
                             class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-xl text-xs font-black shadow-lg active:scale-95 disabled:opacity-30 disabled:hover:bg-blue-600 transition-all uppercase tracking-wider">
                         {{ saving ? 'Processing...' : 'Dispatch' }}
@@ -175,6 +179,72 @@
 
         </div>
     </div>
+
+    <!-- Clearance Modal -->
+    <div v-if="clearance.showModal"
+        class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40"
+        @click.self="clearance.showModal = false">
+        <div class="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div class="flex items-center justify-between p-6 border-b border-slate-100">
+                <h2 class="text-lg font-semibold text-slate-800">Pre-Trip Clearance</h2>
+                <button @click="clearance.showModal = false"
+                    class="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
+            </div>
+            <div class="p-6 space-y-3">
+                <div v-if="clearance.loading" class="text-center py-4 text-slate-400">Running checks...</div>
+                <template v-else>
+                    <div v-if="clearance.is_clear" class="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm font-medium">
+                        All checks passed — vehicle is cleared for dispatch
+                    </div>
+                    <div v-for="check in clearance.checks" :key="check.check"
+                        class="flex items-start gap-3 p-3 rounded-lg border"
+                        :class="check.passed ? 'border-green-200 bg-green-50' : check.bypass_pending ? 'border-amber-200 bg-amber-50' : 'border-red-200 bg-red-50'">
+                        <span class="text-lg leading-none mt-0.5">{{ check.passed ? '\u2705' : check.bypass_pending ? '\u23F3' : '\u274C' }}</span>
+                        <div class="flex-1 min-w-0">
+                            <span class="text-sm font-medium text-slate-800 block">{{ check.label }}</span>
+                            <p class="text-sm" :class="check.passed ? 'text-green-600' : check.bypass_pending ? 'text-amber-600' : 'text-red-600'">{{ check.message }}</p>
+                            <div v-if="!check.passed && !check.bypass_pending" class="mt-2">
+                                <button @click="openBypassForm(check)"
+                                    class="text-xs font-medium text-amber-600 hover:text-amber-700 underline">
+                                    Request Manager Bypass
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+            <div class="flex justify-end p-6 border-t border-slate-100">
+                <button @click="clearance.showModal = false" class="px-4 py-2 text-sm font-medium bg-slate-100 rounded-lg hover:bg-slate-200">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bypass Form Modal -->
+    <div v-if="showBypassForm"
+        class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40"
+        @click.self="showBypassForm = false">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
+            <div class="p-6">
+                <h2 class="text-lg font-semibold text-slate-800 mb-2">Request Manager Bypass</h2>
+                <p class="text-sm text-slate-500 mb-4">Reason for bypassing <strong>{{ bypassForm.check_label }}</strong></p>
+                <form @submit.prevent="submitBypass" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Reason</label>
+                        <textarea v-model="bypassForm.reason" rows="3"
+                            class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500"
+                            required minlength="10"></textarea>
+                    </div>
+                    <div class="flex justify-end gap-2">
+                        <button type="button" @click="showBypassForm = false" class="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200">Cancel</button>
+                        <button type="submit" :disabled="savingBypass"
+                            class="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50">
+                            {{ savingBypass ? 'Submitting...' : 'Submit' }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 </template>
 
 <script setup>
@@ -182,6 +252,7 @@ import { ref, onMounted, computed, nextTick } from 'vue';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { tripsApi } from "../../api/trips";
+import { clearanceApi } from "../../api/clearance";
 
 // State
 const mapReady = ref(false);
@@ -193,6 +264,12 @@ const allRoutes = ref([]); // Store all routes for client-side filtering if need
 const selectedRoute = ref(null);
 const loadingRouteDetails = ref(false);
 const selectedVehicle = ref({ ratio: 0, age: 0, capacity: null, driver_name: null, trailer_plate: null });
+
+// Clearance state
+const clearance = ref({ checks: [], is_clear: true, loading: false, showModal: false });
+const bypassForm = ref({ check_name: '', check_label: '', reason: '' });
+const showBypassForm = ref(false);
+const savingBypass = ref(false);
 
 const form = ref({
     order_id: '',
@@ -366,17 +443,24 @@ const selectRoute = async (route) => {
 const confirmTrip = async () => {
     saving.value = true;
     try {
-        await tripsApi.createTrip(form.value);
-        // We don't use alert anymore, maybe a toast in real app. For now just clear.
+        const vehicleId = form.value.assignment?.startsWith('vehicle-')
+            ? parseInt(form.value.assignment.split('-')[1])
+            : null;
 
-        // Reset form
-        form.value = {
-            order_id: '',
-            assignment: '',
-            route_id: '',
-            allocated_weight: 0,
-            status: 'assigned'
-        };
+        if (vehicleId) {
+            const clrRes = await clearanceApi.check({ vehicle_id: vehicleId, driver_id: null });
+            clearance.value.checks = clrRes.data.checks;
+            clearance.value.is_clear = clrRes.data.is_clear;
+            if (!clrRes.data.is_clear) {
+                clearance.value.showModal = true;
+                saving.value = false;
+                return;
+            }
+        }
+
+        await tripsApi.createTrip(form.value);
+
+        form.value = { order_id: '', assignment: '', route_id: '', allocated_weight: 0, status: 'assigned' };
         searchQueries.value = { order: '', assignment: '', route: '' };
         selectedOrder.value = null;
         selectedRoute.value = null;
@@ -387,12 +471,57 @@ const confirmTrip = async () => {
             map.setView([-1.9441, 30.0619], 7);
         }
     } catch (error) {
-        console.error('Error creating trip', error);
-        alert('Failed to authorize dispatch.');
+        const blockers = error.response?.data?.blockers;
+        if (blockers) {
+            clearance.value.checks = blockers.map((b) => ({ ...b, passed: false, severity: 'blocking', bypass_pending: false }));
+            clearance.value.is_clear = false;
+            clearance.value.showModal = true;
+        } else {
+            console.error('Error creating trip', error);
+            alert('Failed to authorize dispatch.');
+        }
     } finally {
         saving.value = false;
     }
 };
+
+async function checkClearance() {
+    const vehicleId = form.value.assignment?.startsWith('vehicle-')
+        ? parseInt(form.value.assignment.split('-')[1])
+        : null;
+    if (!vehicleId) { alert('Select a vehicle first'); return; }
+
+    clearance.value.loading = true;
+    clearance.value.showModal = true;
+    try {
+        const res = await clearanceApi.check({ vehicle_id: vehicleId, driver_id: null });
+        clearance.value.checks = res.data.checks;
+        clearance.value.is_clear = res.data.is_clear;
+    } catch {
+        clearance.value.checks = [];
+        clearance.value.is_clear = false;
+    } finally { clearance.value.loading = false; }
+}
+
+function openBypassForm(check) {
+    bypassForm.value = { check_name: check.check, check_label: check.label, reason: '' };
+    showBypassForm.value = true;
+}
+
+async function submitBypass() {
+    savingBypass.value = true;
+    try {
+        await clearanceApi.requestBypass({
+            check_name: bypassForm.value.check_name,
+            check_label: bypassForm.value.check_label,
+            reason: bypassForm.value.reason,
+        });
+        showBypassForm.value = false;
+        await checkClearance();
+    } catch (e) {
+        alert(e.response?.data?.message || 'Failed to submit');
+    } finally { savingBypass.value = false; }
+}
 
 onMounted(async () => {
     try {
