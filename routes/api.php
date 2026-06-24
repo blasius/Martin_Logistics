@@ -34,6 +34,11 @@ use App\Http\Controllers\Api\UserManagementController;
 use App\Http\Controllers\Api\RoleManagementController;
 use App\Http\Controllers\Api\CurrencyController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\Fuel\FuelDashboardController;
+use App\Http\Controllers\Api\Fuel\FuelTankController;
+use App\Http\Controllers\Api\Fuel\FuelDeliveryController;
+use App\Http\Controllers\Api\Fuel\FuelDispenseController;
+use App\Http\Controllers\Api\Fuel\FuelAnalyticsController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\MobileSupportTicketController;
@@ -54,6 +59,7 @@ use App\Http\Controllers\Api\Workshop\MechanicController as WsMechanicController
 use App\Http\Controllers\Api\Workshop\PartRequestController as WsPartRequestController;
 use App\Http\Controllers\Api\Workshop\AvailablePoolController;
 use App\Http\Controllers\Api\Workshop\ServiceQueueController;
+use App\Http\Controllers\Api\Workshop\MaintenanceScheduleController;
 use App\Http\Controllers\Api\Customer\AuthController as CustomerAuthController;
 use App\Http\Controllers\Api\Customer\OrderController as CustomerOrderController;
 
@@ -344,6 +350,13 @@ Route::middleware('auth')->group(function () {
             Route::get('available-pool', [AvailablePoolController::class, 'index']);
             Route::get('available-pool/{vehicle}', [AvailablePoolController::class, 'show']);
 
+            Route::get('maintenance-schedules/due', [MaintenanceScheduleController::class, 'due']);
+            Route::post('maintenance-schedules/{maintenanceSchedule}/generate', [MaintenanceScheduleController::class, 'generate']);
+            Route::post('maintenance-schedules/{maintenanceSchedule}/complete', [MaintenanceScheduleController::class, 'complete']);
+            Route::get('maintenance-schedules/vehicle-report/{vehicle}', [MaintenanceScheduleController::class, 'vehicleReport']);
+            Route::get('maintenance-schedules/cost-report', [MaintenanceScheduleController::class, 'costReport']);
+            Route::apiResource('maintenance-schedules', MaintenanceScheduleController::class);
+
             Route::get('service-queue/stats', [ServiceQueueController::class, 'stats']);
             Route::get('service-queue', [ServiceQueueController::class, 'index']);
             Route::post('service-queue', [ServiceQueueController::class, 'store']);
@@ -351,6 +364,41 @@ Route::middleware('auth')->group(function () {
             Route::post('service-queue/{serviceQueue}/complete', [ServiceQueueController::class, 'complete']);
             Route::post('service-queue/{serviceQueue}/skip', [ServiceQueueController::class, 'skip']);
             Route::post('service-queue/{serviceQueue}/reorder', [ServiceQueueController::class, 'reorder']);
+        });
+
+        // Fuel Management
+        Route::prefix('fuel')->group(function () {
+            Route::get('dashboard', [FuelDashboardController::class, 'index']);
+
+            Route::get('tanks', [FuelTankController::class, 'index']);
+            Route::post('tanks', [FuelTankController::class, 'store']);
+            Route::get('tanks/{fuelTank}', [FuelTankController::class, 'show']);
+            Route::put('tanks/{fuelTank}', [FuelTankController::class, 'update']);
+            Route::delete('tanks/{fuelTank}', [FuelTankController::class, 'destroy']);
+            Route::post('tanks/{fuelTank}/update-level', [FuelTankController::class, 'updateLevel']);
+
+            Route::get('deliveries', [FuelDeliveryController::class, 'index']);
+            Route::post('deliveries', [FuelDeliveryController::class, 'store']);
+            Route::get('deliveries/{fuelDelivery}', [FuelDeliveryController::class, 'show']);
+            Route::delete('deliveries/{fuelDelivery}', [FuelDeliveryController::class, 'destroy']);
+
+            Route::get('dispenses', [FuelDispenseController::class, 'index']);
+            Route::post('dispenses', [FuelDispenseController::class, 'store']);
+            Route::get('dispenses/{fuelDispense}', [FuelDispenseController::class, 'show']);
+            Route::delete('dispenses/{fuelDispense}', [FuelDispenseController::class, 'destroy']);
+            Route::post('dispenses/calculate', [FuelDispenseController::class, 'calculate']);
+
+            Route::get('ratios', [FuelDashboardController::class, 'ratios']);
+            Route::post('ratios', [FuelDashboardController::class, 'storeRatio']);
+            Route::delete('ratios/{vehicleRouteFuelRatio}', [FuelDashboardController::class, 'deleteRatio']);
+
+            Route::get('analytics/consumption', [FuelAnalyticsController::class, 'consumptionReport']);
+            Route::post('analytics/analyse-trip', [FuelAnalyticsController::class, 'analyseTrip']);
+            Route::get('analytics/trip-analysis/{tripFuelAnalysis}', [FuelAnalyticsController::class, 'tripAnalysis']);
+            Route::post('analytics/rate-driver', [FuelAnalyticsController::class, 'rateDriver']);
+            Route::get('analytics/driver-ratings/{driverFuelRating}', [FuelAnalyticsController::class, 'driverRating']);
+            Route::get('analytics/driver-rankings', [FuelAnalyticsController::class, 'driverRankings']);
+            Route::get('analytics/pump-to-tank-variance', [FuelAnalyticsController::class, 'pumpToTankVariance']);
         });
 
         // Settings

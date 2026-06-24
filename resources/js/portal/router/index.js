@@ -76,6 +76,14 @@ const router = createRouter({
                 { path: "workshop/purchase-orders", component: () => import("../pages/Workshop/PurchaseOrders/Index.vue") },
                 { path: "workshop/available-pool", component: () => import("../pages/Workshop/AvailablePool/Index.vue") },
                 { path: "workshop/service-queue", component: () => import("../pages/Workshop/ServiceQueue/Index.vue") },
+                { path: "workshop/maintenance", component: () => import("../pages/Workshop/Maintenance/Index.vue") },
+
+                // Fuel Management
+                { path: "fuel", component: () => import("../pages/Fuel/Dashboard.vue") },
+                { path: "fuel/tanks/:id", name: "fuel.tanks.show", component: () => import("../pages/Fuel/Tanks/Show.vue"), props: true },
+                { path: "fuel/dispenses", component: () => import("../pages/Fuel/Dispenses/Index.vue") },
+                { path: "fuel/reports/pump-to-tank-variance", component: () => import("../pages/Fuel/Reports/PumpToTankVariance.vue") },
+                { path: "fuel/analytics/driver-efficiency", component: () => import("../pages/Fuel/Analytics/DriverEfficiency.vue") },
                 {
                     path: "workshop/purchase-orders/:id",
                     name: "workshop.purchase-orders.show",

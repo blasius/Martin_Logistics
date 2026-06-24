@@ -19,6 +19,7 @@ import {
     Building2,
     ClipboardList,
     Wrench,
+    Fuel,
 } from "lucide-vue-next";
 
 export const menu = [
@@ -110,6 +111,18 @@ export const menu = [
             { label: "Purchase Orders", to: "/workshop/purchase-orders" },
             { label: "Available Pool", to: "/workshop/available-pool" },
             { label: "Yard Queue", to: "/workshop/service-queue" },
+            { label: "Maintenance", to: "/workshop/maintenance" },
+        ],
+    },
+    {
+        label: "Fuel",
+        icon: Fuel,
+        roles: ['Admin', 'super_admin', 'Operations Manager', 'Logistics Manager'],
+        children: [
+            { label: "Dashboard", to: "/fuel" },
+            { label: "Dispenses", to: "/fuel/dispenses" },
+            { label: "Variance Report", to: "/fuel/reports/pump-to-tank-variance" },
+            { label: "Driver Efficiency", to: "/fuel/analytics/driver-efficiency" },
         ],
     },
     {

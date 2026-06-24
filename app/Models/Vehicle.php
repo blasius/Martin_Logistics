@@ -20,6 +20,9 @@ class Vehicle extends Model
         'status',
         'capacity',
         'capacity_unit',
+        'fuel_type',
+        'tank_capacity',
+        'fuel_consumption_rate',
     ];
 
     protected $casts = [
