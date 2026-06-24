@@ -103,6 +103,15 @@ export const menu = [
         ],
     },
     {
+        label: "Dispatch",
+        icon: Truck,
+        children: [
+            { label: "Queue", to: "/logistics/queue" },
+            { label: "Preparation", to: "/dispatcher" },
+            { label: "Bypass Requests", to: "/clearance/bypass-requests" },
+        ],
+    },
+    {
         label: "Reports",
         icon: BarChart3,
         to: "/reports",

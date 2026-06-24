@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { dispatchPrepApi } from '../../api/truck-requests'
+import { clearanceApi } from '../../api/clearance'
 
 const activeTab = ref('needs-prep')
 const needsPrep = ref<any[]>([])
@@ -11,6 +12,15 @@ const loading = ref(true)
 const selectedTrip = ref<any>(null)
 const prepForm = ref<any>({})
 const saving = ref(false)
+
+// Clearance state
+const clearanceChecks = ref<any[]>([])
+const clearanceLoading = ref(false)
+const clearanceClear = ref(false)
+const showClearance = ref(false)
+const bypassForm = ref({ check_name: '', check_label: '', reason: '' })
+const showBypassForm = ref(false)
+const savingBypass = ref(false)
 
 async function fetchAll() {
     loading.value = true
@@ -59,6 +69,58 @@ async function markReady() {
         selectedTrip.value = null
         await fetchAll()
     } catch {} finally { saving.value = false }
+}
+
+async function runClearance(trip: any) {
+    selectedTrip.value = trip
+    clearanceLoading.value = true
+    showClearance.value = true
+    try {
+        const res = await clearanceApi.check({
+            vehicle_id: trip.vehicle_id,
+            driver_id: trip.driver_id,
+        })
+        clearanceChecks.value = res.data.checks
+        clearanceClear.value = res.data.is_clear
+    } catch {
+        clearanceChecks.value = []
+        clearanceClear.value = false
+    } finally { clearanceLoading.value = false }
+}
+
+function openBypassForm(check: any) {
+    bypassForm.value = {
+        check_name: check.check,
+        check_label: check.label,
+        reason: '',
+    }
+    showBypassForm.value = true
+}
+
+async function submitBypass() {
+    savingBypass.value = true
+    try {
+        await clearanceApi.requestBypass({
+            trip_id: selectedTrip.value?.id,
+            check_name: bypassForm.value.check_name,
+            check_label: bypassForm.value.check_label,
+            reason: bypassForm.value.reason,
+        })
+        showBypassForm.value = false
+        // Re-run clearance
+        await runClearance(selectedTrip.value)
+    } catch (e: any) {
+        alert(e.response?.data?.message || 'Failed to submit bypass request')
+    } finally { savingBypass.value = false }
+}
+
+function clearIcon(passed: boolean) {
+    return passed ? '\u2705' : '\u274C'
+}
+
+function severityClass(check: any) {
+    if (check.bypass_pending) return 'text-amber-600'
+    return check.passed ? 'text-green-600' : 'text-red-600'
 }
 
 const checklistComplete = computed(() => {
@@ -115,10 +177,16 @@ onMounted(fetchAll)
                     <div class="text-sm font-semibold text-slate-800">{{ trip.reference }}</div>
                     <div class="text-sm text-slate-500">{{ trip.vehicle?.plate_number }} · {{ trip.vehicle?.make }} {{ trip.vehicle?.model }}</div>
                 </div>
-                <button @click="openChecklist(trip)"
-                    class="px-3 py-1.5 text-sm font-medium text-emerald-600 bg-emerald-50 rounded-lg hover:bg-emerald-100">
-                    Prepare
-                </button>
+                <div class="flex gap-2">
+                    <button @click="runClearance(trip)"
+                        class="px-3 py-1.5 text-sm font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200">
+                        Clearance
+                    </button>
+                    <button @click="openChecklist(trip)"
+                        class="px-3 py-1.5 text-sm font-medium text-emerald-600 bg-emerald-50 rounded-lg hover:bg-emerald-100">
+                        Prepare
+                    </button>
+                </div>
             </div>
             <div v-if="!needsPrep.length" class="text-center py-8 text-slate-400">All trips prepared</div>
         </div>
@@ -231,6 +299,79 @@ onMounted(fetchAll)
                         class="px-6 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50">
                         Mark Ready to Depart
                     </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Clearance Modal -->
+        <div v-if="showClearance"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+            @click.self="showClearance = false">
+            <div class="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto">
+                <div class="flex items-center justify-between p-6 border-b border-slate-100">
+                    <div>
+                        <h2 class="text-lg font-semibold text-slate-800">Pre-Trip Clearance</h2>
+                        <p class="text-sm text-slate-500">{{ selectedTrip?.reference }} · {{ selectedTrip?.vehicle?.plate_number }}</p>
+                    </div>
+                    <button @click="showClearance = false"
+                        class="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
+                </div>
+                <div class="p-6 space-y-3">
+                    <div v-if="clearanceLoading" class="text-center py-4 text-slate-400">Running checks...</div>
+                    <template v-else>
+                        <div v-if="clearanceClear" class="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm font-medium">
+                            All checks passed — vehicle is cleared for dispatch
+                        </div>
+                        <div v-for="check in clearanceChecks" :key="check.check"
+                            class="flex items-start gap-3 p-3 rounded-lg border"
+                            :class="check.passed ? 'border-green-200 bg-green-50' : check.bypass_pending ? 'border-amber-200 bg-amber-50' : 'border-red-200 bg-red-50'">
+                            <span class="text-lg leading-none mt-0.5">{{ check.passed ? '\u2705' : check.bypass_pending ? '\u23F3' : '\u274C' }}</span>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm font-medium text-slate-800">{{ check.label }}</span>
+                                    <span v-if="check.bypass_pending" class="text-xs text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">Bypass Pending</span>
+                                </div>
+                                <p class="text-sm" :class="severityClass(check)">{{ check.message }}</p>
+                                <div v-if="!check.passed && !check.bypass_pending" class="mt-2">
+                                    <button @click="openBypassForm(check)"
+                                        class="text-xs font-medium text-amber-600 hover:text-amber-700 underline">
+                                        Request Manager Bypass
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+                <div class="flex justify-end p-6 border-t border-slate-100">
+                    <button @click="showClearance = false" class="px-4 py-2 text-sm font-medium bg-slate-100 rounded-lg hover:bg-slate-200">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bypass Request Form -->
+        <div v-if="showBypassForm"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+            @click.self="showBypassForm = false">
+            <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
+                <div class="p-6">
+                    <h2 class="text-lg font-semibold text-slate-800 mb-2">Request Manager Bypass</h2>
+                    <p class="text-sm text-slate-500 mb-4">Provide a reason for bypassing <strong>{{ bypassForm.check_label }}</strong></p>
+                    <form @submit.prevent="submitBypass" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Reason</label>
+                            <textarea v-model="bypassForm.reason" rows="3"
+                                class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500"
+                                required minlength="10"></textarea>
+                            <p class="text-xs text-slate-400 mt-1">Minimum 10 characters</p>
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <button type="button" @click="showBypassForm = false" class="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200">Cancel</button>
+                            <button type="submit" :disabled="savingBypass"
+                                class="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50">
+                                {{ savingBypass ? 'Submitting...' : 'Submit Bypass Request' }}
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>

@@ -56,6 +56,7 @@ use App\Http\Controllers\Api\TruckRequestController;
 use App\Http\Controllers\Api\DispatchPreparationController;
 use App\Http\Controllers\Api\InvoiceController;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\ClearanceController;
 use App\Http\Controllers\Api\ExpenseTypeController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\Workshop\PartController as WsPartController;
@@ -305,6 +306,13 @@ Route::middleware('auth')->group(function () {
         Route::get('payments/client-statement/{client}', [PaymentController::class, 'clientStatement']);
         Route::get('payments/client-statement/{client}/pdf', [PaymentController::class, 'downloadClientStatement']);
         Route::apiResource('payments', PaymentController::class);
+
+        // Pre-Trip Clearance (Phase 4.5)
+        Route::post('clearance/check', [ClearanceController::class, 'check']);
+        Route::post('clearance/request-bypass', [ClearanceController::class, 'requestBypass']);
+        Route::get('clearance/bypass-requests', [ClearanceController::class, 'bypassRequests']);
+        Route::post('clearance/approve-bypass/{bypass}', [ClearanceController::class, 'approveBypass']);
+        Route::post('clearance/reject-bypass/{bypass}', [ClearanceController::class, 'rejectBypass']);
 
         // Expense Management (Phase 5.4)
         Route::get('expense-types/categories', [ExpenseTypeController::class, 'categories']);
