@@ -72,7 +72,7 @@
                     <span v-if="isFormValid" class="px-3 py-1 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg text-[10px] font-black uppercase tracking-wider">Ready</span>
                     <span v-else class="px-3 py-1 bg-slate-800 text-slate-400 rounded-lg text-[10px] font-bold uppercase tracking-wider">Draft</span>
 
-                    <button @click="checkClearance" :disabled="!form.value.assignment || clearance.loading"
+                    <button @click="checkClearance" :disabled="!form.assignment || clearance.loading"
                             class="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-xl text-xs font-black shadow-lg active:scale-95 disabled:opacity-30 transition-all uppercase tracking-wider">
                         {{ clearance.loading ? '...' : 'Check' }}
                     </button>
