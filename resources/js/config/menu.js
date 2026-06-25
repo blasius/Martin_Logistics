@@ -116,6 +116,7 @@ export const menu = [
         icon: BarChart3,
         children: [
             { label: "Reports Dashboard", to: "/reports" },
+            { label: "Analytics", to: "/reports/analytics" },
             { label: "Performance", to: "/performance" },
         ],
     },
@@ -163,6 +164,14 @@ export const menu = [
             { label: "Expenses", to: "/finance/expenses" },
             { label: "Expense Types", to: "/finance/expense-types" },
             { label: "Wallets", to: "/wallets" },
+        ],
+    },
+    {
+        label: "Containers",
+        icon: Truck,
+        children: [
+            { label: "Dashboard", to: "/containers/dashboard" },
+            { label: "Registry", to: "/containers" },
         ],
     },
     {

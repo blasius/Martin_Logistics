@@ -19,7 +19,8 @@
                             </router-link>
                         </div>
 
-                        <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-1">
+                            <NotificationBell />
                             <div class="relative" v-click-outside="() => showDropdown = false">
                                 <button @click="showDropdown = !showDropdown"
                                     class="flex items-center gap-2.5 p-1.5 pr-3 rounded-xl hover:bg-slate-100 transition-all duration-200 border border-transparent hover:border-slate-200">
@@ -111,6 +112,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from './store/authStore'
+import NotificationBell from './components/NotificationBell.vue'
 
 const route = useRoute()
 const router = useRouter()

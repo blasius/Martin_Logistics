@@ -40,6 +40,7 @@ const router = createRouter({
 
                 { path: "tracker", component: () => import("../pages/Tracker/Index.vue") },
                 { path: "reports", component: () => import("../pages/Reports/Index.vue") },
+                { path: "reports/analytics", component: () => import("../pages/Analytics.vue") },
                 { path: "support", component: () => import("../pages/Support/Index.vue") },
                 { path: "settings", component: () => import("../pages/Settings.vue") },
                 { path: "fines", component: () => import("../pages/Fines/Index.vue") },
@@ -183,6 +184,18 @@ const router = createRouter({
                     props: true,
                 },
 
+                // Containers & Demurrage
+                { path: "containers", component: () => import("../pages/Containers/Index.vue") },
+                { path: "containers/dashboard", component: () => import("../pages/Containers/Dashboard.vue") },
+                { path: "containers/create", component: () => import("../pages/Containers/Create.vue") },
+                { path: "containers/contracts/create", component: () => import("../pages/Containers/CreateContract.vue") },
+                {
+                    path: "containers/:id",
+                    name: "containers.show",
+                    component: () => import("../pages/Containers/Show.vue"),
+                    props: true,
+                },
+
                 // Performance Rating & Scoring
                 { path: "performance", component: () => import("../pages/Performance/Leaderboard.vue") },
                 {
@@ -195,6 +208,7 @@ const router = createRouter({
                 { path: "performance/rate/driver/:id", component: () => import("../pages/Performance/RateDriver.vue") },
                 { path: "performance/rate/dispatcher/:id", component: () => import("../pages/Performance/RateDriver.vue") },
                 { path: "performance/dispatchers", component: () => import("../pages/Performance/DispatcherProfiles.vue") },
+                { path: "notifications", component: () => import("../pages/Notifications/Index.vue") },
             ],
         },
         { path: "/:pathMatch(.*)*", redirect: "/login" },

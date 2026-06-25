@@ -5,6 +5,7 @@ import Dashboard from '../pages/Dashboard.vue'
 import PlaceOrder from '../pages/PlaceOrder.vue'
 import OrderList from '../pages/OrderList.vue'
 import TrackOrder from '../pages/TrackOrder.vue'
+import Notifications from '../pages/Notifications.vue'
 
 const routes = [
     { path: '/login', name: 'Login', component: Login, meta: { guestOnly: true } },
@@ -13,6 +14,7 @@ const routes = [
     { path: '/orders', name: 'Orders', component: OrderList, meta: { requiresAuth: true } },
     { path: '/place-order', name: 'PlaceOrder', component: PlaceOrder, meta: { requiresAuth: true } },
     { path: '/orders/:id', name: 'TrackOrder', component: TrackOrder, meta: { requiresAuth: true }, props: true },
+    { path: '/notifications', name: 'Notifications', component: Notifications, meta: { requiresAuth: true } },
     { path: '/', redirect: '/dashboard' },
     { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
 ]

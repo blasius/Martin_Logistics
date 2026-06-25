@@ -3,7 +3,7 @@
         <div class="flex-1 max-w-2xl"><GlobalSearch /></div>
 
         <div class="flex items-center gap-4">
-            <button class="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-50"><Bell class="w-5 h-5" /></button>
+            <NotificationBell />
 
             <div class="relative">
                 <button @click="isDropdownOpen = !isDropdownOpen" class="flex items-center gap-3 p-1 rounded-xl hover:bg-gray-50 transition-all">
@@ -40,8 +40,9 @@
 import { ref, computed } from 'vue';
 import { useAuthStore } from "../../store/authStore";
 import GlobalSearch from "../search/GlobalSearch.vue";
+import NotificationBell from "../NotificationBell.vue";
 import LogoutModal from "../modals/LogoutModal.vue";
-import { Bell, LogOut, ChevronDown, User, Settings } from 'lucide-vue-next';
+import { LogOut, ChevronDown, User, Settings } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
 const isDropdownOpen = ref(false);

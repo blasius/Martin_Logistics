@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\OrderStatusChanged;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use Illuminate\Http\Request;
@@ -56,7 +57,12 @@ class OrderController extends Controller
             'notes' => 'nullable|string',
         ]);
 
+        $oldStatus = $order->status;
         $order->update($validated);
+
+        if ($oldStatus !== $order->status) {
+            event(new OrderStatusChanged($order, $oldStatus, $order->status));
+        }
 
         return response()->json(['message' => 'Order updated successfully', 'order' => $order->fresh()->load('client.user:id,name')]);
     }

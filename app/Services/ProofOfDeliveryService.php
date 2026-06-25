@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\DeliveryConfirmed;
 use App\Models\ProofOfDelivery;
 use App\Models\Trip;
 use App\Models\TripHistory;
@@ -43,6 +44,8 @@ class ProofOfDeliveryService
         if (!empty($data['order_id'])) {
             $pod->order()->update(['status' => 'delivered']);
         }
+
+        event(new DeliveryConfirmed($pod));
 
         return $pod->load(['order', 'trip', 'submitter']);
     }

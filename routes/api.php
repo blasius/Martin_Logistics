@@ -61,6 +61,7 @@ use App\Http\Controllers\Api\ExpenseTypeController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\RatingController;
+use App\Http\Controllers\Api\ContainerController;
 use App\Http\Controllers\Api\Workshop\PartController as WsPartController;
 use App\Http\Controllers\Api\Workshop\WarehouseController as WsWarehouseController;
 use App\Http\Controllers\Api\Workshop\StockLevelController as WsStockLevelController;
@@ -242,6 +243,24 @@ Route::middleware('auth')->group(function () {
 
         // Reports
         Route::get('/reports', [FleetReportController::class, 'index']);
+        Route::get('/reports/unified', [FleetReportController::class, 'unified']);
+        Route::get('/reports/expenses', [FleetReportController::class, 'expenseDrilldown']);
+        Route::get('/reports/trip-profitability', [FleetReportController::class, 'tripProfitability']);
+
+        // Containers
+        Route::get('/containers/dashboard', [ContainerController::class, 'dashboard']);
+        Route::get('/containers/contracts', [ContainerController::class, 'contracts']);
+        Route::post('/containers/contracts', [ContainerController::class, 'storeContract']);
+        Route::get('/containers/search-locations', [ContainerController::class, 'searchLocations']);
+        Route::post('/containers/movements', [ContainerController::class, 'recordMovement']);
+        Route::post('/containers/calculate-penalties/batch', [ContainerController::class, 'batchCalculatePenalties']);
+        Route::get('/containers/{id}/movements', [ContainerController::class, 'movements']);
+        Route::post('/containers/{id}/calculate-penalties', [ContainerController::class, 'calculatePenalties']);
+        Route::get('/containers', [ContainerController::class, 'index']);
+        Route::post('/containers', [ContainerController::class, 'store']);
+        Route::get('/containers/{id}', [ContainerController::class, 'show']);
+        Route::put('/containers/{id}', [ContainerController::class, 'update']);
+        Route::delete('/containers/{id}', [ContainerController::class, 'destroy']);
 
         // Dashboard
         Route::get('/dashboard/overview', [DashboardController::class, 'getOverview']);
@@ -584,6 +603,15 @@ Route::middleware('auth')->group(function () {
             Route::patch('tickets/{ticket}/assign', [SupportTicketController::class, 'assign']);
             Route::post('tickets/{ticket}/messages', [SupportTicketMessageController::class, 'store']);
         });
+
+        // Notifications (Phase 8.1)
+        Route::get('notifications', [\App\Http\Controllers\Api\NotificationController::class, 'index']);
+        Route::get('notifications/unread-count', [\App\Http\Controllers\Api\NotificationController::class, 'unreadCount']);
+        Route::post('notifications/{id}/read', [\App\Http\Controllers\Api\NotificationController::class, 'markRead']);
+        Route::post('notifications/mark-all-read', [\App\Http\Controllers\Api\NotificationController::class, 'markAllRead']);
+        Route::delete('notifications/{id}', [\App\Http\Controllers\Api\NotificationController::class, 'destroy']);
+        Route::get('notifications/preferences', [\App\Http\Controllers\Api\NotificationController::class, 'preferences']);
+        Route::put('notifications/preferences', [\App\Http\Controllers\Api\NotificationController::class, 'updatePreferences']);
     });
 
     // Customer Portal API (authenticated routes — outside /portal prefix)
@@ -596,5 +624,9 @@ Route::middleware('auth')->group(function () {
         Route::post('orders', [CustomerOrderController::class, 'store']);
         Route::get('orders/{order}', [CustomerOrderController::class, 'show']);
         Route::get('orders/{order}/pod', [CustomerOrderController::class, 'pod']);
+        Route::get('notifications', [\App\Http\Controllers\Api\Customer\NotificationController::class, 'index']);
+        Route::get('notifications/unread-count', [\App\Http\Controllers\Api\Customer\NotificationController::class, 'unreadCount']);
+        Route::post('notifications/{id}/read', [\App\Http\Controllers\Api\Customer\NotificationController::class, 'markRead']);
+        Route::post('notifications/mark-all-read', [\App\Http\Controllers\Api\Customer\NotificationController::class, 'markAllRead']);
     });
 });

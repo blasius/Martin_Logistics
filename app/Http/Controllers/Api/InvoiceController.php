@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\InvoiceStatusChanged;
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\Order;
@@ -127,7 +128,11 @@ class InvoiceController extends Controller
         ]);
 
         \DB::transaction(function () use ($validated, $invoice) {
+            $oldStatus = $invoice->status;
             $invoice->update($validated);
+            if ($oldStatus !== $invoice->status) {
+                event(new InvoiceStatusChanged($invoice, $oldStatus, $invoice->status));
+            }
 
             if (isset($validated['items'])) {
                 $incomingIds = collect($validated['items'])->pluck('id')->filter();
@@ -179,25 +184,33 @@ class InvoiceController extends Controller
 
     public function markSent(Invoice $invoice)
     {
+        $oldStatus = $invoice->status;
         $invoice->update(['status' => 'sent']);
+        event(new InvoiceStatusChanged($invoice, $oldStatus, 'sent'));
         return response()->json($invoice);
     }
 
     public function markPaid(Invoice $invoice)
     {
+        $oldStatus = $invoice->status;
         $invoice->update(['status' => 'paid']);
+        event(new InvoiceStatusChanged($invoice, $oldStatus, 'paid'));
         return response()->json($invoice);
     }
 
     public function markOverdue(Invoice $invoice)
     {
+        $oldStatus = $invoice->status;
         $invoice->update(['status' => 'overdue']);
+        event(new InvoiceStatusChanged($invoice, $oldStatus, 'overdue'));
         return response()->json($invoice);
     }
 
     public function markCancelled(Invoice $invoice)
     {
+        $oldStatus = $invoice->status;
         $invoice->update(['status' => 'cancelled']);
+        event(new InvoiceStatusChanged($invoice, $oldStatus, 'cancelled'));
         return response()->json($invoice);
     }
 

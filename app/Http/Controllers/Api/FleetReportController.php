@@ -15,12 +15,20 @@ use App\Models\VehicleSnapshot;
 use App\Models\TelemetryEvent;
 use App\Models\Currency;
 use App\Services\CurrencyService;
+use App\Services\ReportingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class FleetReportController extends Controller
 {
+    protected ReportingService $reportingService;
+
+    public function __construct(ReportingService $reportingService)
+    {
+        $this->reportingService = $reportingService;
+    }
+
     public function index(Request $request)
     {
         $today = now();
@@ -310,6 +318,49 @@ class FleetReportController extends Controller
             ],
             'last_updated' => $today->toISOString(),
         ]);
+    }
+
+    /**
+     * Unified report — combines fleet overview + all module data (containers, expenses, performance, wallets, invoices)
+     */
+    public function unified(Request $request)
+    {
+        $selectedCurrencyId = $request->integer('currency_id');
+        return response()->json(
+            $this->reportingService->unifiedReport($selectedCurrencyId ?: null)
+        );
+    }
+
+    /**
+     * Drill-down: expense analytics with filters
+     */
+    public function expenseDrilldown(Request $request)
+    {
+        $period = $request->get('period', 'year');
+        $startDate = match ($period) {
+            'month' => now()->startOfMonth(),
+            'quarter' => now()->startOfQuarter(),
+            default => now()->startOfYear(),
+        };
+        return response()->json(
+            $this->reportingService->expenseReport($startDate, now())
+        );
+    }
+
+    /**
+     * Drill-down: trip profitability
+     */
+    public function tripProfitability(Request $request)
+    {
+        $period = $request->get('period', 'month');
+        $startDate = match ($period) {
+            'quarter' => now()->startOfQuarter(),
+            'year' => now()->startOfYear(),
+            default => now()->startOfMonth(),
+        };
+        return response()->json(
+            $this->reportingService->tripProfitabilityReport($startDate, now())
+        );
     }
 
     private function mapCompliance($unit, $today)

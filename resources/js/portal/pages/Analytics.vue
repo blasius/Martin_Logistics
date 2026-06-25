@@ -180,10 +180,10 @@ import { ref, computed, onMounted } from 'vue';
 import { RefreshCw } from 'lucide-vue-next';
 import { api } from '../../plugins/axios';
 import dayjs from 'dayjs';
-import TripTimelineChart from '../../components/charts/TripTimelineChart.vue';
-import StatusDistributionChart from '../../components/charts/StatusDistributionChart.vue';
-import FineTrendsChart from '../../components/charts/FineTrendsChart.vue';
-import TripStatusChart from '../../components/charts/TripStatusChart.vue';
+import TripTimelineChart from '../components/charts/TripTimelineChart.vue';
+import StatusDistributionChart from '../components/charts/StatusDistributionChart.vue';
+import FineTrendsChart from '../components/charts/FineTrendsChart.vue';
+import TripStatusChart from '../components/charts/TripStatusChart.vue';
 
 // State
 const loading = ref(false);
