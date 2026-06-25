@@ -634,6 +634,45 @@ Route::middleware('auth')->group(function () {
         Route::post('returns/{return_request}/complete', [\App\Http\Controllers\Api\ReturnController::class, 'complete']);
         Route::post('returns/{return_request}/cancel', [\App\Http\Controllers\Api\ReturnController::class, 'cancel']);
         Route::apiResource('returns', \App\Http\Controllers\Api\ReturnController::class);
+
+        // HR & Payroll (Phase 8.3)
+        Route::get('hr/stats', [\App\Http\Controllers\Api\HrController::class, 'stats']);
+        // Departments
+        Route::get('hr/departments', [\App\Http\Controllers\Api\HrController::class, 'indexDepartments']);
+        Route::post('hr/departments', [\App\Http\Controllers\Api\HrController::class, 'storeDepartment']);
+        Route::put('hr/departments/{department}', [\App\Http\Controllers\Api\HrController::class, 'updateDepartment']);
+        Route::delete('hr/departments/{department}', [\App\Http\Controllers\Api\HrController::class, 'destroyDepartment']);
+        // Positions
+        Route::get('hr/positions', [\App\Http\Controllers\Api\HrController::class, 'indexPositions']);
+        Route::post('hr/positions', [\App\Http\Controllers\Api\HrController::class, 'storePosition']);
+        Route::put('hr/positions/{position}', [\App\Http\Controllers\Api\HrController::class, 'updatePosition']);
+        Route::delete('hr/positions/{position}', [\App\Http\Controllers\Api\HrController::class, 'destroyPosition']);
+        // Employees
+        Route::get('hr/employees', [\App\Http\Controllers\Api\HrController::class, 'indexEmployees']);
+        Route::post('hr/employees', [\App\Http\Controllers\Api\HrController::class, 'storeEmployee']);
+        Route::get('hr/employees/{employee}', [\App\Http\Controllers\Api\HrController::class, 'showEmployee']);
+        Route::put('hr/employees/{employee}', [\App\Http\Controllers\Api\HrController::class, 'updateEmployee']);
+        // Attendance
+        Route::get('hr/attendance', [\App\Http\Controllers\Api\HrController::class, 'indexAttendance']);
+        Route::post('hr/attendance/clock-in', [\App\Http\Controllers\Api\HrController::class, 'clockIn']);
+        Route::post('hr/attendance/clock-out', [\App\Http\Controllers\Api\HrController::class, 'clockOut']);
+        // Leave
+        Route::get('hr/leave-types', [\App\Http\Controllers\Api\HrController::class, 'indexLeaveTypes']);
+        Route::post('hr/leave-types', [\App\Http\Controllers\Api\HrController::class, 'storeLeaveType']);
+        Route::get('hr/leave-requests', [\App\Http\Controllers\Api\HrController::class, 'indexLeaveRequests']);
+        Route::post('hr/leave-requests', [\App\Http\Controllers\Api\HrController::class, 'storeLeaveRequest']);
+        Route::post('hr/leave-requests/{leave_request}/approve', [\App\Http\Controllers\Api\HrController::class, 'approveLeave']);
+        Route::post('hr/leave-requests/{leave_request}/reject', [\App\Http\Controllers\Api\HrController::class, 'rejectLeave']);
+        Route::post('hr/leave-requests/{leave_request}/cancel', [\App\Http\Controllers\Api\HrController::class, 'cancelLeave']);
+        Route::get('hr/leave-balances', [\App\Http\Controllers\Api\HrController::class, 'leaveBalances']);
+        // Payroll
+        Route::get('hr/pay-periods', [\App\Http\Controllers\Api\HrController::class, 'indexPayPeriods']);
+        Route::post('hr/pay-periods', [\App\Http\Controllers\Api\HrController::class, 'storePayPeriod']);
+        Route::post('hr/pay-periods/{pay_period}/close', [\App\Http\Controllers\Api\HrController::class, 'closePayPeriod']);
+        Route::get('hr/payslips', [\App\Http\Controllers\Api\HrController::class, 'indexPayslips']);
+        Route::post('hr/payslips/generate', [\App\Http\Controllers\Api\HrController::class, 'generatePayslips']);
+        Route::post('hr/payslips/{payslip}/approve', [\App\Http\Controllers\Api\HrController::class, 'approvePayslip']);
+        Route::post('hr/payslips/{payslip}/mark-paid', [\App\Http\Controllers\Api\HrController::class, 'markPayslipPaid']);
     });
 
     // Customer Portal API (authenticated routes — outside /portal prefix)

@@ -70,6 +70,17 @@ export const menu = [
         to: "/trips",
     },
     {
+        label: "HR",
+        icon: User,
+        children: [
+            { label: "Dashboard", to: "/hr" },
+            { label: "Employees", to: "/hr/employees" },
+            { label: "Attendance", to: "/hr/attendance" },
+            { label: "Leave", to: "/hr/leave" },
+            { label: "Payroll", to: "/hr/payroll" },
+        ],
+    },
+    {
         label: "Drivers",
         icon: User,
         to: "/drivers",
