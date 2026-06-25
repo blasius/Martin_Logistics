@@ -539,8 +539,13 @@
                             </div>
                             <div>
                                 <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-3 block">Permissions</label>
-                                <div v-if="allPermissions.length" class="grid grid-cols-2 gap-2.5 max-h-64 overflow-y-auto custom-scrollbar pr-1">
-                                    <label v-for="perm in allPermissions" :key="perm"
+                                <div class="relative mb-3">
+                                    <input v-model="permSearch" placeholder="Search permissions..."
+                                           class="w-full border-2 border-slate-100 bg-slate-50/50 px-4 py-2.5 pl-10 rounded-xl text-xs font-bold text-slate-600 placeholder:text-slate-300 focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all" />
+                                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                                </div>
+                                <div v-if="filteredPermissions.length" class="grid grid-cols-2 gap-2.5 max-h-64 overflow-y-auto custom-scrollbar pr-1">
+                                    <label v-for="perm in filteredPermissions" :key="perm"
                                            :class="[
                                                'relative flex items-center gap-3 px-4 py-3.5 rounded-xl border-2 cursor-pointer transition-all select-none',
                                                roleForm.permissions.includes(perm)
@@ -562,7 +567,7 @@
                                         ]">{{ perm }}</span>
                                     </label>
                                 </div>
-                                <div v-else class="text-xs font-bold text-slate-400 py-4 text-center">No permissions available</div>
+                                <div v-else class="text-xs font-bold text-slate-400 py-4 text-center">{{ permSearch && allPermissions.length ? 'No matching permissions' : 'No permissions available' }}</div>
                             </div>
                         </div>
                         <div v-if="roleFormError" class="flex items-center gap-2 text-red-600 text-[10px] font-bold bg-red-50/80 border border-red-100 px-4 py-3 rounded-xl">
@@ -943,6 +948,13 @@ const roleSaving = ref(false)
 const roleFormError = ref('')
 const roleDeleteError = ref('')
 const allPermissions = ref([])
+const permSearch = ref('')
+
+const filteredPermissions = computed(() => {
+    if (!permSearch.value) return allPermissions.value
+    const q = permSearch.value.toLowerCase()
+    return allPermissions.value.filter(p => p.toLowerCase().includes(q))
+})
 
 const roleForm = ref({
     name: '',
