@@ -135,8 +135,7 @@ class RoleManagementController extends Controller
 
     public function permissionsList()
     {
-        $permissions = Permission::orderBy('group')->orderBy('name')->get();
-        return response()->json($permissions);
+        return response()->json(Permission::orderBy('group')->orderBy('name')->pluck('name'));
     }
 
     public function permissionsGrouped()
