@@ -26,6 +26,7 @@ import {
     Truck,
     ClipboardCheck,
     Radio,
+    Shield,
 } from "lucide-vue-next";
 
 export const menu = [
@@ -197,6 +198,12 @@ export const menu = [
         ],
     },
     {
+        label: "Roles",
+        icon: Shield,
+        roles: ['super_admin', 'Admin'],
+        to: "/roles",
+    },
+    {
         label: "Settings",
         icon: Settings,
         to: "/settings",
@@ -227,7 +234,10 @@ export const menu = [
     {
         label: "Documents",
         icon: FolderOpen,
-        to: "/documents/templates",
+        children: [
+            { label: "All Documents", to: "/documents" },
+            { label: "Templates", to: "/documents/templates" },
+        ],
     },
     {
         label: "Support",

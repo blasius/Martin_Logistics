@@ -209,13 +209,21 @@ const router = createRouter({
                 { path: "performance/rate/dispatcher/:id", component: () => import("../pages/Performance/RateDriver.vue") },
                 { path: "performance/dispatchers", component: () => import("../pages/Performance/DispatcherProfiles.vue") },
                 { path: "notifications", component: () => import("../pages/Notifications/Index.vue") },
-                { path: "documents", component: () => import("../pages/Documents/Templates/Index.vue") },
+                { path: "documents", component: () => import("../pages/Documents/Index.vue") },
+                {
+                    path: "documents/:id",
+                    name: "documents.show",
+                    component: () => import("../pages/Documents/Show.vue"),
+                    props: true,
+                },
                 { path: "documents/templates", component: () => import("../pages/Documents/Templates/Index.vue") },
                 { path: "documents/templates/create", component: () => import("../pages/Documents/Templates/Create.vue") },
                 { path: "documents/templates/:id/edit", component: () => import("../pages/Documents/Templates/Create.vue"), props: true },
                 { path: "returns", component: () => import("../pages/Returns/Index.vue") },
                 { path: "returns/create", component: () => import("../pages/Returns/Create.vue") },
                 { path: "returns/:id", component: () => import("../pages/Returns/Show.vue") },
+                // Roles (Phase 1.2)
+                { path: "roles", component: () => import("../pages/Roles/Index.vue") },
                 // HR (Phase 8.3)
                 { path: "hr", component: () => import("../pages/Hr/Dashboard.vue") },
                 { path: "hr/employees", component: () => import("../pages/Hr/Employees/Index.vue") },
