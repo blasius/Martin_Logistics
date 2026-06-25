@@ -29,13 +29,18 @@
         </div>
 
         <div class="flex flex-wrap gap-3">
-            <button @click="activeCategoryId = null"
-                    :class="[!activeCategoryId ? 'bg-slate-900 text-white shadow-xl translate-y-[-2px]' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300']"
+            <button @click="activeCategoryId = null; activeSourceFilter = 'all'"
+                    :class="[!activeCategoryId && activeSourceFilter === 'all' ? 'bg-slate-900 text-white shadow-xl translate-y-[-2px]' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300']"
                     class="px-6 py-3 rounded-2xl border font-black text-xs uppercase transition-all flex items-center gap-2">
                 All Issues <span class="opacity-50 text-[10px]">{{ tickets.length }}</span>
             </button>
+            <button @click="activeSourceFilter = 'route_alerts'; activeCategoryId = null"
+                    :class="[activeSourceFilter === 'route_alerts' ? 'bg-amber-600 text-white shadow-xl translate-y-[-2px] border-amber-600' : 'bg-white text-slate-700 border-slate-200 shadow-sm hover:border-amber-300']"
+                    class="px-6 py-3 rounded-2xl border font-black text-xs uppercase transition-all flex items-center gap-2">
+                <Radio class="w-3.5 h-3.5" /> Route Alerts <span v-if="routeAlertCount !== null" class="opacity-80 text-[10px]">({{ routeAlertCount }})</span>
+            </button>
             <template v-for="cat in categories" :key="cat.id">
-                <button @click="activeCategoryId = cat.id"
+                <button @click="activeCategoryId = cat.id; activeSourceFilter = 'all'"
                         :class="[activeCategoryId === cat.id ? 'bg-indigo-600 text-white shadow-xl translate-y-[-2px] border-indigo-600' : 'bg-white text-slate-700 border-slate-200 shadow-sm hover:border-indigo-300']"
                         class="px-6 py-3 rounded-2xl border font-black text-xs uppercase transition-all flex items-center gap-3">
                     {{ cat.name }}
@@ -86,6 +91,8 @@
                     <td class="p-5">
                         <span :class="statusBadge(t.status)" class="text-[9px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest">{{ t.status }}</span>
                         <span v-if="t.priority === 'urgent'" class="ml-1.5 text-[9px] font-black px-2 py-1 rounded-lg uppercase tracking-widest bg-rose-100 text-rose-700">URGENT</span>
+                        <span v-if="t.source !== 'manual'" class="ml-1.5 text-[9px] font-black px-2 py-1 rounded-lg uppercase tracking-widest" :class="sourceBadge(t.source)">{{ sourceLabel(t.source) }}</span>
+                        <span v-if="t.escalation_level" class="ml-1.5 text-[9px] font-black px-2 py-1 rounded-lg uppercase tracking-widest bg-orange-100 text-orange-700">L{{ t.escalation_level }}</span>
                     </td>
                     <td class="p-5 text-right">
                         <p class="text-xs font-black text-slate-600">{{ timeAgo(t.created_at) }}</p>
@@ -161,9 +168,39 @@
                                     </div>
                                 </div>
 
-                                <div>
+                                <div v-if="ticketDetail.source !== 'manual'">
+                                    <h3 class="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-4">Escalation</h3>
+                                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
+                                        <div>
+                                            <p class="text-[9px] font-black text-slate-400 uppercase">Source</p>
+                                            <span class="inline-block mt-1 text-[9px] font-black px-2 py-1 rounded-lg uppercase tracking-widest" :class="sourceBadge(ticketDetail.source)">{{ sourceLabel(ticketDetail.source) }}</span>
+                                        </div>
+                                        <div v-if="ticketDetail.escalation_level">
+                                            <p class="text-[9px] font-black text-slate-400 uppercase">Level</p>
+                                            <p class="text-sm font-black mt-0.5 text-orange-600">Level {{ ticketDetail.escalation_level }}</p>
+                                        </div>
+                                        <div v-if="ticketDetail.escalatedTo">
+                                            <p class="text-[9px] font-black text-slate-400 uppercase">Escalated To</p>
+                                            <p class="text-sm font-black mt-0.5 text-slate-800">{{ ticketDetail.escalatedTo.name }}</p>
+                                        </div>
+                                        <div v-if="ticketDetail.escalated_at">
+                                            <p class="text-[9px] font-black text-slate-400 uppercase">Since</p>
+                                            <p class="text-sm font-black mt-0.5 text-slate-800">{{ formatDate(ticketDetail.escalated_at) }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-2">
+                                    <button v-if="canEscalate" @click="escalateTicket"
+                                        class="w-full text-[10px] font-black uppercase px-4 py-3 rounded-xl bg-orange-600 text-white hover:bg-orange-700 transition active:scale-95 flex items-center justify-center gap-2">
+                                        <ArrowUpCircle class="w-3.5 h-3.5" /> Escalate
+                                    </button>
+                                    <button v-if="canResolveEscalation" @click="resolveEscalation"
+                                        class="w-full text-[10px] font-black uppercase px-4 py-3 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition active:scale-95 flex items-center justify-center gap-2">
+                                        <CheckCircle class="w-3.5 h-3.5" /> Resolve Escalation
+                                    </button>
                                     <button @click="openConvertToExpense"
-                                        class="w-full text-[10px] font-black uppercase px-4 py-3 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition active:scale-95 flex items-center justify-center gap-2 mb-2">
+                                        class="w-full text-[10px] font-black uppercase px-4 py-3 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition active:scale-95 flex items-center justify-center gap-2">
                                         <DollarSign class="w-3.5 h-3.5" /> Convert to Expense
                                     </button>
                                 </div>
@@ -215,13 +252,22 @@
                                 <div v-if="!ticketDetail?.messages?.length" class="text-center text-slate-400 font-black uppercase tracking-widest text-xs py-12">
                                     No messages yet
                                 </div>
-                                <div v-if="ticketDetail?.events?.length" class="border-t border-slate-200 pt-6 mt-8">
+                                <div v-if="combinedActivity.length" class="border-t border-slate-200 pt-6 mt-8">
                                     <p class="text-[10px] font-black text-slate-400 uppercase mb-4">Activity Log</p>
-                                    <div v-for="evt in ticketDetail.events" :key="evt.id" class="flex items-center gap-3 text-[10px] font-bold text-slate-400 mb-2.5">
-                                        <span class="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0"></span>
-                                        <span>{{ evt.actor?.name || 'System' }}</span>
-                                        <span>{{ evt.type.replace(/_/g, ' ') }}</span>
-                                        <span class="ml-auto">{{ timeAgo(evt.created_at) }}</span>
+                                    <div v-for="item in combinedActivity" :key="item.id" class="flex items-center gap-3 text-[10px] font-bold mb-2.5" :class="item._type === 'escalation' ? 'text-orange-500' : 'text-slate-400'">
+                                        <span class="w-1.5 h-1.5 rounded-full shrink-0" :class="item._type === 'escalation' ? 'bg-orange-400' : 'bg-slate-300'"></span>
+                                        <template v-if="item._type === 'escalation'">
+                                            <span>{{ item.fromUser?.name || item.from_role || 'System' }}</span>
+                                            <span class="uppercase">{{ item.action }}</span>
+                                            <span v-if="item.toUser?.name">→ {{ item.toUser.name }}</span>
+                                            <span v-else-if="item.to_role">→ {{ item.to_role }}</span>
+                                            <span v-if="item.reason" class="italic">({{ item.reason }})</span>
+                                        </template>
+                                        <template v-else>
+                                            <span>{{ item.actor?.name || 'System' }}</span>
+                                            <span>{{ item.type.replace(/_/g, ' ') }}</span>
+                                        </template>
+                                        <span class="ml-auto">{{ timeAgo(item.created_at) }}</span>
                                     </div>
                                 </div>
                             </template>
@@ -515,7 +561,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { api } from '../../../plugins/axios'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import { LifeBuoy, X, Send, Search, Plus, Settings, Pencil, Trash2, AlertTriangle, DollarSign } from 'lucide-vue-next'
+import { LifeBuoy, X, Send, Search, Plus, Settings, Pencil, Trash2, AlertTriangle, DollarSign, ArrowUpCircle, CheckCircle, Radio } from 'lucide-vue-next'
 
 dayjs.extend(relativeTime)
 
@@ -531,6 +577,15 @@ const tickets = ref([])
 const replyText = ref('')
 const statusUpdate = ref('')
 const currentUserId = ref(null)
+
+// Escalation
+const activeSourceFilter = ref('all')
+const routeAlerts = ref({ my_alerts: [], unassigned: [] })
+const routeAlertCount = ref(null)
+const escalating = ref(false)
+const resolving = ref(false)
+const escalateReason = ref('')
+const showEscalatePrompt = ref(false)
 
 // Create Ticket
 const showCreateTicket = ref(false)
@@ -586,6 +641,13 @@ const formValid = computed(() =>
 
 const filteredTickets = computed(() => {
     let result = tickets.value
+    if (activeSourceFilter.value === 'route_alerts') {
+        const alertIds = new Set()
+        routeAlerts.value.my_alerts?.forEach(a => alertIds.add(a.id))
+        routeAlerts.value.unassigned?.forEach(a => alertIds.add(a.id))
+        result = result.filter(t => alertIds.has(t.id))
+        return result
+    }
     if (activeCategoryId.value) {
         result = result.filter(t => t.support_category_id === activeCategoryId.value)
     }
@@ -605,6 +667,46 @@ const slaBreached = computed(() => {
     if (['resolved', 'closed'].includes(ticketDetail.value.status)) return false
     return new Date(ticketDetail.value.sla_resolution_due_at) < new Date()
 })
+
+const canEscalate = computed(() => {
+    if (!ticketDetail.value || !currentUserId.value) return false
+    if (['resolved', 'closed'].includes(ticketDetail.value.status)) return false
+    if (ticketDetail.value.source === 'manual') return false
+    return ticketDetail.value.assigned_to === currentUserId.value
+})
+
+const canResolveEscalation = computed(() => {
+    if (!ticketDetail.value || !currentUserId.value) return false
+    if (!ticketDetail.value.escalation_level) return false
+    if (['resolved', 'closed'].includes(ticketDetail.value.status)) return false
+    return ticketDetail.value.assigned_to === currentUserId.value || ticketDetail.value.escalated_to_id === currentUserId.value
+})
+
+const combinedActivity = computed(() => {
+    const events = (ticketDetail.value?.events || []).map(e => ({ ...e, _type: 'event' }))
+    const escalations = (ticketDetail.value?.escalations || []).map(e => ({ ...e, _type: 'escalation' }))
+    return [...events, ...escalations].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+})
+
+const sourceLabel = (source) => {
+    const map = {
+        manual: 'Manual',
+        auto_route_deviation: 'Deviation',
+        auto_delay: 'Delay',
+        auto_fuel_flag: 'Fuel',
+    }
+    return map[source] || source
+}
+
+const sourceBadge = (source) => {
+    const map = {
+        manual: 'bg-slate-100 text-slate-600',
+        auto_route_deviation: 'bg-amber-100 text-amber-700',
+        auto_delay: 'bg-cyan-100 text-cyan-700',
+        auto_fuel_flag: 'bg-rose-100 text-rose-700',
+    }
+    return map[source] || 'bg-slate-100 text-slate-600'
+}
 
 const userName = (user) => {
     if (!user?.name) return '??'
@@ -971,14 +1073,62 @@ const submitConvertExpense = async () => {
     }
 }
 
+const fetchRouteAlerts = async () => {
+    try {
+        const { data: alerts } = await api.get('portal/support/route-alerts')
+        routeAlerts.value = alerts
+        const { data: stats } = await api.get('portal/support/route-alerts/stats')
+        routeAlertCount.value = stats.open_alerts
+    } catch (e) {
+        console.error('Failed to load route alerts', e)
+    }
+}
+
+const escalateTicket = async () => {
+    if (!ticketDetail.value) return
+    const reason = prompt('Reason for escalation:')
+    if (reason === null) return
+    escalating.value = true
+    try {
+        const { data } = await api.post(`portal/support/tickets/${ticketDetail.value.id}/escalate`, { reason })
+        ticketDetail.value = data.ticket
+        const idx = tickets.value.findIndex(t => t.id === ticketDetail.value.id)
+        if (idx !== -1) Object.assign(tickets.value[idx], data.ticket)
+    } catch (e) {
+        console.error('Failed to escalate', e)
+        alert(e?.response?.data?.message || 'Failed to escalate ticket')
+    } finally {
+        escalating.value = false
+    }
+}
+
+const resolveEscalation = async () => {
+    if (!ticketDetail.value) return
+    const note = prompt('Resolution note (optional):')
+    if (note === null) return
+    resolving.value = true
+    try {
+        const { data } = await api.post(`portal/support/tickets/${ticketDetail.value.id}/resolve-escalation`, { note })
+        ticketDetail.value = data.ticket
+        const idx = tickets.value.findIndex(t => t.id === ticketDetail.value.id)
+        if (idx !== -1) Object.assign(tickets.value[idx], data.ticket)
+    } catch (e) {
+        console.error('Failed to resolve escalation', e)
+        alert(e?.response?.data?.message || 'Failed to resolve escalation')
+    } finally {
+        resolving.value = false
+    }
+}
+
 const refresh = () => {
     fetchTickets()
     fetchCategories()
+    fetchRouteAlerts()
 }
 
 let interval
 onMounted(async () => {
-    await Promise.all([fetchCategories(), fetchTickets()])
+    await Promise.all([fetchCategories(), fetchTickets(), fetchRouteAlerts()])
     interval = setInterval(refresh, 60000)
 })
 

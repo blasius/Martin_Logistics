@@ -7,6 +7,7 @@ use App\Models\SupportTicket;
 use App\Models\SupportTicketEvent;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Services\EscalationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -86,6 +87,8 @@ class SupportTicketController extends Controller
             'user.roles',
             'category:id,name',
             'assignee:id,name',
+            'escalatedTo:id,name',
+            'escalations' => fn($q) => $q->with(['fromUser:id,name', 'toUser:id,name'])->latest('created_at'),
             'messages' => fn($q) => $q->with('author:id,name')->orderBy('created_at', 'asc'),
             'events' => fn($q) => $q->with('actor:id,name')->orderBy('created_at', 'desc'),
             'subject',
@@ -141,6 +144,59 @@ class SupportTicketController extends Controller
             'message' => $validated['assigned_to'] ? 'Ticket assigned' : 'Ticket unassigned',
             'ticket' => $ticket->load('assignee:id,name'),
         ]);
+    }
+
+    public function escalate(Request $request, SupportTicket $ticket, EscalationService $escalationService)
+    {
+        $validated = $request->validate([
+            'reason' => 'nullable|string|max:1000',
+        ]);
+
+        $ticket = $escalationService->escalate($ticket, auth()->id(), $validated['reason']);
+
+        $this->logEvent($ticket->id, 'escalated', [
+            'level' => $ticket->escalation_level,
+            'assigned_to' => $ticket->assigned_to,
+            'reason' => $validated['reason'],
+        ]);
+
+        return response()->json([
+            'message' => "Ticket escalated to level {$ticket->escalation_level}",
+            'ticket' => $ticket->load(['assignee:id,name', 'escalatedTo:id,name']),
+        ]);
+    }
+
+    public function resolveEscalation(Request $request, SupportTicket $ticket, EscalationService $escalationService)
+    {
+        $validated = $request->validate([
+            'note' => 'nullable|string|max:1000',
+        ]);
+
+        $ticket = $escalationService->resolve($ticket, auth()->id(), $validated['note']);
+
+        $this->logEvent($ticket->id, 'escalation_resolved', [
+            'note' => $validated['note'],
+        ]);
+
+        return response()->json([
+            'message' => 'Escalation resolved and ticket closed.',
+            'ticket' => $ticket,
+        ]);
+    }
+
+    public function routeAlerts(Request $request, EscalationService $escalationService)
+    {
+        $user = $request->user();
+
+        $filters = $request->only(['source', 'status']);
+        $alerts = $escalationService->getRouteAlertsForDispatcher($user->id, $filters);
+
+        return response()->json($alerts);
+    }
+
+    public function routeAlertStats(EscalationService $escalationService)
+    {
+        return response()->json($escalationService->getRouteAlertStats());
     }
 
     public function categoryStats()

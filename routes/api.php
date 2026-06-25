@@ -602,6 +602,12 @@ Route::middleware('auth')->group(function () {
             Route::patch('tickets/{ticket}/status', [SupportTicketController::class, 'updateStatus']);
             Route::patch('tickets/{ticket}/assign', [SupportTicketController::class, 'assign']);
             Route::post('tickets/{ticket}/messages', [SupportTicketMessageController::class, 'store']);
+            // Escalation (Phase 4.3)
+            Route::post('tickets/{ticket}/escalate', [SupportTicketController::class, 'escalate']);
+            Route::post('tickets/{ticket}/resolve-escalation', [SupportTicketController::class, 'resolveEscalation']);
+            // Route Alerts queue
+            Route::get('route-alerts', [SupportTicketController::class, 'routeAlerts']);
+            Route::get('route-alerts/stats', [SupportTicketController::class, 'routeAlertStats']);
         });
 
         // Notifications (Phase 8.1)

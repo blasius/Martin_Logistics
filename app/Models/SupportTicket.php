@@ -24,6 +24,10 @@ class SupportTicket extends Model
         'description',
         'priority',
         'status',
+        'source',
+        'escalation_level',
+        'escalated_at',
+        'escalated_to_id',
         'first_response_at',
         'due_at',
         'resolved_at',
@@ -35,6 +39,7 @@ class SupportTicket extends Model
         'due_at'           => 'datetime',
         'resolved_at'      => 'datetime',
         'closed_at'        => 'datetime',
+        'escalated_at'     => 'datetime',
     ];
 
     /* -----------------------------------------------------------------
@@ -86,9 +91,47 @@ class SupportTicket extends Model
         return $this->morphTo();
     }
 
+    public function escalatedTo(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'escalated_to_id');
+    }
+
+    public function escalations(): HasMany
+    {
+        return $this->hasMany(TicketEscalation::class);
+    }
+
     /* -----------------------------------------------------------------
-     |  Helpers (read-only for now)
+     |  Scopes
      |------------------------------------------------------------------*/
+
+    public function scopeSource($query, string $source)
+    {
+        return $query->where('source', $source);
+    }
+
+    public function scopeRouteAlertsForDispatcher($query, int $dispatcherUserId)
+    {
+        return $query->whereIn('source', ['auto_route_deviation', 'auto_delay', 'auto_fuel_flag'])
+            ->where('assigned_to', $dispatcherUserId)
+            ->whereIn('status', ['open', 'in_progress', 'waiting']);
+    }
+
+    public function scopeUnassignedAlerts($query)
+    {
+        return $query->whereIn('source', ['auto_route_deviation', 'auto_delay', 'auto_fuel_flag'])
+            ->whereNull('assigned_to')
+            ->whereIn('status', ['open', 'in_progress', 'waiting']);
+    }
+
+    /* -----------------------------------------------------------------
+     |  Helpers
+     |------------------------------------------------------------------*/
+
+    public function isEscalated(): bool
+    {
+        return !is_null($this->escalation_level) && $this->escalation_level > 0;
+    }
 
     public function isOpen(): bool
     {

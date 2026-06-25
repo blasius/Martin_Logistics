@@ -25,6 +25,7 @@ import {
     Calculator,
     Truck,
     ClipboardCheck,
+    Radio,
 } from "lucide-vue-next";
 
 export const menu = [
