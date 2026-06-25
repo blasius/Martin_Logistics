@@ -114,7 +114,10 @@ export const menu = [
     {
         label: "Reports",
         icon: BarChart3,
-        to: "/reports",
+        children: [
+            { label: "Reports Dashboard", to: "/reports" },
+            { label: "Performance", to: "/performance" },
+        ],
     },
     {
         label: "Workshop",

@@ -74,6 +74,8 @@ class RolesAndPermissionsSeeder extends Seeder
             ['name' => 'view_financial_reports', 'group' => 'reports', 'description' => 'View financial reports'],
             ['name' => 'view_driver_performance', 'group' => 'reports', 'description' => 'View driver performance data'],
             ['name' => 'export_reports', 'group' => 'reports', 'description' => 'Export reports to CSV/PDF'],
+            ['name' => 'view_performance', 'group' => 'reports', 'description' => 'View performance ratings and leaderboard'],
+            ['name' => 'rate_performance', 'group' => 'reports', 'description' => 'Submit performance ratings for drivers and dispatchers'],
 
             // General
             ['name' => 'manage_orders', 'group' => 'general', 'description' => 'Create and manage customer orders'],
@@ -111,7 +113,7 @@ class RolesAndPermissionsSeeder extends Seeder
                     'view_fuel_reports', 'approve_supplier_delivery',
                     'view_pending_payments', 'process_payment', 'view_financial_reports',
                     'view_operational_reports', 'view_financial_reports',
-                    'view_driver_performance', 'export_reports',
+                    'view_driver_performance', 'export_reports', 'view_performance', 'rate_performance',
                     'manage_orders', 'manage_clients', 'view_dashboard',
                 ],
             ],
@@ -125,6 +127,7 @@ class RolesAndPermissionsSeeder extends Seeder
                     'view_queue', 'assign_mechanic', 'approve_repair',
                     'view_fuel_reports',
                     'view_operational_reports', 'view_driver_performance', 'export_reports',
+                    'view_performance', 'rate_performance',
                     'manage_orders', 'manage_contracts', 'manage_rate_cards', 'view_dashboard',
                 ],
             ],
@@ -138,6 +141,7 @@ class RolesAndPermissionsSeeder extends Seeder
                     'view_queue',
                     'view_fuel_reports',
                     'view_operational_reports', 'view_driver_performance',
+                    'view_performance', 'rate_performance',
                     'view_dashboard',
                 ],
             ],

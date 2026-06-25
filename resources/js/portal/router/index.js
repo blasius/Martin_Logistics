@@ -182,6 +182,19 @@ const router = createRouter({
                     component: () => import("../pages/Wallet/Show.vue"),
                     props: true,
                 },
+
+                // Performance Rating & Scoring
+                { path: "performance", component: () => import("../pages/Performance/Leaderboard.vue") },
+                {
+                    path: "performance/drivers/:id",
+                    name: "performance.drivers.show",
+                    component: () => import("../pages/Performance/DriverProfile.vue"),
+                    props: true,
+                },
+                { path: "performance/rate", component: () => import("../pages/Performance/RateDriver.vue") },
+                { path: "performance/rate/driver/:id", component: () => import("../pages/Performance/RateDriver.vue") },
+                { path: "performance/rate/dispatcher/:id", component: () => import("../pages/Performance/RateDriver.vue") },
+                { path: "performance/dispatchers", component: () => import("../pages/Performance/DispatcherProfiles.vue") },
             ],
         },
         { path: "/:pathMatch(.*)*", redirect: "/login" },

@@ -60,6 +60,7 @@ use App\Http\Controllers\Api\ClearanceController;
 use App\Http\Controllers\Api\ExpenseTypeController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\WalletController;
+use App\Http\Controllers\Api\RatingController;
 use App\Http\Controllers\Api\Workshop\PartController as WsPartController;
 use App\Http\Controllers\Api\Workshop\WarehouseController as WsWarehouseController;
 use App\Http\Controllers\Api\Workshop\StockLevelController as WsStockLevelController;
@@ -340,6 +341,19 @@ Route::middleware('auth')->group(function () {
         Route::post('wallets/{wallet}/settle', [WalletController::class, 'settle']);
         Route::get('wallets/{wallet}/settlements', [WalletController::class, 'settlements']);
         Route::apiResource('wallets', WalletController::class)->only(['index', 'show']);
+
+        // Performance Rating & Scoring (Phase 5.6)
+        Route::get('ratings/leaderboard', [RatingController::class, 'leaderboard']);
+        Route::get('ratings/top-drivers', [RatingController::class, 'topDrivers']);
+        Route::get('ratings/bottom-drivers', [RatingController::class, 'bottomDrivers']);
+        Route::get('ratings/drivers/{id}', [RatingController::class, 'driverProfile']);
+        Route::post('ratings/drivers/{id}/calculate', [RatingController::class, 'calculateDriverScore']);
+        Route::get('ratings/dispatchers/{id}', [RatingController::class, 'dispatcherProfile']);
+        Route::post('ratings/dispatchers/{id}/calculate', [RatingController::class, 'calculateDispatcherScore']);
+        Route::post('ratings/submit', [RatingController::class, 'submitRating']);
+        Route::post('ratings/calculate', [RatingController::class, 'calculateScores']);
+        Route::get('ratings/available-drivers', [RatingController::class, 'availableDrivers']);
+        Route::get('ratings/available-dispatchers', [RatingController::class, 'availableDispatchers']);
 
         // Trip Lifecycle
         Route::post('/trips', [TripController::class, 'store']);
