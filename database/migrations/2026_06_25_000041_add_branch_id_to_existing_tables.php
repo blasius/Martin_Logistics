@@ -13,7 +13,7 @@ return new class extends Migration
         });
 
         Schema::table('drivers', function (Blueprint $table) {
-            $table->foreignId('branch_id')->nullable()->after('status')->constrained()->nullOnDelete();
+            $table->foreignId('branch_id')->nullable()->constrained()->nullOnDelete();
         });
 
         Schema::table('orders', function (Blueprint $table) {
