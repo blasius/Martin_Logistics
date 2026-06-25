@@ -28,6 +28,10 @@ import {
     Radio,
     Shield,
     BookOpen,
+    Calendar,
+    GitBranch,
+    Package,
+    Key,
 } from "lucide-vue-next";
 
 export const menu = [
@@ -260,5 +264,28 @@ export const menu = [
         label: "Support",
         icon: HelpCircle,
         to: "/support",
+    },
+    {
+        label: "Scheduling",
+        icon: Calendar,
+        to: "/scheduling",
+    },
+    {
+        label: "Branches",
+        icon: GitBranch,
+        to: "/branches",
+    },
+    {
+        label: "Load Planner",
+        icon: Package,
+        to: "/load-planner",
+    },
+    {
+        label: "Developers",
+        icon: Key,
+        children: [
+            { label: "API Keys", to: "/developers/api-keys" },
+            { label: "Webhooks", to: "/developers/webhooks" },
+        ],
     },
 ];

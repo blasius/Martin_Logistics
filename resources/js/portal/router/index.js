@@ -241,6 +241,12 @@ const router = createRouter({
                 { path: "accounting/reports/trial-balance", component: () => import("../pages/Accounting/Reports/TrialBalance.vue") },
                 { path: "accounting/reports/profit-loss", component: () => import("../pages/Accounting/Reports/ProfitLoss.vue") },
                 { path: "accounting/reports/balance-sheet", component: () => import("../pages/Accounting/Reports/BalanceSheet.vue") },
+                // Phase 10 — Advanced Operations
+                { path: "scheduling", component: () => import("../pages/Scheduling/Index.vue") },
+                { path: "branches", component: () => import("../pages/Branches/Index.vue") },
+                { path: "load-planner", component: () => import("../pages/LoadPlanner/Index.vue") },
+                { path: "developers/api-keys", component: () => import("../pages/Developers/ApiKeys/Index.vue") },
+                { path: "developers/webhooks", component: () => import("../pages/Developers/Webhooks/Index.vue") },
             ],
         },
         { path: "/:pathMatch(.*)*", redirect: "/login" },

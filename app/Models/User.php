@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Auth\MustVerifyEmail as MustVerifyEmailTrait;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
@@ -30,6 +31,7 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
         'email_verification_code',
         'email_verification_code_expires_at',
         'fcm_token',
+        'branch_id',
     ];
 
     protected $hidden = [
@@ -124,5 +126,10 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
     public function mechanicProfile()
     {
         return $this->hasOne(MechanicProfile::class);
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 }

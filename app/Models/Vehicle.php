@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Traits\HasAuditTrail;
 
@@ -23,11 +24,20 @@ class Vehicle extends Model
         'fuel_type',
         'tank_capacity',
         'fuel_consumption_rate',
+        'volume_capacity',
+        'max_payload',
+        'max_trailer_weight',
+        'utilization_rate',
+        'branch_id',
     ];
 
     protected $casts = [
         'year' => 'integer',
         'capacity' => 'decimal:2',
+        'volume_capacity' => 'decimal:2',
+        'max_payload' => 'decimal:2',
+        'max_trailer_weight' => 'decimal:2',
+        'utilization_rate' => 'decimal:2',
         'status' => 'string',
         'last_fine_check_at' => 'datetime',
     ];
@@ -113,6 +123,11 @@ class Vehicle extends Model
         return $this->hasOne(DriverVehicleAssignment::class, 'vehicle_id')
             ->whereNull('end_date')
             ->latestOfMany('start_date');
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function repairRequests()

@@ -8,6 +8,7 @@ use App\Events\OrderStatusChanged;
 use App\Listeners\SendDeliveryNotification;
 use App\Listeners\SendInvoiceNotification;
 use App\Listeners\SendOrderNotification;
+use App\Listeners\WebhookDispatch;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 
 class EventServiceProvider extends ServiceProvider
@@ -23,6 +24,10 @@ class EventServiceProvider extends ServiceProvider
         DeliveryConfirmed::class => [
             SendDeliveryNotification::class,
         ],
+    ];
+
+    protected $subscribe = [
+        WebhookDispatch::class,
     ];
 
     public function boot(): void

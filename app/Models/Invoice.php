@@ -24,6 +24,7 @@ class Invoice extends Model
         'currency_id',
         'notes',
         'created_by',
+        'branch_id',
     ];
 
     protected function casts(): array
@@ -71,5 +72,10 @@ class Invoice extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 }

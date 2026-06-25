@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Traits\HasAuditTrail;
 
 class Order extends Model
@@ -21,7 +22,9 @@ class Order extends Model
         'price',
         'currency_id',
         'weight_kg',
+        'volume_m3',
         'notes',
+        'branch_id',
     ];
 
     public function client()
@@ -61,5 +64,10 @@ class Order extends Model
                 $order->reference = "ORD-{$year}-{$nextNumber}";
             }
         });
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 }

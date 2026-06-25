@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Employee extends Model
 {
@@ -11,7 +12,7 @@ class Employee extends Model
         'first_name', 'last_name', 'email', 'phone', 'hire_date',
         'employment_status', 'emergency_contact_name', 'emergency_contact_phone',
         'salary', 'salary_currency_id', 'bank_name', 'bank_account', 'bank_code',
-        'documents', 'created_by',
+        'documents', 'created_by', 'branch_id',
     ];
 
     protected function casts(): array
@@ -84,5 +85,10 @@ class Employee extends Model
                 $employee->employee_number = "EMP-{$year}-" . str_pad($num, 5, '0', STR_PAD_LEFT);
             }
         });
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 }

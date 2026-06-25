@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Traits\HasAuditTrail;
 
@@ -23,7 +24,8 @@ class Driver extends Model
         'passport_file',
         'nationality',
         'sex',
-        'date_of_birth'
+        'date_of_birth',
+        'branch_id',
     ];
 
     public function user()
@@ -54,4 +56,8 @@ class Driver extends Model
     /**
      * Get the user record associated with the driver.
      */
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
+    }
 }

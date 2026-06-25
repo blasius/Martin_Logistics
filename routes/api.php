@@ -706,6 +706,44 @@ Route::middleware('auth')->group(function () {
             Route::get('reports/profit-loss', [\App\Http\Controllers\Api\Accounting\FinancialReportController::class, 'profitLoss']);
             Route::get('reports/balance-sheet', [\App\Http\Controllers\Api\Accounting\FinancialReportController::class, 'balanceSheet']);
         });
+
+        // === Phase 10 — Advanced Operations ===
+
+        // 10.1 Advanced Scheduling
+        Route::prefix('scheduling')->group(function () {
+            Route::get('events', [\App\Http\Controllers\Api\Scheduling\SchedulingController::class, 'events']);
+            Route::apiResource('time-slots', \App\Http\Controllers\Api\Scheduling\SchedulingController::class)->only(['store', 'update', 'destroy']);
+        });
+
+        // 10.2 Multi-Branch
+        Route::prefix('branches')->group(function () {
+            Route::get('{branch}/users', [\App\Http\Controllers\Api\Branch\BranchController::class, 'users']);
+            Route::post('{branch}/users', [\App\Http\Controllers\Api\Branch\BranchController::class, 'assignUsers']);
+            Route::apiResource('/', \App\Http\Controllers\Api\Branch\BranchController::class)->parameters(['' => 'branch'])->except(['edit', 'create']);
+        });
+
+        // 10.3 Load Optimization
+        Route::prefix('load-optimization')->group(function () {
+            Route::get('vehicles', [\App\Http\Controllers\Api\LoadOptimizationController::class, 'vehicles']);
+            Route::post('optimize', [\App\Http\Controllers\Api\LoadOptimizationController::class, 'optimize']);
+            Route::get('vehicles/{vehicle}/suitability', [\App\Http\Controllers\Api\LoadOptimizationController::class, 'suitability']);
+        });
+
+        // 10.4 Webhook Management (portal)
+        Route::prefix('webhooks')->group(function () {
+            Route::get('events', [\App\Http\Controllers\Api\Webhooks\WebhookSubscriptionController::class, 'events']);
+            Route::get('subscriptions', [\App\Http\Controllers\Api\Webhooks\WebhookSubscriptionController::class, 'index']);
+            Route::post('subscriptions', [\App\Http\Controllers\Api\Webhooks\WebhookSubscriptionController::class, 'store']);
+            Route::put('subscriptions/{webhookSubscription}', [\App\Http\Controllers\Api\Webhooks\WebhookSubscriptionController::class, 'update']);
+            Route::delete('subscriptions/{webhookSubscription}', [\App\Http\Controllers\Api\Webhooks\WebhookSubscriptionController::class, 'destroy']);
+            Route::get('subscriptions/{webhookSubscription}/deliveries', [\App\Http\Controllers\Api\Webhooks\WebhookSubscriptionController::class, 'deliveries']);
+            Route::post('deliveries/{webhookDelivery}/retry', [\App\Http\Controllers\Api\Webhooks\WebhookSubscriptionController::class, 'retryDelivery']);
+        });
+
+        // 10.4 API Keys (portal)
+        Route::get('api-keys', [\App\Http\Controllers\Api\Webhooks\ApiKeyController::class, 'index']);
+        Route::post('api-keys', [\App\Http\Controllers\Api\Webhooks\ApiKeyController::class, 'store']);
+        Route::delete('api-keys/{apiKey}', [\App\Http\Controllers\Api\Webhooks\ApiKeyController::class, 'destroy']);
     });
 
     // Customer Portal API (authenticated routes — outside /portal prefix)
@@ -725,5 +763,14 @@ Route::middleware('auth')->group(function () {
         Route::get('returns', [\App\Http\Controllers\Api\Customer\ReturnController::class, 'index']);
         Route::post('returns', [\App\Http\Controllers\Api\Customer\ReturnController::class, 'store']);
         Route::get('returns/{return_request}', [\App\Http\Controllers\Api\Customer\ReturnController::class, 'show']);
+    });
+});
+
+// Public API — Authenticated via API Key (Phase 10.4)
+Route::prefix('v1')->middleware('auth.api_key')->group(function () {
+    // Example webhook receiving endpoint
+    Route::post('webhook/receive', function (\Illuminate\Http\Request $request) {
+        \Illuminate\Support\Facades\Log::info('Webhook received', $request->all());
+        return response()->json(['message' => 'Webhook received']);
     });
 });
