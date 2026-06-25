@@ -159,6 +159,7 @@ export const menu = [
         children: [
             { label: "Expenses", to: "/finance/expenses" },
             { label: "Expense Types", to: "/finance/expense-types" },
+            { label: "Wallets", to: "/wallets" },
         ],
     },
     {

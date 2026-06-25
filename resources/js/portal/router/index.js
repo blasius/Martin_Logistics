@@ -173,6 +173,15 @@ const router = createRouter({
                     component: () => import("../pages/Finance/Expenses/Show.vue"),
                     props: true,
                 },
+
+                // Wallet & Ledger
+                { path: "wallets", component: () => import("../pages/Wallet/Index.vue") },
+                {
+                    path: "wallets/:id",
+                    name: "wallets.show",
+                    component: () => import("../pages/Wallet/Show.vue"),
+                    props: true,
+                },
             ],
         },
         { path: "/:pathMatch(.*)*", redirect: "/login" },

@@ -59,6 +59,7 @@ use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ClearanceController;
 use App\Http\Controllers\Api\ExpenseTypeController;
 use App\Http\Controllers\Api\ExpenseController;
+use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\Workshop\PartController as WsPartController;
 use App\Http\Controllers\Api\Workshop\WarehouseController as WsWarehouseController;
 use App\Http\Controllers\Api\Workshop\StockLevelController as WsStockLevelController;
@@ -329,6 +330,16 @@ Route::middleware('auth')->group(function () {
         Route::post('expenses/{id}/pay', [ExpenseController::class, 'pay']);
         Route::post('expenses/convert-from-ticket/{ticketId}', [ExpenseController::class, 'convertFromTicket']);
         Route::apiResource('expenses', ExpenseController::class);
+
+        // Wallet & Ledger (Phase 5.7)
+        Route::get('wallets/my', [WalletController::class, 'myWallet']);
+        Route::get('wallets/my/transactions', [WalletController::class, 'myTransactions']);
+        Route::get('wallets/{wallet}/transactions', [WalletController::class, 'transactions']);
+        Route::post('wallets/transaction', [WalletController::class, 'storeTransaction']);
+        Route::post('wallets/transactions/{transaction}/acknowledge', [WalletController::class, 'acknowledge']);
+        Route::post('wallets/{wallet}/settle', [WalletController::class, 'settle']);
+        Route::get('wallets/{wallet}/settlements', [WalletController::class, 'settlements']);
+        Route::apiResource('wallets', WalletController::class)->only(['index', 'show']);
 
         // Trip Lifecycle
         Route::post('/trips', [TripController::class, 'store']);
