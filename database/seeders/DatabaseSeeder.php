@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             RolesSeeder::class,
             ExchangeRateSeeder::class,
             EscalationRuleSeeder::class,
+            ChartOfAccountsSeeder::class,
         ]);
 
         // Run Wialon sync after DB created (only when you want it)

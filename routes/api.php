@@ -679,6 +679,33 @@ Route::middleware('auth')->group(function () {
         Route::post('hr/payslips/generate', [\App\Http\Controllers\Api\HrController::class, 'generatePayslips']);
         Route::post('hr/payslips/{payslip}/approve', [\App\Http\Controllers\Api\HrController::class, 'approvePayslip']);
         Route::post('hr/payslips/{payslip}/mark-paid', [\App\Http\Controllers\Api\HrController::class, 'markPayslipPaid']);
+
+        // Accounting & General Ledger (Phase 9)
+        Route::prefix('accounting')->group(function () {
+            // Chart of Accounts
+            Route::get('chart-of-accounts', [\App\Http\Controllers\Api\Accounting\ChartOfAccountController::class, 'index']);
+            Route::post('chart-of-accounts', [\App\Http\Controllers\Api\Accounting\ChartOfAccountController::class, 'store']);
+            Route::get('chart-of-accounts/{chartOfAccount}', [\App\Http\Controllers\Api\Accounting\ChartOfAccountController::class, 'show']);
+            Route::put('chart-of-accounts/{chartOfAccount}', [\App\Http\Controllers\Api\Accounting\ChartOfAccountController::class, 'update']);
+            Route::delete('chart-of-accounts/{chartOfAccount}', [\App\Http\Controllers\Api\Accounting\ChartOfAccountController::class, 'destroy']);
+
+            // Fiscal Years
+            Route::apiResource('fiscal-years', \App\Http\Controllers\Api\Accounting\FiscalYearController::class);
+
+            // Journal Entries
+            Route::get('journal-entries', [\App\Http\Controllers\Api\Accounting\JournalEntryController::class, 'index']);
+            Route::post('journal-entries', [\App\Http\Controllers\Api\Accounting\JournalEntryController::class, 'store']);
+            Route::get('journal-entries/{journalEntry}', [\App\Http\Controllers\Api\Accounting\JournalEntryController::class, 'show']);
+            Route::put('journal-entries/{journalEntry}', [\App\Http\Controllers\Api\Accounting\JournalEntryController::class, 'update']);
+            Route::delete('journal-entries/{journalEntry}', [\App\Http\Controllers\Api\Accounting\JournalEntryController::class, 'destroy']);
+            Route::post('journal-entries/{journalEntry}/post', [\App\Http\Controllers\Api\Accounting\JournalEntryController::class, 'post']);
+            Route::post('journal-entries/{journalEntry}/reverse', [\App\Http\Controllers\Api\Accounting\JournalEntryController::class, 'reverse']);
+
+            // Financial Reports
+            Route::get('reports/trial-balance', [\App\Http\Controllers\Api\Accounting\FinancialReportController::class, 'trialBalance']);
+            Route::get('reports/profit-loss', [\App\Http\Controllers\Api\Accounting\FinancialReportController::class, 'profitLoss']);
+            Route::get('reports/balance-sheet', [\App\Http\Controllers\Api\Accounting\FinancialReportController::class, 'balanceSheet']);
+        });
     });
 
     // Customer Portal API (authenticated routes — outside /portal prefix)

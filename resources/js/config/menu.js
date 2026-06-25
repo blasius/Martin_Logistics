@@ -27,6 +27,7 @@ import {
     ClipboardCheck,
     Radio,
     Shield,
+    BookOpen,
 } from "lucide-vue-next";
 
 export const menu = [
@@ -195,6 +196,22 @@ export const menu = [
             { label: "All Orders", to: "/orders" },
             { label: "Proof of Delivery", to: "/proofs-of-delivery" },
             { label: "Returns", to: "/returns" },
+        ],
+    },
+    {
+        label: "Accounting",
+        icon: BookOpen,
+        children: [
+            { label: "Chart of Accounts", to: "/accounting/chart-of-accounts" },
+            { label: "Journal Entries", to: "/accounting/journal-entries" },
+            {
+                label: "Reports",
+                children: [
+                    { label: "Trial Balance", to: "/accounting/reports/trial-balance" },
+                    { label: "Profit & Loss", to: "/accounting/reports/profit-loss" },
+                    { label: "Balance Sheet", to: "/accounting/reports/balance-sheet" },
+                ],
+            },
         ],
     },
     {

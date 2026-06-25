@@ -18,6 +18,7 @@ class EventServiceProvider extends ServiceProvider
         ],
         InvoiceStatusChanged::class => [
             SendInvoiceNotification::class,
+            \App\Listeners\AutoPostInvoiceToGL::class,
         ],
         DeliveryConfirmed::class => [
             SendDeliveryNotification::class,
