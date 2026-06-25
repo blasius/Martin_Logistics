@@ -357,11 +357,19 @@ Route::middleware('auth')->group(function () {
             ->middleware('role:super_admin|Admin');
         Route::post('roles/manage', [RoleManagementController::class, 'store'])
             ->middleware('role:super_admin|Admin');
+        Route::get('roles/manage/{role}', [RoleManagementController::class, 'show'])
+            ->middleware('role:super_admin|Admin');
         Route::put('roles/manage/{role}', [RoleManagementController::class, 'update'])
             ->middleware('role:super_admin|Admin');
         Route::delete('roles/manage/{role}', [RoleManagementController::class, 'destroy'])
             ->middleware('role:super_admin|Admin');
         Route::get('roles/manage/permissions-list', [RoleManagementController::class, 'permissionsList'])
+            ->middleware('role:super_admin|Admin');
+        Route::get('roles/manage/permissions-grouped', [RoleManagementController::class, 'permissionsGrouped'])
+            ->middleware('role:super_admin|Admin');
+        Route::post('roles/manage/assign-to-user', [RoleManagementController::class, 'assignRoleToUser'])
+            ->middleware('role:super_admin|Admin');
+        Route::get('roles/manage/audit-log', [RoleManagementController::class, 'auditLog'])
             ->middleware('role:super_admin|Admin');
 
         // Clients

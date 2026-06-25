@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\RolePermissionAudit;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -44,16 +45,28 @@ class UserManagementController extends Controller
 
         if (!empty($validated['roles'])) {
             $user->assignRole($validated['roles']);
+            $user->roles()->updateExistingPivot(
+                $user->roles->pluck('id')->toArray(),
+                ['assigned_by' => $request->user()->id, 'assigned_at' => now()]
+            );
         }
 
         $user->sendEmailVerificationNotification();
+
+        RolePermissionAudit::create([
+            'admin_id' => $request->user()->id,
+            'action' => 'created_user',
+            'target_type' => 'user',
+            'target_id' => $user->id,
+            'details' => ['name' => $user->name, 'roles' => $validated['roles'] ?? []],
+        ]);
 
         return response()->json($user->load('roles'), 201);
     }
 
     public function show($id)
     {
-        return User::with('roles')->findOrFail($id);
+        return User::with('roles.permissions')->findOrFail($id);
     }
 
     public function update(Request $request, User $user)
@@ -73,19 +86,40 @@ class UserManagementController extends Controller
         $user->update($validated);
 
         if (array_key_exists('roles', $validated)) {
+            $oldRoles = $user->roles->pluck('name')->toArray();
             $user->syncRoles($validated['roles'] ?? []);
+            $user->roles()->updateExistingPivot(
+                $user->roles->pluck('id')->toArray(),
+                ['assigned_by' => $request->user()->id, 'assigned_at' => now()]
+            );
+
+            RolePermissionAudit::create([
+                'admin_id' => $request->user()->id,
+                'action' => 'updated_user_roles',
+                'target_type' => 'user',
+                'target_id' => $user->id,
+                'details' => ['old_roles' => $oldRoles, 'new_roles' => $validated['roles'] ?? []],
+            ]);
         }
 
         return response()->json($user->fresh()->load('roles'));
     }
 
-    public function destroy(User $user)
+    public function destroy(Request $request, User $user)
     {
         if ($user->hasRole('super_admin') && User::role('super_admin')->count() <= 1) {
             return response()->json(['message' => 'Cannot delete the last super admin.'], 422);
         }
 
         $user->delete();
+
+        RolePermissionAudit::create([
+            'admin_id' => $request->user()->id,
+            'action' => 'deleted_user',
+            'target_type' => 'user',
+            'target_id' => $user->id,
+            'details' => ['name' => $user->name],
+        ]);
 
         return response()->json(['message' => 'User deleted.']);
     }

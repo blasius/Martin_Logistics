@@ -182,6 +182,27 @@ const router = createRouter({
                     component: () => import("../pages/Wallet/Show.vue"),
                     props: true,
                 },
+
+                // Role Builder & Permission Manager
+                { path: "roles", component: () => import("../pages/Roles/Index.vue") },
+                { path: "roles/create", component: () => import("../pages/Roles/Show.vue") },
+                {
+                    path: "roles/:id",
+                    name: "roles.show",
+                    component: () => import("../pages/Roles/Show.vue"),
+                    props: true,
+                },
+                { path: "roles/audit-log", component: () => import("../pages/Roles/AuditLog.vue") },
+
+                // Users
+                { path: "users", component: () => import("../pages/Users/Index.vue") },
+                { path: "users/create", component: () => import("../pages/Users/Show.vue") },
+                {
+                    path: "users/:id",
+                    name: "users.show",
+                    component: () => import("../pages/Users/Show.vue"),
+                    props: true,
+                },
             ],
         },
         { path: "/:pathMatch(.*)*", redirect: "/login" },

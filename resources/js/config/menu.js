@@ -24,6 +24,7 @@ import {
     Calculator,
     Truck,
     ClipboardCheck,
+    Shield,
 } from "lucide-vue-next";
 
 export const menu = [
@@ -176,6 +177,15 @@ export const menu = [
         to: "/settings",
     },
     {
+        label: "Administration",
+        icon: Shield,
+        children: [
+            { label: "Users", to: "/users" },
+            { label: "Roles & Permissions", to: "/roles" },
+            { label: "Audit Log", to: "/roles/audit-log" },
+        ],
+    },
+    {
         label: "Currencies",
         icon: DollarSign,
         children: [
@@ -197,11 +207,6 @@ export const menu = [
         label: "Dispatch Prep",
         icon: ClipboardCheck,
         to: "/dispatcher",
-    },
-    {
-        label: "Audit Logs",
-        icon: ClipboardList,
-        to: "/audit-logs",
     },
     {
         label: "Support",
