@@ -7,7 +7,7 @@ use App\Models\Trip;
 use App\Models\Order;
 use App\Models\MaintenanceSchedule;
 use App\Models\YardDockDoorAssignment;
-use Illuminate\Support\Carbon;
+use Carbon\Carbon;
 
 class SchedulingService
 {
