@@ -181,6 +181,7 @@ export const menu = [
         children: [
             { label: "All Orders", to: "/orders" },
             { label: "Proof of Delivery", to: "/proofs-of-delivery" },
+            { label: "Returns", to: "/returns" },
         ],
     },
     {

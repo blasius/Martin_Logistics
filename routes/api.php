@@ -624,6 +624,16 @@ Route::middleware('auth')->group(function () {
         Route::get('documents/{document}/download', [\App\Http\Controllers\Api\DocumentController::class, 'download']);
         Route::apiResource('document-templates', \App\Http\Controllers\Api\DocumentTemplateController::class);
         Route::post('document-templates/{document_template}/preview', [\App\Http\Controllers\Api\DocumentTemplateController::class, 'preview']);
+
+        // Returns & Reverse Logistics (Phase 8.2)
+        Route::get('returns/stats', [\App\Http\Controllers\Api\ReturnController::class, 'stats']);
+        Route::post('returns/{return_request}/approve', [\App\Http\Controllers\Api\ReturnController::class, 'approve']);
+        Route::post('returns/{return_request}/reject', [\App\Http\Controllers\Api\ReturnController::class, 'reject']);
+        Route::post('returns/{return_request}/schedule-pickup', [\App\Http\Controllers\Api\ReturnController::class, 'schedulePickup']);
+        Route::post('returns/{return_request}/receive', [\App\Http\Controllers\Api\ReturnController::class, 'receive']);
+        Route::post('returns/{return_request}/complete', [\App\Http\Controllers\Api\ReturnController::class, 'complete']);
+        Route::post('returns/{return_request}/cancel', [\App\Http\Controllers\Api\ReturnController::class, 'cancel']);
+        Route::apiResource('returns', \App\Http\Controllers\Api\ReturnController::class);
     });
 
     // Customer Portal API (authenticated routes — outside /portal prefix)
@@ -640,5 +650,8 @@ Route::middleware('auth')->group(function () {
         Route::get('notifications/unread-count', [\App\Http\Controllers\Api\Customer\NotificationController::class, 'unreadCount']);
         Route::post('notifications/{id}/read', [\App\Http\Controllers\Api\Customer\NotificationController::class, 'markRead']);
         Route::post('notifications/mark-all-read', [\App\Http\Controllers\Api\Customer\NotificationController::class, 'markAllRead']);
+        Route::get('returns', [\App\Http\Controllers\Api\Customer\ReturnController::class, 'index']);
+        Route::post('returns', [\App\Http\Controllers\Api\Customer\ReturnController::class, 'store']);
+        Route::get('returns/{return_request}', [\App\Http\Controllers\Api\Customer\ReturnController::class, 'show']);
     });
 });
