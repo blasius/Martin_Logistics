@@ -8,3 +8,4 @@ use Illuminate\Support\Facades\Artisan;
 Schedule::command('telemetry:sync')->everyMinute()->withoutOverlapping();
 Schedule::command('telemetry:archive')->dailyAt('02:00')->withoutOverlapping();
 Schedule::command('telemetry:maintain-partitions')->monthlyOn(1, '00:00')->withoutOverlapping();
+Schedule::command('documents:check-expiry --days=30')->dailyAt('08:00');

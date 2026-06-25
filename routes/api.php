@@ -612,6 +612,18 @@ Route::middleware('auth')->group(function () {
         Route::delete('notifications/{id}', [\App\Http\Controllers\Api\NotificationController::class, 'destroy']);
         Route::get('notifications/preferences', [\App\Http\Controllers\Api\NotificationController::class, 'preferences']);
         Route::put('notifications/preferences', [\App\Http\Controllers\Api\NotificationController::class, 'updatePreferences']);
+
+        // Document Management (Phase 1.1)
+        Route::get('documents', [\App\Http\Controllers\Api\DocumentController::class, 'index']);
+        Route::post('documents', [\App\Http\Controllers\Api\DocumentController::class, 'store']);
+        Route::get('documents/stats', [\App\Http\Controllers\Api\DocumentController::class, 'stats']);
+        Route::get('documents/categories', [\App\Http\Controllers\Api\DocumentController::class, 'categories']);
+        Route::get('documents/{document}', [\App\Http\Controllers\Api\DocumentController::class, 'show']);
+        Route::put('documents/{document}', [\App\Http\Controllers\Api\DocumentController::class, 'update']);
+        Route::delete('documents/{document}', [\App\Http\Controllers\Api\DocumentController::class, 'destroy']);
+        Route::get('documents/{document}/download', [\App\Http\Controllers\Api\DocumentController::class, 'download']);
+        Route::apiResource('document-templates', \App\Http\Controllers\Api\DocumentTemplateController::class);
+        Route::post('document-templates/{document_template}/preview', [\App\Http\Controllers\Api\DocumentTemplateController::class, 'preview']);
     });
 
     // Customer Portal API (authenticated routes — outside /portal prefix)

@@ -10,6 +10,7 @@ import {
     Route,
     MapPin,
     FileText,
+    FolderOpen,
     Settings,
     HelpCircle,
     Radar,
@@ -209,6 +210,11 @@ export const menu = [
         label: "Dispatch Prep",
         icon: ClipboardCheck,
         to: "/dispatcher",
+    },
+    {
+        label: "Documents",
+        icon: FolderOpen,
+        to: "/documents/templates",
     },
     {
         label: "Support",
