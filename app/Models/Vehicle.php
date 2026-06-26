@@ -27,7 +27,6 @@ class Vehicle extends Model
         'volume_capacity',
         'max_payload',
         'max_trailer_weight',
-        'utilization_rate',
         'branch_id',
     ];
 
@@ -37,7 +36,6 @@ class Vehicle extends Model
         'volume_capacity' => 'decimal:2',
         'max_payload' => 'decimal:2',
         'max_trailer_weight' => 'decimal:2',
-        'utilization_rate' => 'decimal:2',
         'status' => 'string',
         'last_fine_check_at' => 'datetime',
     ];

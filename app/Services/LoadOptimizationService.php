@@ -19,7 +19,6 @@ class LoadOptimizationService
             ->when($criteria['min_payload'] ?? null, fn($q, $p) => $q->where(function ($q) use ($p) {
                 $q->whereNull('max_payload')->orWhere('max_payload', '>=', $p);
             }))
-            ->orderBy('utilization_rate')
             ->get();
     }
 
