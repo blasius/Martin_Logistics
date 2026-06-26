@@ -63,13 +63,14 @@ class SchedulingService
             ];
         }
 
-        $maintenance = MaintenanceSchedule::where('scheduled_date', '>=', $start->toDateString())
-            ->where('scheduled_date', '<=', $end->toDateString())
+        $maintenance = MaintenanceSchedule::whereNotNull('last_done_at')
+            ->where('last_done_at', '>=', $start)
+            ->where('last_done_at', '<=', $end)
             ->with(['vehicle:id,plate_number'])
             ->get();
 
         foreach ($maintenance as $m) {
-            $dayStart = Carbon::parse($m->scheduled_date)->startOfDay();
+            $dayStart = $m->last_done_at->copy()->startOfDay();
             $events[] = [
                 'id' => 'maint-' . $m->id,
                 'title' => 'Maintenance: ' . ($m->type ?? 'Service'),
