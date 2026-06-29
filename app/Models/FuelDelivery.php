@@ -23,7 +23,7 @@ class FuelDelivery extends Model
 
     public function tank()
     {
-        return $this->belongsTo(FuelTank::class);
+        return $this->belongsTo(FuelTank::class, 'tank_id');
     }
 
     public function supplier()

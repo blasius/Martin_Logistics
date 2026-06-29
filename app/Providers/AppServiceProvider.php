@@ -33,5 +33,13 @@ class AppServiceProvider extends ServiceProvider
         if (file_exists($dynamicPath)) {
             config()->set('firebase.projects.app.credentials', $dynamicPath);
         }
+
+        try {
+            \Spatie\Permission\Models\Role::firstOrCreate(
+                ['name' => 'mechanic', 'guard_name' => 'web']
+            );
+        } catch (\Throwable) {
+            // table may not exist yet during migrations
+        }
     }
 }

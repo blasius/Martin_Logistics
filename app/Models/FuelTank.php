@@ -26,12 +26,12 @@ class FuelTank extends Model
 
     public function deliveries()
     {
-        return $this->hasMany(FuelDelivery::class);
+        return $this->hasMany(FuelDelivery::class, 'tank_id');
     }
 
     public function dispenses()
     {
-        return $this->hasMany(FuelDispense::class);
+        return $this->hasMany(FuelDispense::class, 'tank_id');
     }
 
     public function isLow(): bool
