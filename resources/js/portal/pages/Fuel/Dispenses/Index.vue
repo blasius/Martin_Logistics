@@ -71,19 +71,37 @@
                 </div>
                 <form @submit.prevent="createDispense" class="p-6 space-y-4">
                     <div class="grid grid-cols-2 gap-3">
-                        <div>
+                        <div class="relative">
                             <label class="text-[10px] font-black text-slate-400 uppercase">Vehicle</label>
-                            <select v-model="dispenseForm.vehicle_id" required @change="onVehicleChange" class="w-full mt-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
-                                <option value="">Select</option>
-                                <option v-for="v in vehicles" :key="v.id" :value="v.id">{{ v.plate_number }}</option>
-                            </select>
+                            <input v-model="vehicleSearch" @input="onVehicleSearchInput" @focus="onVehicleSearchFocus" @blur="onVehicleSearchBlur" placeholder="Search plate number..." class="w-full mt-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
+                            <div v-if="selectedVehicle" class="mt-1 px-2.5 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg text-xs font-bold text-indigo-700 flex items-center gap-2">
+                                <span>{{ selectedVehicle.plate_number }}</span>
+                                <span class="text-indigo-400">·</span>
+                                <span class="font-medium">{{ selectedVehicle.current_driver || 'No driver' }}</span>
+                                <button @click="clearVehicle" class="ml-auto text-indigo-400 hover:text-indigo-600"><X class="w-3.5 h-3.5" /></button>
+                            </div>
+                            <ul v-if="vehicleSuggestions.length && vehicleFocused" class="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                                <li v-for="v in vehicleSuggestions" :key="v.id" @mousedown.prevent="selectVehicle(v)" class="px-3 py-2.5 hover:bg-indigo-50 cursor-pointer text-xs border-b border-slate-50 last:border-0">
+                                    <span class="font-bold text-indigo-600">{{ v.plate_number }}</span>
+                                    <span v-if="v.current_driver" class="text-slate-400 ml-2">— {{ v.current_driver }}</span>
+                                </li>
+                            </ul>
                         </div>
-                        <div>
+                        <div class="relative">
                             <label class="text-[10px] font-black text-slate-400 uppercase">Driver</label>
-                            <select v-model="dispenseForm.driver_id" class="w-full mt-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
-                                <option value="">Optional</option>
-                                <option v-for="dr in drivers" :key="dr.id" :value="dr.id">{{ dr.name || dr.user?.name }}</option>
-                            </select>
+                            <input v-model="driverSearch" @input="onDriverSearchInput" @focus="onDriverSearchFocus" @blur="onDriverSearchBlur" placeholder="Search driver name..." class="w-full mt-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
+                            <div v-if="selectedDriver" class="mt-1 px-2.5 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg text-xs font-bold text-indigo-700 flex items-center gap-2">
+                                <span>{{ selectedDriver.current_driver }}</span>
+                                <span class="text-indigo-400">·</span>
+                                <span class="font-medium">{{ selectedDriver.plate_number || 'No vehicle' }}</span>
+                                <button @click="clearDriver" class="ml-auto text-indigo-400 hover:text-indigo-600"><X class="w-3.5 h-3.5" /></button>
+                            </div>
+                            <ul v-if="driverSuggestions.length && driverFocused" class="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                                <li v-for="v in driverSuggestions" :key="v.id" @mousedown.prevent="selectDriver(v)" class="px-3 py-2.5 hover:bg-indigo-50 cursor-pointer text-xs border-b border-slate-50 last:border-0">
+                                    <span class="font-bold text-slate-700">{{ v.current_driver }}</span>
+                                    <span class="text-slate-400 ml-2">— {{ v.plate_number }}</span>
+                                </li>
+                            </ul>
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
@@ -146,13 +164,12 @@
 import { ref, onMounted } from 'vue';
 import { fuelDispenseApi } from '../../../api/fuel/dispenses';
 import { fuelTankApi } from '../../../api/fuel/tanks';
+import { api } from '../../../../plugins/axios';
 import { Plus, RefreshCw, X, Trash2 } from 'lucide-vue-next';
 
 const loading = ref(true);
 const dispenses = ref([]);
 const tanks = ref([]);
-const vehicles = ref([]);
-const drivers = ref([]);
 const routes = ref([]);
 const filters = ref({ date_from: '', date_to: '', tank_id: '' });
 const showCreateModal = ref(false);
@@ -163,6 +180,17 @@ const dispenseForm = ref({
     override_reason: '', notes: '',
 });
 const calculation = ref({ can_calculate: false, suggested_amount: 0, breakdown: null });
+
+const vehicleSearch = ref('');
+const driverSearch = ref('');
+const vehicleSuggestions = ref([]);
+const driverSuggestions = ref([]);
+const vehicleFocused = ref(false);
+const driverFocused = ref(false);
+const selectedVehicle = ref(null);
+const selectedDriver = ref(null);
+let vehicleSearchTimer = null;
+let driverSearchTimer = null;
 
 async function load() {
     loading.value = true;
@@ -181,23 +209,79 @@ async function load() {
 
 async function loadDropdowns() {
     try {
-        const { repairRequestsApi } = await import('../../../api/workshop/repair-requests');
-        const [vehRes, driRes] = await Promise.all([
-            repairRequestsApi.vehicles(),
-            repairRequestsApi.mechanics(),
-        ]);
-        vehicles.value = vehRes.data || [];
-        drivers.value = driRes.data || [];
-    } catch (e) { console.error(e); }
-
-    try {
-        const { api } = await import('../../../../plugins/axios');
         const res = await api.get('/portal/routes');
         routes.value = res.data?.data || res.data || [];
     } catch (e) { console.error(e); }
 }
 
-async function onVehicleChange() {
+function doVehicleSearch(q) {
+    clearTimeout(vehicleSearchTimer);
+    vehicleSearchTimer = setTimeout(async () => {
+        if (!q || q.length < 1) { vehicleSuggestions.value = []; return; }
+        try {
+            const { repairRequestsApi } = await import('../../../api/workshop/repair-requests');
+            const res = await repairRequestsApi.searchVehicles(q);
+            vehicleSuggestions.value = res.data || [];
+        } catch (e) { console.error(e); }
+    }, 250);
+}
+
+function doDriverSearch(q) {
+    clearTimeout(driverSearchTimer);
+    driverSearchTimer = setTimeout(async () => {
+        if (!q || q.length < 1) { driverSuggestions.value = []; return; }
+        try {
+            const { repairRequestsApi } = await import('../../../api/workshop/repair-requests');
+            const res = await repairRequestsApi.searchVehicles(q);
+            driverSuggestions.value = (res.data || []).filter(v => v.current_driver);
+        } catch (e) { console.error(e); }
+    }, 250);
+}
+
+function onVehicleSearchInput() { doVehicleSearch(vehicleSearch.value); }
+function onVehicleSearchFocus() { vehicleFocused.value = true; if (vehicleSearch.value) doVehicleSearch(vehicleSearch.value); }
+function onVehicleSearchBlur() { setTimeout(() => { vehicleFocused.value = false; }, 200); }
+function onDriverSearchInput() { doDriverSearch(driverSearch.value); }
+function onDriverSearchFocus() { driverFocused.value = true; if (driverSearch.value) doDriverSearch(driverSearch.value); }
+function onDriverSearchBlur() { setTimeout(() => { driverFocused.value = false; }, 200); }
+
+function selectVehicle(v) {
+    selectedVehicle.value = v;
+    dispenseForm.value.vehicle_id = v.id;
+    dispenseForm.value.driver_id = v.current_driver_id || '';
+    vehicleSearch.value = '';
+    vehicleSuggestions.value = [];
+    selectedDriver.value = v.current_driver ? v : null;
+    driverSearch.value = '';
+    driverSuggestions.value = [];
+    calculation.value = { can_calculate: false, suggested_amount: 0, breakdown: null };
+}
+
+function selectDriver(v) {
+    selectedDriver.value = v;
+    dispenseForm.value.driver_id = v.current_driver_id || '';
+    dispenseForm.value.vehicle_id = v.id;
+    driverSearch.value = '';
+    driverSuggestions.value = [];
+    selectedVehicle.value = v;
+    vehicleSearch.value = '';
+    vehicleSuggestions.value = [];
+    calculation.value = { can_calculate: false, suggested_amount: 0, breakdown: null };
+}
+
+function clearVehicle() {
+    selectedVehicle.value = null;
+    dispenseForm.value.vehicle_id = '';
+    dispenseForm.value.driver_id = '';
+    selectedDriver.value = null;
+    calculation.value = { can_calculate: false, suggested_amount: 0, breakdown: null };
+}
+
+function clearDriver() {
+    selectedDriver.value = null;
+    dispenseForm.value.driver_id = '';
+    dispenseForm.value.vehicle_id = '';
+    selectedVehicle.value = null;
     calculation.value = { can_calculate: false, suggested_amount: 0, breakdown: null };
 }
 
@@ -232,6 +316,10 @@ async function createDispense() {
             override_reason: '', notes: '',
         };
         calculation.value = { can_calculate: false, suggested_amount: 0, breakdown: null };
+        selectedVehicle.value = null;
+        selectedDriver.value = null;
+        vehicleSearch.value = '';
+        driverSearch.value = '';
         await load();
     } catch (e) { console.error(e); }
 }

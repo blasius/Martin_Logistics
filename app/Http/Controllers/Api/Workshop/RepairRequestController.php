@@ -314,7 +314,10 @@ class RepairRequestController extends Controller
     {
         $q = $request->query('q');
 
-        return Vehicle::when($q, fn ($query) => $query->where('plate_number', 'like', "%{$q}%"))
+        return Vehicle::when($q, function ($query) use ($q) {
+                $query->where('plate_number', 'like', "%{$q}%")
+                    ->orWhereHas('latestDriverAssignment.driver', fn ($uq) => $uq->where('name', 'like', "%{$q}%"));
+            })
             ->with('latestDriverAssignment.driver:id,name')
             ->limit(10)
             ->get(['id', 'plate_number', 'status'])
