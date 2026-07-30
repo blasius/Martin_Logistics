@@ -14,7 +14,7 @@ class RateCardController extends Controller
 
     public function index(Request $request)
     {
-        $query = RateCard::with(['client:id,name', 'items.currency:id,code,symbol']);
+        $query = RateCard::with(['client:id,user_id', 'client.user:id,name', 'items.currency:id,code,symbol']);
 
         if ($request->boolean('active_only')) {
             $query->where('is_active', true);
@@ -29,7 +29,7 @@ class RateCardController extends Controller
 
     public function show(RateCard $rateCard)
     {
-        return $rateCard->load(['client:id,name', 'items.currency:id,code,symbol']);
+        return $rateCard->load(['client:id,user_id', 'client.user:id,name', 'items.currency:id,code,symbol']);
     }
 
     public function store(Request $request)
@@ -65,7 +65,7 @@ class RateCardController extends Controller
             return $card;
         });
 
-        return $card->fresh()->load(['client:id,name', 'items.currency:id,code,symbol']);
+        return $card->fresh()->load(['client:id,user_id', 'client.user:id,name', 'items.currency:id,code,symbol']);
     }
 
     public function update(Request $request, RateCard $rateCard)
@@ -105,7 +105,7 @@ class RateCardController extends Controller
             return $rateCard;
         });
 
-        return $card->fresh()->load(['client:id,name', 'items.currency:id,code,symbol']);
+        return $card->fresh()->load(['client:id,user_id', 'client.user:id,name', 'items.currency:id,code,symbol']);
     }
 
     public function destroy(RateCard $rateCard)

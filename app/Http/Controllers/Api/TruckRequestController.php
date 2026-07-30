@@ -43,7 +43,7 @@ class TruckRequestController extends Controller
     public function show(TruckRequest $truckRequest)
     {
         return $truckRequest->load([
-            'order.client:id,name',
+            'order.client:id,user_id', 'order.client.user:id,name',
             'salesPerson:id,name',
             'assignedVehicle:id,plate_number,make,model,capacity_kg',
             'assignedTrailer:id,plate_number,make,model',
@@ -140,7 +140,7 @@ class TruckRequestController extends Controller
     {
         $query = TruckRequest::with([
             'order:id,reference,client_id',
-            'order.client:id,name',
+            'order.client:id,user_id', 'order.client.user:id,name',
             'salesPerson:id,name',
         ])->whereIn('status', ['submitted', 'truck_assigned'])
             ->orderBy('expected_pickup_date', 'asc');
