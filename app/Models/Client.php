@@ -19,7 +19,7 @@ class Client extends Model
         'tin',
     ];
 
-    protected $appends = ['name'];
+    protected $appends = ['name', 'email'];
 
     public function user()
     {
@@ -34,5 +34,10 @@ class Client extends Model
     public function getNameAttribute(): ?string
     {
         return $this->user?->name;
+    }
+
+    public function getEmailAttribute(): ?string
+    {
+        return $this->user?->email;
     }
 }

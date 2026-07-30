@@ -36,7 +36,7 @@ class InvoiceController extends Controller
     public function show(Invoice $invoice)
     {
         return $invoice->load([
-            'client:id,user_id,address,phone,email', 'client.user:id,name',
+            'client:id,user_id,address,phone', 'client.user:id,name,email',
             'contract:id,reference',
             'order:id,reference',
             'currency:id,code,symbol',
