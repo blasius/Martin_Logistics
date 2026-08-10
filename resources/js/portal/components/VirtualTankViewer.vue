@@ -97,6 +97,38 @@ const waveFragmentShader = `
   }
 `;
 
+// Canvas-rendered station brand sign texture (no external font assets needed)
+function createSignTexture(text) {
+    const w = 2048;
+    const h = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+
+    // White panel with subtle border
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.roundRect(10, 10, w - 20, h - 20, 20);
+    ctx.fill();
+
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 8;
+    ctx.stroke();
+
+    // Brand text
+    ctx.fillStyle = '#0f172a';
+    ctx.font = '900 132px Arial, Helvetica, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, w / 2, h / 2 + 6);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 8;
+    return texture;
+}
+
 function buildScene() {
     const yellowCanopyMat = new THREE.MeshStandardMaterial({
         color: 0xeab308,
@@ -135,6 +167,15 @@ function buildScene() {
     const roof = new THREE.Mesh(new THREE.BoxGeometry(9.5, 0.4, 5.5), yellowCanopyMat);
     roof.position.y = 4.2;
     scene.add(roof);
+
+    // Brand sign on the front face of the roof
+    const signMat = new THREE.MeshBasicMaterial({
+        map: createSignTexture('MARTIN PETROLEUM'),
+        toneMapped: false
+    });
+    const signMesh = new THREE.Mesh(new THREE.PlaneGeometry(6.2, 0.36), signMat);
+    signMesh.position.set(0, 4.2, 2.76);
+    scene.add(signMesh);
 
     const pillarGeo = new THREE.BoxGeometry(0.35, 4.2, 0.35);
     const pillar1 = new THREE.Mesh(pillarGeo, yellowCanopyMat);
@@ -270,7 +311,7 @@ function initThreeJS() {
     scene.background = new THREE.Color(0x0f172a);
 
     camera = new THREE.PerspectiveCamera(40, container.clientWidth / container.clientHeight, 0.1, 100);
-    camera.position.set(0, 2.2, 8.5);
+    camera.position.set(0, 3.4, 9.5);
 
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
