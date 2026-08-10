@@ -16,7 +16,7 @@ class InvoiceController extends Controller
 
     public function index(Request $request)
     {
-        $query = Invoice::with(['client:id,name', 'currency:id,code', 'order:id,reference']);
+        $query = Invoice::with(['client:id,user_id', 'client.user:id,name', 'currency:id,code', 'order:id,reference']);
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -36,7 +36,7 @@ class InvoiceController extends Controller
     public function show(Invoice $invoice)
     {
         return $invoice->load([
-            'client:id,name,address,phone,email',
+            'client:id,user_id,address,phone', 'client.user:id,name,email',
             'contract:id,reference',
             'order:id,reference',
             'currency:id,code,symbol',
@@ -102,7 +102,7 @@ class InvoiceController extends Controller
             return $invoice;
         });
 
-        return $invoice->load(['client:id,name', 'currency:id,code,symbol', 'items']);
+        return $invoice->load(['client:id,user_id', 'client.user:id,name', 'currency:id,code,symbol', 'items']);
     }
 
     public function update(Request $request, Invoice $invoice)
@@ -160,7 +160,7 @@ class InvoiceController extends Controller
             }
         });
 
-        return $invoice->fresh()->load(['client:id,name', 'currency:id,code,symbol', 'items']);
+        return $invoice->fresh()->load(['client:id,user_id', 'client.user:id,name', 'currency:id,code,symbol', 'items']);
     }
 
     public function destroy(Invoice $invoice)
@@ -176,7 +176,7 @@ class InvoiceController extends Controller
     {
         try {
             $invoice = $this->invoiceService->generateFromOrder($order);
-            return $invoice->load(['client:id,name', 'currency:id,code,symbol', 'items']);
+            return $invoice->load(['client:id,user_id', 'client.user:id,name', 'currency:id,code,symbol', 'items']);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Failed to generate invoice: ' . $e->getMessage()], 422);
         }

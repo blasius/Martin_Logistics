@@ -29,6 +29,7 @@ class DispatchController extends Controller
                     'users.id',
                     'users.name',
                     'drivers.phone',
+                    'drivers.whatsapp_phone',
                     'drivers.passport_number',
                     'drivers.driving_licence as license_number',
                     'driver_vehicle_assignments.start_date'

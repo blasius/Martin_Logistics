@@ -19,6 +19,8 @@ class Client extends Model
         'tin',
     ];
 
+    protected $appends = ['name', 'email'];
+
     public function user()
     {
         return $this->belongsTo(User::class);
@@ -27,5 +29,15 @@ class Client extends Model
     public function orders()
     {
         return $this->hasMany(Order::class);
+    }
+
+    public function getNameAttribute(): ?string
+    {
+        return $this->user?->name;
+    }
+
+    public function getEmailAttribute(): ?string
+    {
+        return $this->user?->email;
     }
 }
