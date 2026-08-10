@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\FuelDelivery;
 use App\Models\FuelDispense;
 use App\Models\FuelTank;
 use App\Models\Route;
