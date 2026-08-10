@@ -9,7 +9,7 @@
         </div>
 
         <!-- Digital Overlay Readout -->
-        <div v-else class="absolute top-4 left-4 rounded-xl bg-slate-900/80 backdrop-blur-md border border-white/10 p-4 text-white pointer-events-none shadow-lg">
+        <div v-else class="absolute top-20 left-4 rounded-xl bg-slate-900/80 backdrop-blur-md border border-white/10 p-4 text-white pointer-events-none shadow-lg">
             <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Tank Telemetry</p>
             <div class="flex items-baseline gap-2 mt-0.5">
                 <span class="text-2xl font-black leading-none" :class="isLow ? 'text-rose-400' : 'text-amber-400'">{{ levelPercent }}%</span>
@@ -52,6 +52,7 @@ const currentLevelFormatted = computed(() => Math.round(props.currentLevel || 0)
 
 let renderer, scene, camera, controls;
 let clipPlane, fluidBodyMaterial, waveSurfaceMesh, waveMaterial;
+let cursorGroup, cursorLineMat, cursorArrowMat;
 let animationFrameId;
 const clock = new THREE.Clock();
 
@@ -122,6 +123,72 @@ function createSignTexture(text) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(text, w / 2, h / 2 + 6);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 8;
+    return texture;
+}
+
+// Canvas-rendered level gauge ruler texture (0–100% along the tank height)
+function createRulerTexture() {
+    const w = 256;
+    const h = 1434; // matches ruler plane aspect (0.5 x 2.8)
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+
+    const pad = 34;
+
+    // Translucent gauge panel
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
+    ctx.beginPath();
+    ctx.roundRect(8, 8, w - 16, h - 16, 14);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.55)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Vertical track line
+    const trackX = 78;
+    ctx.strokeStyle = 'rgba(226, 232, 240, 0.5)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(trackX, pad);
+    ctx.lineTo(trackX, h - pad);
+    ctx.stroke();
+
+    // Minor ticks (5%) and major ticks (25%)
+    for (let pct = 0; pct <= 100; pct += 5) {
+        const f = pct / 100;
+        const y = h - pad - f * (h - 2 * pad);
+        const major = pct % 25 === 0;
+        ctx.strokeStyle = major ? 'rgba(248, 250, 252, 0.95)' : 'rgba(203, 213, 225, 0.6)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(trackX, y);
+        ctx.lineTo(trackX + (major ? 26 : 14), y);
+        ctx.stroke();
+    }
+
+    // Percentage labels
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = '700 46px Arial, Helvetica, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (let pct = 0; pct <= 100; pct += 25) {
+        const f = pct / 100;
+        const y = h - pad - f * (h - 2 * pad);
+        ctx.fillText(pct + '%', w - 18, y);
+    }
+
+    // Caption
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '700 30px Arial, Helvetica, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('LEVEL', w / 2, 18);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
@@ -267,6 +334,36 @@ function buildScene() {
 
     scene.add(tankGroup);
 
+    // --- 5. LEVEL GAUGE RULER + LIVE CURSOR ---
+    const rulerMat = new THREE.MeshBasicMaterial({
+        map: createRulerTexture(),
+        transparent: true,
+        toneMapped: false
+    });
+    const rulerMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 2.8), rulerMat);
+    rulerMesh.position.set(-2.7, Y_CENTER, 1.45);
+    scene.add(rulerMesh);
+
+    cursorLineMat = new THREE.MeshBasicMaterial({ color: 0xfacc15, toneMapped: false });
+    cursorArrowMat = new THREE.MeshBasicMaterial({ color: 0xfacc15, toneMapped: false, side: THREE.DoubleSide });
+
+    cursorGroup = new THREE.Group();
+    const cursorLine = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.035, 0.02), cursorLineMat);
+    cursorLine.position.x = 0.55;
+    cursorGroup.add(cursorLine);
+
+    const arrowShape = new THREE.Shape();
+    arrowShape.moveTo(0, 0);
+    arrowShape.lineTo(-0.28, 0.18);
+    arrowShape.lineTo(-0.28, -0.18);
+    arrowShape.closePath();
+    const arrowMesh = new THREE.Mesh(new THREE.ShapeGeometry(arrowShape), cursorArrowMat);
+    arrowMesh.position.x = 1.35;
+    cursorGroup.add(arrowMesh);
+
+    cursorGroup.position.set(-2.7, Y_CENTER, 1.48);
+    scene.add(cursorGroup);
+
     updateFluidLevel();
 }
 
@@ -301,6 +398,13 @@ function updateFluidLevel() {
     const currentColor = isLow.value ? 0xf43f5e : (props.fuelType === 'petrol' ? 0xfacc15 : 0xeab308);
     if (fluidBodyMaterial) fluidBodyMaterial.color.setHex(currentColor);
     if (waveMaterial) waveMaterial.uniforms.uColor.value.setHex(currentColor);
+
+    // 4. Level cursor rides the liquid surface
+    if (cursorGroup) {
+        cursorGroup.position.y = yLiquid;
+        cursorLineMat.color.setHex(currentColor);
+        cursorArrowMat.color.setHex(currentColor);
+    }
 }
 
 function initThreeJS() {
