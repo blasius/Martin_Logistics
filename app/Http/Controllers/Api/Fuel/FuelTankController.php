@@ -33,7 +33,9 @@ class FuelTankController extends Controller
 
     public function show(FuelTank $fuelTank)
     {
-        return $fuelTank->load(['deliveries.supplier:id,name', 'deliveries.receiver:id,name']);
+        return $fuelTank->load(['deliveries.supplier:id,name', 'deliveries.receiver:id,name'])
+            ->loadSum('deliveries', 'quantity')
+            ->loadSum('dispenses', 'quantity');
     }
 
     public function update(Request $request, FuelTank $fuelTank)
