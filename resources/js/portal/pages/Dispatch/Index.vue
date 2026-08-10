@@ -30,10 +30,6 @@
                             <span class="text-slate-400 font-bold uppercase tracking-tighter">Phone</span>
                             <span class="font-black text-slate-800">{{ infoModal.data.phone }}</span>
                         </div>
-                        <div class="flex justify-between border-b border-slate-50 pb-2" v-if="infoModal.data.whatsapp && infoModal.data.whatsapp !== 'N/A'">
-                            <span class="text-slate-400 font-bold uppercase tracking-tighter">WhatsApp</span>
-                            <span class="font-black text-slate-800">{{ infoModal.data.whatsapp }}</span>
-                        </div>
                     </div>
                     <div class="p-4 bg-slate-50">
                         <button @click="copyToClipboard" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-black text-xs uppercase flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200">
@@ -249,15 +245,14 @@ const showInfo = (v) => {
         driver: v.current_driver?.name || 'N/A',
         passport: v.current_driver?.passport_number || 'N/A',
         license: v.current_driver?.license_number || 'N/A',
-        phone: v.current_driver?.phone || 'N/A',
-        whatsapp: v.current_driver?.whatsapp_phone || 'N/A'
+        phone: v.current_driver?.phone || 'N/A'
     };
     infoModal.show = true;
 };
 
 const copyToClipboard = () => {
     const d = infoModal.data;
-    const text = `UNIT: ${d.vehicle}/${d.trailer}\nDRIVER: ${d.driver}\nPASSPORT: ${d.passport}\nLICENSE: ${d.license}\nPHONE: ${d.phone}${d.whatsapp !== 'N/A' ? `\nWHATSAPP: ${d.whatsapp}` : ''}`;
+    const text = `UNIT: ${d.vehicle}/${d.trailer}\nDRIVER: ${d.driver}\nPASSPORT: ${d.passport}\nLICENSE: ${d.license}\nPHONE: ${d.phone}`;
     navigator.clipboard.writeText(text).then(() => {
         triggerNotification("Details copied!");
         infoModal.show = false;

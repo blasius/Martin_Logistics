@@ -17,7 +17,7 @@ class PaymentController extends Controller
     {
         $query = Payment::with([
             'invoice:id,reference,client_id,total,status',
-            'invoice.client:id,user_id', 'invoice.client.user:id,name',
+            'invoice.client:id,name',
             'requisition',
             'cashier:id,name',
         ]);
@@ -71,7 +71,7 @@ class PaymentController extends Controller
     {
         return $payment->load([
             'invoice:id,reference,client_id,total,status,currency_id',
-            'invoice.client:id,user_id', 'invoice.client.user:id,name',
+            'invoice.client:id,name',
             'invoice.currency:id,code,symbol',
             'requisition',
             'cashier:id,name',

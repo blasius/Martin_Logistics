@@ -13,7 +13,7 @@ class ContractController extends Controller
 
     public function index(Request $request)
     {
-        $query = Contract::with(['client:id,user_id', 'client.user:id,name', 'rateCard:id,name']);
+        $query = Contract::with(['client:id,name', 'rateCard:id,name']);
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -32,7 +32,7 @@ class ContractController extends Controller
 
     public function show(Contract $contract)
     {
-        return $contract->load(['client:id,user_id', 'client.user:id,name', 'rateCard:id,name,items', 'documents']);
+        return $contract->load(['client:id,name', 'rateCard:id,name,items', 'documents']);
     }
 
     public function store(Request $request)
@@ -52,7 +52,7 @@ class ContractController extends Controller
 
         $validated['reference'] = $this->contractService->generateReference();
 
-        return Contract::create($validated)->load(['client:id,user_id', 'client.user:id,name', 'rateCard:id,name']);
+        return Contract::create($validated)->load(['client:id,name', 'rateCard:id,name']);
     }
 
     public function update(Request $request, Contract $contract)
@@ -72,7 +72,7 @@ class ContractController extends Controller
 
         $contract->update($validated);
 
-        return $contract->fresh()->load(['client:id,user_id', 'client.user:id,name', 'rateCard:id,name']);
+        return $contract->fresh()->load(['client:id,name', 'rateCard:id,name']);
     }
 
     public function destroy(Contract $contract)

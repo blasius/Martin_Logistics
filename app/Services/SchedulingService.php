@@ -88,7 +88,7 @@ class SchedulingService
 
         $orders = Order::where('pickup_date', '>=', $start->toDateString())
             ->where('pickup_date', '<=', $end->toDateString())
-            ->with(['client:id,user_id', 'client.user:id,name'])
+            ->with(['client:id,name'])
             ->get();
 
         foreach ($orders as $order) {

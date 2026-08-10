@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\Currency;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Order;
@@ -37,7 +36,7 @@ class InvoiceService
                     ->where('status', 'active')
                     ->first();
 
-            $currencyId = $order->currency_id ?? Currency::where('is_default', true)->value('id') ?? Currency::value('id');
+            $currencyId = $order->currency_id ?? 1;
             $items = [];
             $subtotal = 0;
 

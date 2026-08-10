@@ -97,6 +97,7 @@ Route::get('/search/global', [SearchController::class, 'search']);
 
 // Mobile Auth Routes
 Route::prefix('mobile/auth')->group(function () {
+    Route::post('/login', [MobileAuthController::class, 'login']);
     Route::post('/request-whatsapp-otp', [MobileAuthController::class, 'requestWhatsAppOtp']);
     Route::post('/verify-whatsapp-otp', [MobileAuthController::class, 'verifyWhatsAppOtp']);
     Route::post('/verify-firebase-phone', [MobileAuthController::class, 'verifyFirebasePhone']);
