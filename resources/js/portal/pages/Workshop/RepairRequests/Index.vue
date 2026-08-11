@@ -277,6 +277,7 @@ function openCreateModal() {
     function onPartSearchInput(i) {
         const item = createForm.value.items[i];
         clearTimeout(partSearchTimers[i]);
+        item.description = item.part_search;
         if (item.part_search.length < 1) {
             item.part_results = [];
             item.show_part_dropdown = false;

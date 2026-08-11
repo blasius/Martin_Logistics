@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\MobileAuthController;
 use App\Http\Controllers\Api\MobileTripController;
 use App\Http\Controllers\Api\Mobile\FcmTokenController;
 use App\Http\Controllers\Api\Mobile\MobileWorkshopController;
+use App\Http\Controllers\Api\Mobile\MobileRepairRequestController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Api\ComplianceSummaryController;
@@ -147,6 +148,18 @@ Route::prefix('mobile')->middleware('auth:sanctum')->group(function () {
         Route::get('tasks/{assignment}', [MobileWorkshopController::class, 'taskDetail']);
         Route::post('tasks/{assignment}/start', [MobileWorkshopController::class, 'startWork']);
         Route::post('tasks/{assignment}/complete', [MobileWorkshopController::class, 'completeWork']);
+    });
+
+    // Mobile Repair Requests (Driver Companion)
+    Route::prefix('repair-requests')->group(function () {
+        Route::get('vehicles', [MobileRepairRequestController::class, 'vehicles']);
+        Route::get('parts', [MobileRepairRequestController::class, 'parts']);
+        Route::get('current', [MobileRepairRequestController::class, 'current']);
+        Route::get('/', [MobileRepairRequestController::class, 'index']);
+        Route::post('/', [MobileRepairRequestController::class, 'store']);
+        Route::get('{repairRequest}', [MobileRepairRequestController::class, 'show']);
+        Route::post('{repairRequest}/submit', [MobileRepairRequestController::class, 'submit']);
+        Route::post('{repairRequest}/cancel', [MobileRepairRequestController::class, 'cancel']);
     });
 });
 

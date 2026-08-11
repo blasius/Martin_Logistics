@@ -203,7 +203,7 @@
 
                     <div v-if="rr.release" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                         <h3 class="text-xs font-black text-slate-500 uppercase tracking-wider mb-4">Release Info</h3>
-                        <p class="text-xs"><span class="font-bold">By:</span> {{ rr.release.released_by?.name }}</p>
+                        <p class="text-xs"><span class="font-bold">By:</span> {{ rr.release.releasedBy?.name }}</p>
                         <p class="text-xs"><span class="font-bold">At:</span> {{ formatDate(rr.release.released_at) }}</p>
                         <p v-if="rr.release.odometer_at_release" class="text-xs"><span class="font-bold">Odometer:</span> {{ rr.release.odometer_at_release }}</p>
                         <p v-if="rr.release.unresolved_issues" class="text-xs mt-2"><span class="font-bold text-rose-600">Unresolved Issues:</span> {{ rr.release.unresolved_issues }}</p>
@@ -271,7 +271,7 @@ const releaseForm = ref({ odometer_at_release: null, unresolved_issues: '', chec
 const userRoles = computed(() => authStore.user?.roles_list || []);
 const hasParts = computed(() => rr.value?.items?.some(i => i.part_id) ?? false);
 
-const isAdmin = computed(() => ['super_admin', 'Admin'].some(r => userRoles.value.includes(r)));
+const isAdmin = computed(() => userRoles.value.some(r => ['super_admin', 'admin'].includes(r.toLowerCase())));
 const isLogisticsManager = computed(() => isAdmin.value || userRoles.value.some(r => r.toLowerCase().includes('logistics')));
 const isOpsManager = computed(() => isAdmin.value || userRoles.value.some(r => r.toLowerCase().includes('operations')));
 
@@ -343,7 +343,7 @@ function can(action) {
             if (s === 'pending_approval' && rr.value.approval_requested_at) return isLogisticsManager.value;
             if (s === 'pending_ops_approval') return isOpsManager.value;
             return false;
-        case 'assign': return (s === 'approved' || (s === 'pending_approval' && !hasMechanic)) && !isAdmin.value;
+        case 'assign': return s === 'approved' || (s === 'pending_approval' && !hasMechanic);
         case 'reassign': return s === 'completed';
         case 'start_work': return s === 'in_progress' && rr.value.assignments?.some(a => a.status === 'assigned');
         case 'complete_work': return s === 'in_progress' && rr.value.assignments?.some(a => a.status === 'in_progress');
