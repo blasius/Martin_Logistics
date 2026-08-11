@@ -58,6 +58,11 @@ function typeBadge(type: string) {
     return 'bg-slate-100 text-slate-600'
 }
 
+function formatDate(d: string) {
+    if (!d) return '—'
+    return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
 onMounted(fetchInvoices)
 </script>
 
@@ -128,7 +133,7 @@ onMounted(fetchInvoices)
                                 :class="typeBadge(inv.type)">{{ inv.type.replace('_', ' ') }}</span>
                         </td>
                         <td class="px-4 py-3 text-sm text-slate-600">
-                            {{ inv.issue_date }} → {{ inv.due_date }}
+                            {{ formatDate(inv.issue_date) }} → {{ formatDate(inv.due_date) }}
                         </td>
                         <td class="px-4 py-3 text-right text-sm font-medium text-slate-800">
                             {{ Number(inv.total).toLocaleString() }} {{ inv.currency?.code }}

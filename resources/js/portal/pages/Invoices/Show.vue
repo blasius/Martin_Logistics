@@ -31,6 +31,11 @@ function statusClass(status: string) {
     return map[status] ?? 'bg-gray-100 text-gray-600'
 }
 
+function formatDate(d: string) {
+    if (!d) return '—'
+    return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
 async function fetchInvoice() {
     loading.value = true
     try {
@@ -171,7 +176,7 @@ onMounted(fetchInvoice)
                         <div v-if="invoice.payments?.length">
                             <div v-for="p in invoice.payments" :key="p.id"
                                 class="flex justify-between py-2 border-b border-slate-50 last:border-0 text-sm">
-                                <span>{{ p.paid_at ? $dayjs(p.paid_at).format('YYYY-MM-DD') : $dayjs(p.created_at).format('YYYY-MM-DD') }}</span>
+                                <span>{{ p.paid_at ? formatDate(p.paid_at) : formatDate(p.created_at) }}</span>
                                 <span class="font-medium">{{ Number(p.amount).toLocaleString() }} {{ invoice.currency?.code }}</span>
                             </div>
                         </div>
@@ -198,8 +203,8 @@ onMounted(fetchInvoice)
                         <h2 class="text-lg font-semibold text-slate-800 mb-4">Details</h2>
                         <div class="space-y-3 text-sm">
                             <div><span class="text-slate-400 block text-xs">Client</span><span class="font-medium">{{ invoice.client?.name }}</span></div>
-                            <div><span class="text-slate-400 block text-xs">Issue Date</span><span>{{ invoice.issue_date }}</span></div>
-                            <div><span class="text-slate-400 block text-xs">Due Date</span><span>{{ invoice.due_date }}</span></div>
+                            <div><span class="text-slate-400 block text-xs">Issue Date</span><span>{{ formatDate(invoice.issue_date) }}</span></div>
+                            <div><span class="text-slate-400 block text-xs">Due Date</span><span>{{ formatDate(invoice.due_date) }}</span></div>
                             <div v-if="invoice.order"><span class="text-slate-400 block text-xs">Order</span>
                                 <router-link :to="`/orders/${invoice.order.id}`" class="text-emerald-600 hover:text-emerald-700">{{ invoice.order.reference }}</router-link>
                             </div>
