@@ -73,6 +73,25 @@
             </div>
         </Transition>
 
+        <Transition name="fade">
+            <div v-if="errorModal.show" class="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 border border-slate-200">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="p-3 rounded-full bg-rose-100 text-rose-600">
+                            <AlertTriangle class="w-7 h-7" />
+                        </div>
+                        <h3 class="text-xl font-black uppercase tracking-tight text-slate-800">{{ errorModal.title }}</h3>
+                    </div>
+                    <div class="bg-slate-50 border border-slate-100 rounded-xl p-4 mb-8">
+                        <p class="text-sm text-slate-600 font-medium leading-relaxed">{{ errorModal.message }}</p>
+                    </div>
+                    <div class="flex gap-3">
+                        <button @click="errorModal.show = false" class="flex-1 px-4 py-3 bg-indigo-600 text-white text-xs font-black rounded-xl uppercase shadow-lg">OK</button>
+                    </div>
+                </div>
+            </div>
+        </Transition>
+
         <header class="bg-white border-b border-slate-200 px-8 py-5 flex items-center justify-between shadow-sm z-10">
             <div class="flex items-center gap-4">
                 <div class="p-2.5 bg-rose-600 rounded-xl shadow-lg shadow-rose-100">
@@ -216,7 +235,7 @@
 <script setup>
 import { reactive, ref, computed, onMounted } from 'vue';
 import { api } from "../../../plugins/axios";
-import { ShieldAlert, Plus, X, Upload, Search, AlertOctagon, FileText, Clock, CheckCircle } from 'lucide-vue-next';
+import { ShieldAlert, Plus, X, Upload, Search, AlertOctagon, AlertTriangle, FileText, Clock, CheckCircle } from 'lucide-vue-next';
 
 // --- STATE ---
 const showAddModal = ref(false);
@@ -224,6 +243,7 @@ const processing = ref(false);
 const uploadProgress = ref(0);
 const fileName = ref('');
 const archiveSearch = ref('');
+const errorModal = reactive({ show: false, title: 'Save Failed', message: '' });
 
 const data = reactive({
     grounded: [],
@@ -296,11 +316,25 @@ const submitPolicy = async () => {
         Object.assign(form, { vehicle_id: '', policy_number: '', provider_name: '', issue_date: '', expiry_date: '', document: null });
         fileName.value = '';
     } catch (error) {
-        alert("Failed to save policy. Ensure dates are correct and file is under 5MB.");
+        errorModal.message = extractErrorMessage(error);
+        errorModal.title = 'Save Failed';
+        errorModal.show = true;
     } finally {
         processing.value = false;
         uploadProgress.value = 0;
     }
+};
+
+const extractErrorMessage = (error) => {
+    const status = error?.response?.status;
+    const data = error?.response?.data;
+    if (status >= 500) return 'Something went wrong on the server. Please try again.';
+    if (data?.message) return data.message;
+    if (data?.errors) {
+        const first = Object.values(data.errors)[0];
+        return Array.isArray(first) ? first[0] : String(first);
+    }
+    return 'Failed to save policy. Please check the form and try again.';
 };
 
 onMounted(loadRadar);
