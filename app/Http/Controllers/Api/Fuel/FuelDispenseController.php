@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Fuel;
 
 use App\Http\Controllers\Controller;
+use App\Models\Driver;
 use App\Models\FuelDispense;
 use App\Models\Vehicle;
 use App\Models\Route;
@@ -46,7 +47,7 @@ class FuelDispenseController extends Controller
     {
         $validated = $request->validate([
             'vehicle_id' => 'required|exists:vehicles,id',
-            'driver_id' => 'nullable|exists:drivers,id',
+            'driver_id' => 'nullable',
             'tank_id' => 'nullable|exists:fuel_tanks,id',
             'quantity' => 'required|numeric|min:0',
             'odometer_at_dispense' => 'nullable|numeric|min:0',
@@ -57,6 +58,19 @@ class FuelDispenseController extends Controller
             'override_reason' => 'nullable|string|max:255',
             'notes' => 'nullable|string',
         ]);
+
+        // Unselected optional fields arrive as empty strings from the web form; normalize to null.
+        foreach (['driver_id', 'tank_id', 'route_id', 'odometer_at_dispense', 'calculated_amount'] as $field) {
+            if (($validated[$field] ?? null) === '') {
+                $validated[$field] = null;
+            }
+        }
+
+        // driver_id is sent as the driver's user id (driver_vehicle_assignments.driver_id -> users.id);
+        // resolve it to the actual drivers.id so the FK and relation stay valid.
+        if (filled($validated['driver_id'] ?? null)) {
+            $validated['driver_id'] = Driver::where('user_id', $validated['driver_id'])->value('id');
+        }
 
         $validated['dispensed_by'] = $request->user()->id;
 
