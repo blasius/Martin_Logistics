@@ -113,6 +113,8 @@ Route::prefix('customer/auth')->group(function () {
 
 // Mobile App Routes (Protected)
 Route::prefix('mobile')->middleware('auth:sanctum')->group(function () {
+    Route::get('profile', [MobileTripController::class, 'profile']);
+
     Route::prefix('trips')->group(function () {
         Route::get('/current', [MobileTripController::class, 'current']);
         Route::post('/{trip}/status', [MobileTripController::class, 'updateStatus']);

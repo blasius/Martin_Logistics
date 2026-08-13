@@ -65,6 +65,45 @@ class MobileTripTest extends TestCase
                  ->assertJsonPath('position.fuel_level', 62.0);
     }
 
+    public function test_driver_can_get_profile()
+    {
+        $user = User::factory()->create();
+        $driver = Driver::factory()->create(['user_id' => $user->id]);
+        $order = Order::factory()->create();
+        $vehicle = Vehicle::factory()->create();
+
+        Trip::factory()->create([
+            'driver_id' => $driver->id,
+            'order_id' => $order->id,
+            'vehicle_id' => $vehicle->id,
+            'status' => 'delivered',
+            'actual_distance_km' => 1200.5,
+        ]);
+
+        Sanctum::actingAs($user, ['*']);
+
+        $response = $this->getJson('/api/mobile/profile');
+
+        $response->assertStatus(200)
+                 ->assertJsonStructure([
+                     'driver' => ['id', 'user_id', 'name', 'email', 'phone', 'whatsapp_phone', 'rating', 'rating_count', 'member_since'],
+                     'vehicle' => ['id', 'plate_number', 'trailer'],
+                     'stats' => ['total_trips', 'completed_trips', 'pending_trips', 'total_distance_km', 'hours_driven'],
+                     'latest_trips' => [[
+                         'id',
+                         'reference',
+                         'status',
+                         'origin',
+                         'destination',
+                         'ended_at',
+                     ]],
+                 ])
+                 ->assertJsonPath('driver.name', $user->name)
+                 ->assertJsonPath('stats.total_trips', 1)
+                 ->assertJsonPath('stats.completed_trips', 1)
+                 ->assertJsonPath('stats.total_distance_km', 1200.5);
+    }
+
     public function test_user_without_driver_profile_cannot_get_trip()
     {
         $user = User::factory()->create(); // No driver profile attached

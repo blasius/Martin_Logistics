@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Driver;
 use App\Models\DriverVehicleAssignment;
 use App\Models\Place;
 use App\Models\Trip;
 use App\Models\TripHistory;
 use App\Models\User;
+use App\Models\Vehicle;
 use App\Models\VehicleSnapshot;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -42,13 +44,7 @@ class MobileTripController extends Controller
 
         // Assigned truck comes from the trip when present, otherwise from the
         // driver's active vehicle assignment.
-        $vehicle = $trip->vehicle
-            ?: DriverVehicleAssignment::query()
-                ->with('vehicle')
-                ->where('driver_id', $user->id)
-                ->whereNull('end_date')
-                ->latest('start_date')
-                ->first()?->vehicle;
+        $vehicle = $this->activeVehicle($user, $trip);
 
         $snapshot = $vehicle
             ? VehicleSnapshot::where('vehicle_id', $vehicle->id)->first()
@@ -63,6 +59,60 @@ class MobileTripController extends Controller
             'assigned_staff' => $this->staffPayload($trip->dispatcher ?? $trip->createdBy),
             'trip' => $trip,
         ]);
+    }
+
+    /**
+     * Driver profile for the mobile Profile screen: personal identity, assigned
+     * truck/trailer, lifetime stats and recent trips.
+     */
+    public function profile(Request $request)
+    {
+        $user = $request->user();
+
+        // Ensure user has an associated driver profile
+        if (!$user->driver) {
+            return response()->json(['message' => 'User is not registered as a driver.'], 403);
+        }
+
+        $driver = $user->driver;
+
+        $rating = DB::table('rating_submissions')
+            ->where('rateable_type', Driver::class)
+            ->where('rateable_id', $driver->id)
+            ->selectRaw('AVG(rating) AS avg, COUNT(*) AS cnt')
+            ->first();
+
+        $vehicle = $this->activeVehicle($user);
+
+        return response()->json([
+            'message' => 'Driver profile.',
+            'driver' => array_merge($this->driverPayload($user), [
+                'rating' => $rating->avg ? round((float) $rating->avg, 1) : 0,
+                'rating_count' => (int) $rating->cnt,
+                'member_since' => $driver->created_at?->toDateString(),
+            ]),
+            'vehicle' => $vehicle ? $this->vehiclePayload($vehicle) : null,
+            'stats' => $this->statsPayload($driver),
+            'latest_trips' => $this->latestTripsPayload($driver),
+        ]);
+    }
+
+    /**
+     * Resolve the truck the driver is currently assigned to: the active trip's
+     * vehicle when set, otherwise the driver's latest active assignment.
+     */
+    private function activeVehicle(User $user, ?Trip $trip = null): ?Vehicle
+    {
+        if ($trip?->vehicle) {
+            return $trip->vehicle;
+        }
+
+        return DriverVehicleAssignment::query()
+            ->with('vehicle')
+            ->where('driver_id', $user->id)
+            ->whereNull('end_date')
+            ->latest('start_date')
+            ->first()?->vehicle;
     }
 
     /**
@@ -177,6 +227,58 @@ class MobileTripController extends Controller
             ->orderByDesc('is_primary')
             ->orderBy('id')
             ->value('value');
+    }
+
+    /**
+     * Lifetime trip statistics for the driver.
+     */
+    private function statsPayload(Driver $driver): array
+    {
+        $base = Trip::where('driver_id', $driver->id);
+
+        $total = (clone $base)->count();
+        $completed = (clone $base)->where('status', 'delivered')->count();
+        $pending = (clone $base)->whereNotIn('status', ['delivered', 'cancelled'])->count();
+
+        $distance = (clone $base)
+            ->selectRaw('COALESCE(SUM(COALESCE(actual_distance_km, planned_distance_km)), 0) AS total')
+            ->value('total');
+
+        $hours = (clone $base)
+            ->whereNotNull('departure_time')
+            ->whereNotNull('arrival_time')
+            ->whereColumn('arrival_time', '>', 'departure_time')
+            ->selectRaw('SUM(TIMESTAMPDIFF(HOUR, departure_time, arrival_time)) AS total')
+            ->value('total');
+
+        return [
+            'total_trips' => $total,
+            'completed_trips' => $completed,
+            'pending_trips' => $pending,
+            'total_distance_km' => round((float) $distance, 1),
+            'hours_driven' => round((float) ($hours ?? 0), 1),
+        ];
+    }
+
+    /**
+     * The driver's 5 most recent trips by end time (fall back to creation time).
+     */
+    private function latestTripsPayload(Driver $driver): array
+    {
+        return Trip::with('order')
+            ->where('driver_id', $driver->id)
+            ->orderByRaw('COALESCE(arrival_time, created_at) DESC')
+            ->limit(5)
+            ->get()
+            ->map(fn ($trip) => [
+                'id' => $trip->id,
+                'reference' => $trip->reference,
+                'status' => $trip->status,
+                'origin' => $trip->order?->origin,
+                'destination' => $trip->order?->destination,
+                'ended_at' => $trip->arrival_time,
+            ])
+            ->all();
     }
 
     /**
