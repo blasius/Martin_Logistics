@@ -8,6 +8,7 @@ use App\Models\Trip;
 use App\Models\TripHistory;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Models\VehicleSnapshot;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -30,12 +31,27 @@ class MobileTripTest extends TestCase
             'status' => 'assigned',
         ]);
 
+        VehicleSnapshot::create([
+            'vehicle_id' => $vehicle->id,
+            'last_seen_at' => now(),
+            'latitude' => -1.9501,
+            'longitude' => 30.0619,
+            'speed' => 45.5,
+            'fuel_level' => 62.0,
+            'ignition' => true,
+            'is_moving' => true,
+        ]);
+
         Sanctum::actingAs($user, ['*']);
 
         $response = $this->getJson('/api/mobile/trips/current');
 
         $response->assertStatus(200)
                  ->assertJsonStructure([
+                     'driver' => ['id', 'user_id', 'name', 'email', 'phone', 'whatsapp_phone'],
+                     'vehicle' => ['id', 'plate_number', 'trailer'],
+                     'position' => ['latitude', 'longitude', 'fuel_level', 'last_seen_at'],
+                     'assigned_staff',
                      'trip' => [
                          'id',
                          'status',
@@ -43,7 +59,10 @@ class MobileTripTest extends TestCase
                          'vehicle' => ['id', 'plate_number']
                      ]
                  ])
-                 ->assertJsonPath('trip.id', $trip->id);
+                 ->assertJsonPath('trip.id', $trip->id)
+                 ->assertJsonPath('driver.name', $user->name)
+                 ->assertJsonPath('vehicle.plate_number', $vehicle->plate_number)
+                 ->assertJsonPath('position.fuel_level', 62.0);
     }
 
     public function test_user_without_driver_profile_cannot_get_trip()

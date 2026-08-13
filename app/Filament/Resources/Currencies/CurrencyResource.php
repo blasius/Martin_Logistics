@@ -7,7 +7,7 @@ use App\Filament\Resources\Currencies\Pages\EditCurrency;
 use App\Filament\Resources\Currencies\Pages\ListCurrencies;
 use App\Filament\Resources\Currencies\Schemas\CurrencyForm;
 use App\Filament\Resources\Currencies\Tables\CurrenciesTable;
-use App\Filament\Resources\CurrencyResource\Pages\ManageCurrencies;
+use App\Filament\Resources\Currencies\Pages\ManageCurrencies;
 use App\Models\Currency;
 use BackedEnum;
 use Filament\Resources\Resource;

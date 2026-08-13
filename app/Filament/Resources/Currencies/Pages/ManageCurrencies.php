@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Resources\CurrencyResource\Pages;
+namespace App\Filament\Resources\Currencies\Pages;
 
 use App\Filament\Resources\Currencies\CurrencyResource;
 use Filament\Actions\CreateAction;

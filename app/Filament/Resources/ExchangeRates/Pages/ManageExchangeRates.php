@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Resources\ExchangeRateResource\Pages;
+namespace App\Filament\Resources\ExchangeRates\Pages;
 
 use App\Filament\Resources\ExchangeRates\ExchangeRateResource;
 use Filament\Actions\CreateAction;

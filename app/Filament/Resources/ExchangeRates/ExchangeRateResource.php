@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\ExchangeRates;
 
-use App\Filament\Resources\ExchangeRateResource\Pages\ManageExchangeRates;
+use App\Filament\Resources\ExchangeRates\Pages\ManageExchangeRates;
 use App\Filament\Resources\ExchangeRates\Pages\CreateExchangeRate;
 use App\Filament\Resources\ExchangeRates\Pages\EditExchangeRate;
 use App\Filament\Resources\ExchangeRates\Pages\ListExchangeRates;
