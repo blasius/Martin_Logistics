@@ -98,10 +98,9 @@ class Vehicle extends Model
         return $this->hasOne(TrailerAssignment::class)->whereNull('unassigned_at');
     }
 
-    // In BOTH models, use this exact syntax:
     public function insurances()
     {
-        return $this->morphMany(VehicleInsurance::class, 'insurable');
+        return $this->hasMany(VehicleInsurance::class, 'vehicle_id');
     }
 
     public function snapshot()
