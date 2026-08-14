@@ -9,6 +9,8 @@ class ProofOfDelivery extends Model
 {
     use HasAuditTrail;
 
+    protected $table = 'proofs_of_delivery';
+
     protected $fillable = [
         'order_id',
         'trip_id',

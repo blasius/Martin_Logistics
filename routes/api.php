@@ -391,8 +391,10 @@ Route::middleware('auth')->group(function () {
         Route::get('ratings/available-dispatchers', [RatingController::class, 'availableDispatchers']);
 
         // Trip Lifecycle
+        Route::get('/trips', [TripController::class, 'index']);
         Route::post('/trips', [TripController::class, 'store']);
         Route::get('/trips/search-assignments', [TripController::class, 'searchAssignments']);
+        Route::get('/trips/{trip}', [TripController::class, 'show']);
 
 
         // User Management

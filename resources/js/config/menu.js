@@ -74,7 +74,11 @@ export const menu = [
     {
         label: "Trips",
         icon: Map,
-        to: "/trips",
+        children: [
+            { label: "All Trips", to: "/trips/all" },
+            { label: "Status Board", to: "/trips/board" },
+            { label: "New Dispatch", to: "/trips/create" },
+        ],
     },
     {
         label: "HR",

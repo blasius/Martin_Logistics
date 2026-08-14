@@ -15,5 +15,11 @@ export const tripsApi = {
     },
     createTrip(data) {
         return api.post('/portal/trips', data);
+    },
+    list(params) {
+        return api.get('/portal/trips', { params });
+    },
+    show(id) {
+        return api.get(`/portal/trips/${id}`);
     }
 };

@@ -29,7 +29,16 @@ const router = createRouter({
             children: [
                 { path: "dashboard", name: "Dashboard", component: () => import("../pages/Dashboard.vue") },
                 { path: "drivers", component: () => import("../pages/Drivers/Index.vue") },
-                { path: "trips", component: () => import("../pages/Trips/Index.vue") },
+                { path: "trips", redirect: "/trips/all" },
+                { path: "trips/all", component: () => import("../pages/Trips/All.vue") },
+                { path: "trips/board", component: () => import("../pages/Trips/Board.vue") },
+                { path: "trips/create", component: () => import("../pages/Trips/Index.vue") },
+                {
+                    path: "trips/:id",
+                    name: "trips.show",
+                    component: () => import("../pages/Trips/Details.vue"),
+                    props: true
+                },
                 { path: "vehicles", component: () => import("../pages/Vehicles/Index.vue") },
                 { path: "routes", component: () => import("../pages/Routes/Index.vue") },
                 { path: "places", component: () => import("../pages/Places/Index.vue") },
