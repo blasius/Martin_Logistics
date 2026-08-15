@@ -13,7 +13,6 @@ use App\Models\Vehicle;
 use App\Models\VehicleSnapshot;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 class MobileTripController extends Controller
 {
@@ -28,13 +27,7 @@ class MobileTripController extends Controller
 
         // Ensure user has an associated driver profile
         if (!$user->driver) {
-            $response = response()->json(['message' => 'User is not registered as a driver.'], 403);
-            Log::info('[MobileTripController::current] no driver profile', [
-                'user_id' => $user->id,
-                'status' => $response->getStatusCode(),
-                'payload' => $response->getContent(),
-            ]);
-            return $response;
+            return response()->json(['message' => 'User is not registered as a driver.'], 403);
         }
 
         // Find the most recent active trip for this driver, matching trips
@@ -48,19 +41,7 @@ class MobileTripController extends Controller
             ->first();
 
         if (!$trip) {
-            $response = response()->json(['message' => 'No active trip found.'], 404);
-            Log::info('[MobileTripController::current] no active trip', [
-                'user_id' => $user->id,
-                'driver_id' => $user->driver->id,
-                'active_vehicle_ids' => DriverVehicleAssignment::query()
-                    ->where('driver_id', $user->id)
-                    ->whereNull('end_date')
-                    ->pluck('vehicle_id')
-                    ->all(),
-                'status' => $response->getStatusCode(),
-                'payload' => $response->getContent(),
-            ]);
-            return $response;
+            return response()->json(['message' => 'No active trip found.'], 404);
         }
 
         // Assigned truck comes from the trip when present, otherwise from the
@@ -71,7 +52,7 @@ class MobileTripController extends Controller
             ? VehicleSnapshot::where('vehicle_id', $vehicle->id)->first()
             : null;
 
-        $response = response()->json([
+        return response()->json([
             'message' => 'Active trip found.',
             'driver' => $this->driverPayload($user),
             'vehicle' => $vehicle ? $this->vehiclePayload($vehicle) : null,
@@ -80,19 +61,6 @@ class MobileTripController extends Controller
             'assigned_staff' => $this->staffPayload($trip->dispatcher ?? $trip->createdBy),
             'trip' => $trip,
         ]);
-
-        Log::info('[MobileTripController::current] response', [
-            'user_id' => $user->id,
-            'driver_id' => $user->driver->id,
-            'trip_id' => $trip->id,
-            'trip_status' => $trip->status,
-            'vehicle_id' => $vehicle?->id,
-            'has_snapshot' => (bool) $snapshot,
-            'status' => $response->getStatusCode(),
-            'payload' => $response->getContent(),
-        ]);
-
-        return $response;
     }
 
     /**
@@ -118,10 +86,7 @@ class MobileTripController extends Controller
 
         $vehicle = $this->activeVehicle($user);
 
-        $stats = $this->statsPayload($driver);
-        $latestTrips = $this->latestTripsPayload($driver);
-
-        $response = response()->json([
+        return response()->json([
             'message' => 'Driver profile.',
             'driver' => array_merge($this->driverPayload($user), [
                 'rating' => $rating->avg ? round((float) $rating->avg, 1) : 0,
@@ -129,21 +94,9 @@ class MobileTripController extends Controller
                 'member_since' => $driver->created_at?->toDateString(),
             ]),
             'vehicle' => $vehicle ? $this->vehiclePayload($vehicle) : null,
-            'stats' => $stats,
-            'latest_trips' => $latestTrips,
+            'stats' => $this->statsPayload($driver),
+            'latest_trips' => $this->latestTripsPayload($driver),
         ]);
-
-        Log::info('[MobileTripController::profile] response', [
-            'user_id' => $user->id,
-            'driver_id' => $driver->id,
-            'vehicle_id' => $vehicle?->id,
-            'stats' => $stats,
-            'latest_trip_ids' => array_column($latestTrips, 'id'),
-            'status' => $response->getStatusCode(),
-            'payload' => $response->getContent(),
-        ]);
-
-        return $response;
     }
 
     /**
