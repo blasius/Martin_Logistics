@@ -13,6 +13,7 @@ use App\Models\Vehicle;
 use App\Models\VehicleSnapshot;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class MobileTripController extends Controller
 {
@@ -27,19 +28,39 @@ class MobileTripController extends Controller
 
         // Ensure user has an associated driver profile
         if (!$user->driver) {
-            return response()->json(['message' => 'User is not registered as a driver.'], 403);
+            $response = response()->json(['message' => 'User is not registered as a driver.'], 403);
+            Log::info('[MobileTripController::current] no driver profile', [
+                'user_id' => $user->id,
+                'status' => $response->getStatusCode(),
+                'payload' => $response->getContent(),
+            ]);
+            return $response;
         }
 
-        // Find the most recent active trip for this driver
-        // Assuming 'delivered' and 'cancelled' are terminal statuses
-        $trip = Trip::with(['order', 'vehicle', 'route', 'dispatcher', 'createdBy'])
-            ->where('driver_id', $user->driver->id)
+        // Find the most recent active trip for this driver, matching trips
+        // dispatched to the driver directly OR to a vehicle the driver is
+        // currently assigned to (vehicle-only portal dispatch leaves
+        // trips.driver_id NULL). See driverTripQuery().
+        $trip = $this->driverTripQuery($user->driver)
+            ->with(['order', 'vehicle', 'route', 'dispatcher', 'createdBy'])
             ->whereNotIn('status', ['delivered', 'cancelled'])
             ->latest()
             ->first();
 
         if (!$trip) {
-            return response()->json(['message' => 'No active trip found.'], 404);
+            $response = response()->json(['message' => 'No active trip found.'], 404);
+            Log::info('[MobileTripController::current] no active trip', [
+                'user_id' => $user->id,
+                'driver_id' => $user->driver->id,
+                'active_vehicle_ids' => DriverVehicleAssignment::query()
+                    ->where('driver_id', $user->id)
+                    ->whereNull('end_date')
+                    ->pluck('vehicle_id')
+                    ->all(),
+                'status' => $response->getStatusCode(),
+                'payload' => $response->getContent(),
+            ]);
+            return $response;
         }
 
         // Assigned truck comes from the trip when present, otherwise from the
@@ -50,7 +71,7 @@ class MobileTripController extends Controller
             ? VehicleSnapshot::where('vehicle_id', $vehicle->id)->first()
             : null;
 
-        return response()->json([
+        $response = response()->json([
             'message' => 'Active trip found.',
             'driver' => $this->driverPayload($user),
             'vehicle' => $vehicle ? $this->vehiclePayload($vehicle) : null,
@@ -59,6 +80,19 @@ class MobileTripController extends Controller
             'assigned_staff' => $this->staffPayload($trip->dispatcher ?? $trip->createdBy),
             'trip' => $trip,
         ]);
+
+        Log::info('[MobileTripController::current] response', [
+            'user_id' => $user->id,
+            'driver_id' => $user->driver->id,
+            'trip_id' => $trip->id,
+            'trip_status' => $trip->status,
+            'vehicle_id' => $vehicle?->id,
+            'has_snapshot' => (bool) $snapshot,
+            'status' => $response->getStatusCode(),
+            'payload' => $response->getContent(),
+        ]);
+
+        return $response;
     }
 
     /**
@@ -84,7 +118,10 @@ class MobileTripController extends Controller
 
         $vehicle = $this->activeVehicle($user);
 
-        return response()->json([
+        $stats = $this->statsPayload($driver);
+        $latestTrips = $this->latestTripsPayload($driver);
+
+        $response = response()->json([
             'message' => 'Driver profile.',
             'driver' => array_merge($this->driverPayload($user), [
                 'rating' => $rating->avg ? round((float) $rating->avg, 1) : 0,
@@ -92,9 +129,44 @@ class MobileTripController extends Controller
                 'member_since' => $driver->created_at?->toDateString(),
             ]),
             'vehicle' => $vehicle ? $this->vehiclePayload($vehicle) : null,
-            'stats' => $this->statsPayload($driver),
-            'latest_trips' => $this->latestTripsPayload($driver),
+            'stats' => $stats,
+            'latest_trips' => $latestTrips,
         ]);
+
+        Log::info('[MobileTripController::profile] response', [
+            'user_id' => $user->id,
+            'driver_id' => $driver->id,
+            'vehicle_id' => $vehicle?->id,
+            'stats' => $stats,
+            'latest_trip_ids' => array_column($latestTrips, 'id'),
+            'status' => $response->getStatusCode(),
+            'payload' => $response->getContent(),
+        ]);
+
+        return $response;
+    }
+
+    /**
+     * Trip query scoped to a driver. Portal trips can be dispatched to a VEHICLE
+     * only, which leaves trips.driver_id NULL; those trips belong to whoever is
+     * currently assigned to that vehicle (driver_vehicle_assignments.driver_id =
+     * users.id, end_date NULL). Match by drivers.id OR the driver's active
+     * assigned vehicles so both dispatch modes are picked up.
+     */
+    private function driverTripQuery(Driver $driver): \Illuminate\Database\Eloquent\Builder
+    {
+        $activeVehicleIds = DriverVehicleAssignment::query()
+            ->where('driver_id', $driver->user_id)
+            ->whereNull('end_date')
+            ->pluck('vehicle_id');
+
+        return Trip::query()
+            ->where(function ($query) use ($driver, $activeVehicleIds) {
+                $query->where('driver_id', $driver->id);
+                if ($activeVehicleIds->isNotEmpty()) {
+                    $query->orWhereIn('vehicle_id', $activeVehicleIds);
+                }
+            });
     }
 
     /**
@@ -234,7 +306,7 @@ class MobileTripController extends Controller
      */
     private function statsPayload(Driver $driver): array
     {
-        $base = Trip::where('driver_id', $driver->id);
+        $base = $this->driverTripQuery($driver);
 
         $total = (clone $base)->count();
         $completed = (clone $base)->where('status', 'delivered')->count();
@@ -265,8 +337,8 @@ class MobileTripController extends Controller
      */
     private function latestTripsPayload(Driver $driver): array
     {
-        return Trip::with('order')
-            ->where('driver_id', $driver->id)
+        return $this->driverTripQuery($driver)
+            ->with('order')
             ->orderByRaw('COALESCE(arrival_time, created_at) DESC')
             ->limit(5)
             ->get()
