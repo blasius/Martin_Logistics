@@ -492,24 +492,40 @@ class DashboardController extends Controller
     {
         return DB::table('vehicle_inspections')
             ->join('vehicles', 'vehicles.id', '=', 'vehicle_inspections.vehicle_id')
-            ->where('vehicle_inspections.next_inspection_date', '<', now())
-            ->select('vehicles.plate_number', 'vehicle_inspections.next_inspection_date')
+            ->where(function ($q) {
+                $q->where('vehicle_inspections.completed_date', '<', now()->toDateString())
+                    ->orWhere(function ($q2) {
+                        $q2->whereNull('vehicle_inspections.completed_date')
+                            ->where('vehicle_inspections.scheduled_date', '<', now()->toDateString());
+                    });
+            })
+            ->select('vehicles.plate_number', DB::raw('vehicle_inspections.scheduled_date as next_inspection_date'))
             ->get();
     }
 
     private function getExpiringDriverDocuments()
     {
         $thirtyDaysFromNow = now()->addDays(30);
-        
-        $expiringLicenses = Driver::whereDate('driving_licence_expiry', '<=', $thirtyDaysFromNow)
-            ->whereDate('driving_licence_expiry', '>', now())
+
+        $expiringLicenses = Driver::whereDate('licence_expiry', '<=', $thirtyDaysFromNow)
+            ->whereDate('licence_expiry', '>', now())
             ->with('user:name,id')
-            ->get(['user_id', 'driving_licence_expiry']);
+            ->get(['user_id', 'licence_expiry'])
+            ->map(fn ($d) => [
+                'user_id' => $d->user_id,
+                'driving_licence_expiry' => $d->licence_expiry,
+                'user' => $d->user,
+            ]);
 
         $expiringPassports = Driver::whereDate('passport_expiry', '<=', $thirtyDaysFromNow)
             ->whereDate('passport_expiry', '>', now())
             ->with('user:name,id')
-            ->get(['user_id', 'passport_expiry']);
+            ->get(['user_id', 'passport_expiry'])
+            ->map(fn ($d) => [
+                'user_id' => $d->user_id,
+                'passport_expiry' => $d->passport_expiry,
+                'user' => $d->user,
+            ]);
 
         return [
             'licenses' => $expiringLicenses,
