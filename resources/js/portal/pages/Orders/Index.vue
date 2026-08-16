@@ -124,7 +124,7 @@
                                 <div v-for="c in filteredClients" :key="c.id"
                                      @click="selectClient(c)"
                                      class="px-4 py-3 cursor-pointer hover:bg-blue-50 transition-colors border-b border-slate-50 last:border-b-0">
-                                    <div class="text-sm font-bold text-slate-800">{{ c.name }}</div>
+                                    <div class="text-sm font-bold text-slate-800">{{ clientDisplayName(c) }}</div>
                                     <div v-if="c.email || c.phone" class="text-[10px] font-bold text-slate-400 mt-0.5">
                                         {{ [c.email, c.phone].filter(Boolean).join(' · ') }}
                                     </div>
@@ -273,17 +273,20 @@ const clientDropdownRef = ref(null);
 
 const selectedClientName = computed(() => {
     const c = clients.value.find(c => c.id === form.value.client_id);
-    return c ? c.name : '';
+    return c ? clientDisplayName(c) : '';
 });
+
+const clientDisplayName = (c) => c.name || c.contact_person || ('Client #' + c.id);
 
 const filteredClients = computed(() => {
     const q = clientSearch.value.toLowerCase().trim();
     if (!q) return clients.value;
-    return clients.value.filter(c =>
-        c.name.toLowerCase().includes(q) ||
-        (c.email && c.email.toLowerCase().includes(q)) ||
-        (c.phone && c.phone.toLowerCase().includes(q))
-    );
+    return clients.value.filter(c => {
+        const name = (clientDisplayName(c) || '').toLowerCase();
+        const email = (c.email || '').toLowerCase();
+        const phone = (c.phone || '').toLowerCase();
+        return name.includes(q) || email.includes(q) || phone.includes(q);
+    });
 });
 
 const selectClient = (client) => {
