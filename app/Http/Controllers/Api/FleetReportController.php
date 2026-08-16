@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Vehicle;
+use App\Models\Client;
 use App\Models\Driver;
+use App\Models\Route;
+use App\Models\User;
+use App\Models\Vehicle;
 use App\Models\Order;
 use App\Models\Trip;
 use App\Models\TrafficFine;
@@ -361,6 +364,40 @@ class FleetReportController extends Controller
         return response()->json(
             $this->reportingService->tripProfitabilityReport($startDate, now())
         );
+    }
+
+    /**
+     * Profitability report — revenue vs costs grouped by truck/trip/driver/dispatcher/route/client/month.
+     */
+    public function profitability(Request $request)
+    {
+        $filters = $request->only([
+            'from', 'to', 'vehicle_id', 'driver_id', 'route_id', 'dispatcher_id', 'client_id', 'group_by',
+        ]);
+
+        return response()->json(
+            $this->reportingService->profitabilityReport($filters)
+        );
+    }
+
+    /**
+     * Filter option lists for the profitability report.
+     */
+    public function profitabilityOptions()
+    {
+        return response()->json([
+            'vehicles' => Vehicle::orderBy('plate_number')->get(['id', 'plate_number']),
+            'drivers' => Driver::with('user:id,name')->get()->map(fn ($d) => [
+                'id' => $d->id,
+                'name' => $d->user?->name ?: ('Driver #' . $d->id),
+            ]),
+            'dispatchers' => User::role('Dispatcher')->orderBy('name')->get(['id', 'name']),
+            'routes' => Route::orderBy('name')->get(['id', 'name']),
+            'clients' => Client::with('user:id,name')->get()->map(fn ($c) => [
+                'id' => $c->id,
+                'name' => $c->user?->name ?: $c->contact_person,
+            ]),
+        ]);
     }
 
     private function mapCompliance($unit, $today)

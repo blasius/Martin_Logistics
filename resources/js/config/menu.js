@@ -140,6 +140,7 @@ export const menu = [
         children: [
             { label: "Reports Dashboard", to: "/reports" },
             { label: "Analytics", to: "/reports/analytics" },
+            { label: "Profitability", to: "/reports/profitability" },
             { label: "Performance", to: "/performance" },
         ],
     },

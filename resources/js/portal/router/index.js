@@ -50,6 +50,7 @@ const router = createRouter({
                 { path: "tracker", component: () => import("../pages/Tracker/Index.vue") },
                 { path: "reports", component: () => import("../pages/Reports/Index.vue") },
                 { path: "reports/analytics", component: () => import("../pages/Analytics.vue") },
+                { path: "reports/profitability", component: () => import("../pages/Reports/Profitability.vue") },
                 { path: "support", component: () => import("../pages/Support/Index.vue") },
                 { path: "settings", component: () => import("../pages/Settings.vue") },
                 { path: "fines", component: () => import("../pages/Fines/Index.vue") },

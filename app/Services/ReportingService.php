@@ -293,6 +293,203 @@ class ReportingService
         ];
     }
 
+    /**
+     * Profitability report — revenue (orders) minus costs (approved/paid expenses) per delivered trip,
+     * grouped by an arbitrary dimension (truck, trip, driver, dispatcher, route, client, month).
+     */
+    public function profitabilityReport(array $filters = []): array
+    {
+        $from = !empty($filters['from'])
+            ? Carbon::parse($filters['from'])->startOfDay()
+            : now()->startOfMonth();
+        $to = !empty($filters['to'])
+            ? Carbon::parse($filters['to'])->endOfDay()
+            : now();
+        $groupBy = $filters['group_by'] ?? 'truck';
+
+        $query = Trip::query()
+            ->leftJoin('orders', 'trips.order_id', '=', 'orders.id')
+            ->leftJoin('vehicles', 'trips.vehicle_id', '=', 'vehicles.id')
+            ->leftJoin('drivers', 'trips.driver_id', '=', 'drivers.id')
+            ->leftJoin('users as driver_users', 'drivers.user_id', '=', 'driver_users.id')
+            ->leftJoin('users as dispatcher_users', 'trips.dispatcher_id', '=', 'dispatcher_users.id')
+            ->leftJoin('routes', 'trips.route_id', '=', 'routes.id')
+            ->leftJoin('clients', 'orders.client_id', '=', 'clients.id')
+            ->leftJoin('users as client_users', 'clients.user_id', '=', 'client_users.id')
+            ->where('trips.status', 'delivered')
+            ->whereBetween('trips.created_at', [$from, $to])
+            ->select([
+                'trips.*',
+                'orders.price as order_price',
+                'orders.client_id as order_client_id',
+                'vehicles.plate_number as vehicle_plate',
+                'driver_users.name as driver_name',
+                'dispatcher_users.name as dispatcher_name',
+                'routes.name as route_name',
+                'client_users.name as client_name',
+                'clients.contact_person as client_contact',
+            ]);
+
+        if (!empty($filters['vehicle_id'])) {
+            $query->where('trips.vehicle_id', $filters['vehicle_id']);
+        }
+        if (!empty($filters['driver_id'])) {
+            $query->where('trips.driver_id', $filters['driver_id']);
+        }
+        if (!empty($filters['route_id'])) {
+            $query->where('trips.route_id', $filters['route_id']);
+        }
+        if (!empty($filters['dispatcher_id'])) {
+            $query->where('trips.dispatcher_id', $filters['dispatcher_id']);
+        }
+        if (!empty($filters['client_id'])) {
+            $query->where('orders.client_id', $filters['client_id']);
+        }
+
+        $trips = $query->get();
+        $tripIds = $trips->pluck('id')->filter();
+
+        $expenseTotals = [];
+        if ($tripIds->isNotEmpty()) {
+            $expenseTotals = Expense::whereIn('trip_id', $tripIds)
+                ->whereIn('status', ['approved', 'paid'])
+                ->selectRaw('trip_id, SUM(amount) as total')
+                ->groupBy('trip_id')
+                ->pluck('total', 'trip_id');
+        }
+
+        $groups = [];
+        $trend = [];
+        foreach ($trips as $trip) {
+            $revenue = (float) ($trip->order_price ?? 0);
+            $expenses = (float) ($expenseTotals[$trip->id] ?? 0);
+
+            [$key, $label] = $this->profitabilityGroupFor($trip, $groupBy);
+            if (!isset($groups[$key])) {
+                $groups[$key] = ['label' => $label, 'trips' => 0, 'revenue' => 0, 'expenses' => 0];
+            }
+            $groups[$key]['trips']++;
+            $groups[$key]['revenue'] += $revenue;
+            $groups[$key]['expenses'] += $expenses;
+
+            $monthKey = $trip->created_at?->format('Y-m') ?? 'n/a';
+            if (!isset($trend[$monthKey])) {
+                $trend[$monthKey] = ['revenue' => 0, 'expenses' => 0];
+            }
+            $trend[$monthKey]['revenue'] += $revenue;
+            $trend[$monthKey]['expenses'] += $expenses;
+        }
+
+        $breakdown = collect($groups)
+            ->map(fn ($g) => [
+                'label' => $g['label'],
+                'trips' => (int) $g['trips'],
+                'revenue' => round($g['revenue'], 2),
+                'expenses' => round($g['expenses'], 2),
+                'profit' => round($g['revenue'] - $g['expenses'], 2),
+                'margin' => $g['revenue'] > 0
+                    ? round((($g['revenue'] - $g['expenses']) / $g['revenue']) * 100, 1)
+                    : 0,
+            ])
+            ->sortByDesc('profit')
+            ->values()
+            ->all();
+
+        $totalRevenue = array_sum(array_column($groups, 'revenue'));
+        $totalExpenses = array_sum(array_column($groups, 'expenses'));
+        $totalProfit = $totalRevenue - $totalExpenses;
+        $margin = $totalRevenue > 0 ? round(($totalProfit / $totalRevenue) * 100, 1) : 0;
+
+        $trendSeries = [];
+        for ($d = $from->copy()->startOfMonth(); $d->lte($to); $d->addMonth()) {
+            $key = $d->format('Y-m');
+            $revenue = $trend[$key]['revenue'] ?? 0;
+            $expenses = $trend[$key]['expenses'] ?? 0;
+            $trendSeries[] = [
+                'period' => $d->format('M Y'),
+                'revenue' => round($revenue, 2),
+                'expenses' => round($expenses, 2),
+                'profit' => round($revenue - $expenses, 2),
+            ];
+        }
+
+        $costBreakdown = [];
+        if ($tripIds->isNotEmpty()) {
+            $costBreakdown = Expense::whereIn('expenses.trip_id', $tripIds)
+                ->whereIn('expenses.status', ['approved', 'paid'])
+                ->leftJoin('expense_types', 'expenses.expense_type_id', '=', 'expense_types.id')
+                ->selectRaw('COALESCE(expense_types.name, "Uncategorized") as name, SUM(expenses.amount) as total')
+                ->groupBy('name')
+                ->orderByDesc('total')
+                ->get()
+                ->map(fn ($c) => ['name' => $c->name, 'total' => (float) $c->total])
+                ->values()
+                ->all();
+        }
+
+        $profitableGroups = collect($breakdown)->where('profit', '>', 0)->values();
+        $lossGroups = collect($breakdown)->where('profit', '<', 0)->values();
+
+        return [
+            'group_by' => $groupBy,
+            'filters' => array_filter($filters, fn ($v) => $v !== '' && $v !== null),
+            'summary' => [
+                'total_trips' => (int) $trips->count(),
+                'total_revenue' => round($totalRevenue, 2),
+                'total_expenses' => round($totalExpenses, 2),
+                'total_profit' => round($totalProfit, 2),
+                'profit_margin' => $margin,
+                'avg_revenue_per_trip' => $trips->isNotEmpty() ? round($totalRevenue / $trips->count(), 2) : 0,
+                'avg_expense_per_trip' => $trips->isNotEmpty() ? round($totalExpenses / $trips->count(), 2) : 0,
+                'avg_profit_per_trip' => $trips->isNotEmpty() ? round($totalProfit / $trips->count(), 2) : 0,
+                'profitable_groups' => $profitableGroups->count(),
+                'loss_groups' => $lossGroups->count(),
+            ],
+            'breakdown' => $breakdown,
+            'trend' => $trendSeries,
+            'cost_breakdown' => $costBreakdown,
+            'top_profitable' => $profitableGroups->take(5)->all(),
+            'top_losses' => $lossGroups->take(5)->all(),
+        ];
+    }
+
+    private function profitabilityGroupFor($trip, string $groupBy): array
+    {
+        switch ($groupBy) {
+            case 'trip':
+                return [(string) $trip->id, $trip->reference ?: ('Trip #' . $trip->id)];
+            case 'driver':
+                return [
+                    (string) ($trip->driver_id ?? 'n/a'),
+                    $trip->driver_name ?: ($trip->driver_name_snapshot ?: 'Unknown'),
+                ];
+            case 'dispatcher':
+                return [
+                    (string) ($trip->dispatcher_id ?? 'n/a'),
+                    $trip->dispatcher_name ?: 'Unknown',
+                ];
+            case 'route':
+                return [
+                    (string) ($trip->route_id ?? 'n/a'),
+                    $trip->route_name ?: 'Unknown',
+                ];
+            case 'client':
+                return [
+                    (string) ($trip->order_client_id ?? 'n/a'),
+                    $trip->client_name ?: ($trip->client_contact ?: 'Unknown'),
+                ];
+            case 'month':
+                $key = $trip->created_at?->format('Y-m') ?? 'n/a';
+                return [$key, $trip->created_at?->format('M Y') ?? 'Unknown'];
+            case 'truck':
+            default:
+                return [
+                    (string) ($trip->vehicle_id ?? 'n/a'),
+                    $trip->vehicle_plate ?: ($trip->vehicle_plate_snapshot ?: 'Unknown'),
+                ];
+        }
+    }
+
     public function unifiedReport(?int $selectedCurrencyId = null): array
     {
         $currencyService = app(CurrencyService::class);

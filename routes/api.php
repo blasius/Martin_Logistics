@@ -262,6 +262,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/reports/unified', [FleetReportController::class, 'unified']);
         Route::get('/reports/expenses', [FleetReportController::class, 'expenseDrilldown']);
         Route::get('/reports/trip-profitability', [FleetReportController::class, 'tripProfitability']);
+        Route::get('/reports/profitability', [FleetReportController::class, 'profitability']);
+        Route::get('/reports/profitability/options', [FleetReportController::class, 'profitabilityOptions']);
 
         // Containers
         Route::get('/containers/dashboard', [ContainerController::class, 'dashboard']);
