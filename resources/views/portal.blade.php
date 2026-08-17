@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Portal</title>
+    @include('partials.ga-analytics')
     @vite(['resources/js/portal/main.js'])
 </head>
 <body class="antialiased">

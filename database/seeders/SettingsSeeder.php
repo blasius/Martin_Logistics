@@ -9,6 +9,8 @@ class SettingsSeeder extends Seeder
 {
     public function run(): void
     {
+        AppSetting::setValue('google_analytics_id', '', 'string', 'Google Analytics Measurement ID (e.g. G-XXXXXXXXXX)');
+
         AppSetting::setValue('firebase_config', [
             'api_key' => '',
             'auth_domain' => '',

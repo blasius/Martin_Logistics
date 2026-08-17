@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Customer Portal — Martin Logistics</title>
+    @include('partials.ga-analytics')
     @vite(['resources/js/customer/main.js'])
 </head>
 <body class="antialiased bg-gray-50">

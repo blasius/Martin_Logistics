@@ -42,6 +42,7 @@ class AdminPanelProvider extends PanelProvider
             ->widgets([
 
             ])
+            ->renderHook('panels::head.end', fn () => view('partials.ga-analytics'))
             ->plugin(FilamentShieldPlugin::make())
             ->middleware([
                 LogRedirects::class,

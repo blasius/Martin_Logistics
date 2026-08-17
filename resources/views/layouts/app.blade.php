@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Martin Logistics</title>
     @vite('resources/css/app.css')
+    @include('partials.ga-analytics')
 </head>
 <body class="bg-white text-gray-900">
 {{-- Header --}}

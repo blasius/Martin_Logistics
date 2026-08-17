@@ -383,6 +383,34 @@
                     </div>
                 </div>
 
+                <!-- Integrations -->
+                <div v-if="activeSection === 'integrations'">
+                    <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden mb-6">
+                        <div class="p-6 border-b border-slate-100 bg-slate-50/50">
+                            <h2 class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Google Analytics</h2>
+                            <p class="text-[9px] font-bold text-slate-400 mt-1">Track visitor analytics across your site</p>
+                        </div>
+
+                        <div class="p-6 space-y-5">
+                            <div>
+                                <label class="text-[10px] font-black text-slate-400 uppercase ml-1 block mb-2 tracking-wide">Measurement ID</label>
+                                <input v-model="gaForm.measurementId" type="text" placeholder="G-XXXXXXXXXX"
+                                       class="border-slate-200 px-4 py-3.5 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 w-full max-w-lg transition-all font-mono" />
+                                <p class="text-[9px] font-bold text-slate-400 mt-2 ml-1">Format: <code class="bg-slate-100 px-1.5 py-0.5 rounded">G-XXXXXXXXXX</code> — Find it in your GA4 property settings</p>
+                            </div>
+                            <div class="flex items-center gap-3 pt-2">
+                                <button @click="saveGa"
+                                        :disabled="gaSaving"
+                                        class="bg-indigo-600 hover:bg-indigo-700 text-white px-10 py-3.5 rounded-2xl text-xs font-black transition-all shadow-lg shadow-indigo-200 active:scale-95 disabled:opacity-40 disabled:shadow-none uppercase tracking-widest">
+                                    {{ gaSaving ? 'Saving...' : 'Save' }}
+                                </button>
+                                <span v-if="gaSaved" class="text-emerald-600 text-[10px] font-bold">Saved</span>
+                                <span v-if="gaError" class="text-red-500 text-[10px] font-bold">{{ gaError }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Coming Soon Placeholder -->
                 <div v-else-if="currentSection?.comingSoon" class="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden">
                     <div class="flex flex-col items-center justify-center py-20 px-6">
@@ -687,8 +715,7 @@ const sections = [
         label: 'Integrations',
         description: 'API keys & third-party services',
         icon: Puzzle,
-        roles: ['super_admin', 'admin'],
-        comingSoon: true,
+        roles: null,
     },
     {
         id: 'system',
@@ -1040,6 +1067,12 @@ const firebaseSaving = ref(false)
 const firebaseSaved = ref(false)
 const firebaseError = ref('')
 
+// Google Analytics
+const gaForm = ref({ measurementId: '' })
+const gaSaving = ref(false)
+const gaSaved = ref(false)
+const gaError = ref('')
+
 const fetchFirebaseSettings = async () => {
     try {
         const { data } = await api.get('portal/settings')
@@ -1141,6 +1174,41 @@ const saveFirebase = async () => {
     }
 }
 
+// Google Analytics
+const loadGaSettings = async () => {
+    try {
+        const { data } = await api.get('portal/settings')
+        const ga = data.find(s => s.key === 'google_analytics_id')
+        gaForm.value.measurementId = ga?.value || ''
+    } catch (e) {
+        console.error('Failed to load Google Analytics settings', e)
+    }
+}
+
+const saveGa = async () => {
+    gaError.value = ''
+    const id = gaForm.value.measurementId.trim()
+
+    if (id && !/^G-[A-Z0-9]+$/i.test(id)) {
+        gaError.value = 'Invalid format. Must start with G- followed by alphanumeric characters.'
+        return
+    }
+
+    gaSaving.value = true
+    gaSaved.value = false
+    try {
+        await api.put('portal/settings', {
+            settings: [{ key: 'google_analytics_id', value: id }],
+        })
+        gaSaved.value = true
+        setTimeout(() => gaSaved.value = false, 3000)
+    } catch (e) {
+        gaError.value = e.response?.data?.message || 'Failed to save Google Analytics settings.'
+    } finally {
+        gaSaving.value = false
+    }
+}
+
 // Profile
 const profileForm = ref({ name: '', email: '' })
 const profileErrors = ref({})
@@ -1191,6 +1259,7 @@ const requestReset = async () => {
 onMounted(() => {
     fetchProfile()
     checkStatus()
+    loadGaSettings()
     if (authStore.user?.roles_list?.some(r => ['super_admin', 'admin'].includes(r))) {
         fetchRoles()
         fetchUsers()

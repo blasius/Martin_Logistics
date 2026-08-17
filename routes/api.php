@@ -591,8 +591,8 @@ Route::middleware('auth')->group(function () {
         });
 
         // Settings
-        Route::get('settings', [SettingsController::class, 'index'])->middleware('role:super_admin|Admin');
-        Route::put('settings', [SettingsController::class, 'update'])->middleware('role:super_admin|Admin');
+        Route::get('settings', [SettingsController::class, 'index']);
+        Route::put('settings', [SettingsController::class, 'update']);
         Route::get('settings/firebase', [SettingsController::class, 'firebaseConfig']);
 
         // Profile
