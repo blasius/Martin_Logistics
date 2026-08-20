@@ -225,6 +225,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/inspections', [InspectionController::class, 'store']);
 
         // Routes
+        Route::get('/routes/route', [RoutesController::class, 'routeFromOsrm']);
         Route::get('/routes', [RoutesController::class, 'index']);
         Route::get('/routes/{route}', [RoutesController::class, 'show']);
         Route::post('/routes/store', [RoutesController::class, 'store']);

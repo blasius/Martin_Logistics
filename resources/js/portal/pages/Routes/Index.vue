@@ -26,6 +26,29 @@
             <div class="flex-1 bg-white rounded-[3rem] shadow-sm border border-slate-200 overflow-hidden relative z-10">
                 <div id="map" class="h-full w-full"></div>
 
+                <!-- Floating Map Toolbar (form mode only) -->
+                <div v-if="currentView === 'form' && !loadingRouteDetails" class="absolute top-4 left-4 z-[1000] flex gap-2">
+                    <button @click="clearAllMapLayers(); resetFormState();"
+                            class="bg-white/90 backdrop-blur-sm hover:bg-red-50 text-slate-600 hover:text-red-600 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider shadow-lg border border-slate-200 hover:border-red-300 transition-all active:scale-95"
+                            title="Clear map">
+                        <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        Clear
+                    </button>
+                </div>
+
+                <!-- Route Legend (when alternatives exist) -->
+                <div v-if="currentView === 'form' && osrmRoutesCache && osrmRoutesCache.length > 1" class="absolute bottom-4 left-4 z-[1000] bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-slate-200 px-3 py-2">
+                    <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Route Legend</p>
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="w-4 h-0.5 bg-blue-600 inline-block rounded"></span>
+                        <span class="text-[9px] font-bold text-slate-600">Selected Route</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-4 h-0.5 bg-amber-500 inline-block rounded border-dashed" style="border-top: 2px dashed #f59e0b; height:0; background:none;"></span>
+                        <span class="text-[9px] font-bold text-slate-600">Alternatives (click to select)</span>
+                    </div>
+                </div>
+
                 <!-- Overlays -->
                 <div v-if="!mapReady || loadingRouteDetails" class="absolute inset-0 bg-slate-50/70 backdrop-blur-md z-[2000] flex items-center justify-center">
                     <div class="flex flex-col items-center gap-4 bg-white p-6 rounded-3xl shadow-2xl border border-slate-100">
@@ -120,28 +143,51 @@
                             <p class="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-3 relative z-10">Live Path Geometry</p>
                             <div class="flex justify-between items-end relative z-10">
                                 <div>
-                                    <span class="text-5xl font-black italic tracking-tighter">{{ totalDistance }}</span>
+                                    <span class="text-5xl font-black italic tracking-tighter">{{ routeDistance || totalDistance }}</span>
                                     <span class="text-xs font-bold text-slate-400 ml-1 uppercase">KM</span>
                                 </div>
-                                <div class="text-right bg-white/10 px-3 py-2 rounded-xl backdrop-blur-sm border border-white/5">
-                                    <p class="text-[8px] font-black text-slate-300 uppercase">Waypoints</p>
-                                    <p class="text-xl font-black leading-none mt-0.5">{{ pathData.length }}</p>
+                                <div class="flex gap-3">
+                                    <div v-if="routeDuration" class="text-right bg-white/10 px-3 py-2 rounded-xl backdrop-blur-sm border border-white/5">
+                                        <p class="text-[8px] font-black text-slate-300 uppercase">Duration</p>
+                                        <p class="text-xl font-black leading-none mt-0.5">{{ routeDuration }}<span class="text-xs text-slate-400 ml-0.5">min</span></p>
+                                    </div>
+                                    <div class="text-right bg-white/10 px-3 py-2 rounded-xl backdrop-blur-sm border border-white/5">
+                                        <p class="text-[8px] font-black text-slate-300 uppercase">Waypoints</p>
+                                        <p class="text-xl font-black leading-none mt-0.5">{{ pathData.length }}</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Bottom Action Area -->
-                    <div class="p-6 border-t border-slate-100 bg-slate-50 shrink-0">
-                        <button @click="saveRoute"
-                                :disabled="saving || pathData.length < 2"
-                                class="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl text-xs font-black transition-all shadow-lg shadow-blue-200 active:scale-95 disabled:opacity-40 disabled:shadow-none uppercase tracking-widest">
-                            {{ saving ? 'Processing...' : (editingMode ? 'Update Route' : 'Save & Publish Route') }}
-                        </button>
+                    <div class="p-6 border-t border-slate-100 bg-slate-50 shrink-0 space-y-3">
+                        <div class="flex gap-3">
+                            <button @click="saveRoute"
+                                    :disabled="saving || pathData.length < 2"
+                                    class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl text-xs font-black transition-all shadow-lg shadow-blue-200 active:scale-95 disabled:opacity-40 disabled:shadow-none uppercase tracking-widest">
+                                {{ saving ? 'Processing...' : (editingMode ? 'Update Route' : 'Save & Publish Route') }}
+                            </button>
+                            <button v-if="startMarker && endMarker && !addingWaypoint"
+                                    @click="addingWaypoint = true"
+                                    class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-4 rounded-2xl text-xs font-black transition-all active:scale-95 uppercase tracking-wider shrink-0">
+                                + Waypoint
+                            </button>
+                        </div>
 
-                        <p class="text-[9px] text-center font-bold text-slate-400 uppercase mt-4 px-2 leading-relaxed">
-                            Use the map tools to trace the path. Double-click to finish drawing.
-                            <br/>
+                        <p class="text-[9px] text-center font-bold text-slate-400 uppercase px-2 leading-relaxed">
+                            <template v-if="addingWaypoint">
+                                Click the map to place an intermediate waypoint.
+                            </template>
+                            <template v-else-if="!startMarker">
+                                Click the map to place your <span class="text-green-600">start point</span>.
+                            </template>
+                            <template v-else-if="!endMarker">
+                                Now click to place your <span class="text-red-600">end point</span>. Route follows roads automatically.
+                            </template>
+                            <template v-else>
+                                Drag markers or handles to adjust. Use + Waypoint to add intermediate stops.
+                            </template>
                             <span v-if="pathData.length < 2" class="text-amber-500 block mt-1">Requires at least 2 waypoints.</span>
                         </p>
                     </div>
@@ -210,8 +256,6 @@ import { routesApi } from "../../api/routes";
 import { Trash2 } from 'lucide-vue-next';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import '@geoman-io/leaflet-geoman-free';
-import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
 
 // State
 const routes = ref([]);
@@ -221,148 +265,27 @@ const loadingRouteDetails = ref(false);
 const saving = ref(false);
 const mapReady = ref(false);
 const pathData = ref([]);
+const addingWaypoint = ref(false);
+const routeDistance = ref('');
+const routeDuration = ref('');
+const selectedAlternativeIndex = ref(0);
+const osrmRoutesCache = ref(null);
 
-const confirmDialog = reactive({
-    show: false,
-    route: null,
-    deleting: false,
-});
-
-const alertDialog = reactive({
-    show: false,
-    message: '',
-});
-
-// View Toggle: 'list' or 'form'
+const confirmDialog = reactive({ show: false, route: null, deleting: false });
+const alertDialog = reactive({ show: false, message: '' });
 const currentView = ref('list');
-
-const form = ref({
-    name: '',
-    allowed_deviation_meters: 500
-});
-
+const form = ref({ name: '', allowed_deviation_meters: 500 });
 const editingMode = computed(() => !!selectedRoute.value);
 
 let map = null;
-let currentLayer = null;
 let userMarker = null;
+let startMarker = null;
+let endMarker = null;
+let intermediateMarkers = [];
+let routeLayer = null;
+let alternativeLayers = [];
+let routeHandles = [];
 
-// Map Initialization
-const initMap = () => {
-    map = L.map('map', { zoomControl: false }).setView([-1.9441, 30.0619], 13);
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap'
-    }).addTo(map);
-
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-    // Setup Geoman
-    map.pm.addControls({
-        position: 'topleft',
-        drawMarker: false,
-        drawCircle: false,
-        drawPolyline: true,
-        drawRectangle: false,
-        drawPolygon: false,
-        editMode: true,
-        removalMode: true,
-    });
-
-    // Capture path data
-    map.on('pm:create', (e) => {
-        if (currentLayer) {
-            map.removeLayer(currentLayer); // Keep only one line at a time
-        }
-        currentLayer = e.layer;
-        updatePath(currentLayer);
-
-        currentLayer.on('pm:edit', () => updatePath(currentLayer));
-    });
-
-    map.on('pm:remove', () => {
-        pathData.value = [];
-        currentLayer = null;
-    });
-
-    // Let the DOM settle
-    setTimeout(() => {
-        map.invalidateSize();
-        mapReady.value = true;
-        locateUser();
-    }, 400);
-};
-
-const locateUser = () => {
-    if (!navigator.geolocation) return;
-
-    navigator.geolocation.getCurrentPosition(
-        (pos) => {
-            const { latitude, longitude } = pos.coords;
-
-            map.flyTo([latitude, longitude], 17, { duration: 3 });
-
-            const icon = L.icon({
-                iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-                iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-                shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-                iconSize: [25, 41],
-                iconAnchor: [12, 41],
-                popupAnchor: [1, -34],
-                shadowSize: [41, 41],
-            });
-
-            if (userMarker) map.removeLayer(userMarker);
-            userMarker = L.marker([latitude, longitude], { icon })
-                .addTo(map)
-                .bindPopup('Your Location');
-        },
-        () => {},
-        { enableHighAccuracy: true, timeout: 10000 }
-    );
-};
-
-const updatePath = (layer) => {
-    const latlngs = layer.getLatLngs();
-    // Geoman sometimes returns nested arrays depending on shape type
-    const points = Array.isArray(latlngs[0]) ? latlngs[0] : latlngs;
-    pathData.value = points.map(ll => ({ lat: ll.lat, lng: ll.lng }));
-};
-
-const loadPathOnMap = (pathArray) => {
-    if (!map) return;
-
-    // Clear existing
-    if (currentLayer) {
-        map.removeLayer(currentLayer);
-        currentLayer = null;
-    }
-
-    // Clear any remaining Geoman layers
-    map.pm.getGeomanDrawLayers().forEach(layer => map.removeLayer(layer));
-
-    if (!pathArray || pathArray.length < 2) return;
-
-    const latlngs = pathArray.map(p => [p.lat, p.lng]);
-
-    currentLayer = L.polyline(latlngs, { color: '#2563eb', weight: 5 }).addTo(map);
-
-    // Attach edit listener
-    currentLayer.on('pm:edit', () => updatePath(currentLayer));
-
-    // Fit bounds safely
-    try {
-        map.fitBounds(currentLayer.getBounds(), { padding: [50, 50] });
-    } catch (e) {
-        console.warn("Could not fit bounds", e);
-    }
-
-    // Update local state
-    pathData.value = [...pathArray];
-};
-
-
-// Computed
 const totalDistance = computed(() => {
     if (pathData.value.length < 2) return '0.00';
     let dist = 0;
@@ -374,7 +297,267 @@ const totalDistance = computed(() => {
     return (dist / 1000).toFixed(2);
 });
 
-// API Actions
+// --- Icon helpers ---
+function divIcon(html, size = 30) {
+    return L.divIcon({
+        className: '',
+        html,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+    });
+}
+
+function startEndIcon(color, label) {
+    return divIcon(`<div style="width:30px;height:30px;background:${color};border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:12px">${label}</div>`);
+}
+
+function waypointIcon(num) {
+    return divIcon(`<div style="width:26px;height:26px;background:#2563eb;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:11px">${num}</div>`, 26);
+}
+
+function handleIcon(hovered = false) {
+    const s = hovered ? 22 : 18;
+    const bg = hovered ? 'rgba(37,99,235,.7)' : 'rgba(37,99,235,.45)';
+    return divIcon(`<div style="width:${s}px;height:${s}px;background:${bg};border:2.5px solid #2563eb;border-radius:50%;cursor:grab;transition:all .15s;box-shadow:0 1px 4px rgba(0,0,0,.2)"></div>`, s);
+}
+
+// --- Map ---
+const initMap = () => {
+    map = L.map('map', { zoomControl: false }).setView([-1.9441, 30.0619], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap',
+    }).addTo(map);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    map.on('click', onMapClick);
+
+    setTimeout(() => {
+        map.invalidateSize();
+        mapReady.value = true;
+        locateUser();
+    }, 400);
+};
+
+const locateUser = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            const { latitude, longitude } = pos.coords;
+            map.flyTo([latitude, longitude], 17, { duration: 3 });
+            const icon = L.icon({
+                iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+                iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+                shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+                iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41],
+            });
+            if (userMarker) map.removeLayer(userMarker);
+            userMarker = L.marker([latitude, longitude], { icon }).addTo(map).bindPopup('Your Location');
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 10000 }
+    );
+};
+
+// --- Click-to-place markers ---
+const onMapClick = (e) => {
+    if (currentView.value !== 'form') return;
+    const { lat, lng } = e.latlng;
+
+    if (addingWaypoint.value) {
+        addIntermediateMarker(lat, lng);
+        addingWaypoint.value = false;
+        return;
+    }
+
+    if (!startMarker) {
+        placeStartMarker(lat, lng);
+    } else if (!endMarker) {
+        placeEndMarker(lat, lng);
+        fetchRoute();
+    }
+};
+
+const placeStartMarker = (lat, lng) => {
+    if (startMarker) map.removeLayer(startMarker);
+    startMarker = L.marker([lat, lng], { icon: startEndIcon('#16a34a', 'A'), draggable: true })
+        .addTo(map)
+        .bindPopup('Start — drag to adjust');
+    startMarker.on('dragend', () => { if (endMarker) fetchRoute(); });
+};
+
+const placeEndMarker = (lat, lng) => {
+    if (endMarker) map.removeLayer(endMarker);
+    endMarker = L.marker([lat, lng], { icon: startEndIcon('#dc2626', 'B'), draggable: true })
+        .addTo(map)
+        .bindPopup('End — drag to adjust');
+    endMarker.on('dragend', () => { if (startMarker) fetchRoute(); });
+};
+
+// --- Intermediate waypoints ---
+const addIntermediateMarker = (lat, lng) => {
+    const idx = intermediateMarkers.length + 1;
+    const marker = L.marker([lat, lng], { icon: waypointIcon(idx), draggable: true })
+        .addTo(map);
+    marker._wpIndex = intermediateMarkers.length;
+
+    const refreshPopup = () => {
+        const n = marker._wpIndex + 1;
+        marker.setPopupContent(`<div class="text-center"><b>Waypoint ${n}</b><br/><button class="text-red-500 text-xs font-bold mt-1 cursor-pointer" onclick="document.dispatchEvent(new CustomEvent('remove-wp',{detail:${marker._wpIndex}}))">Remove</button></div>`);
+    };
+    refreshPopup();
+    marker.bindPopup();
+    marker.on('popupopen', refreshPopup);
+
+    marker.on('dragend', () => { reindexWaypoints(); if (startMarker && endMarker) fetchRoute(); });
+
+    intermediateMarkers.push(marker);
+    if (startMarker && endMarker) fetchRoute();
+};
+
+const removeIntermediateMarker = (index) => {
+    if (intermediateMarkers[index]) {
+        map.removeLayer(intermediateMarkers[index]);
+        intermediateMarkers.splice(index, 1);
+        reindexWaypoints();
+        if (startMarker && endMarker) fetchRoute();
+    }
+};
+
+const reindexWaypoints = () => {
+    intermediateMarkers.forEach((m, i) => {
+        m._wpIndex = i;
+        m.setIcon(waypointIcon(i + 1));
+    });
+};
+
+// --- OSRM routing ---
+const fetchRoute = async () => {
+    if (!startMarker || !endMarker) return;
+
+    const from = `${startMarker.getLatLng().lat},${startMarker.getLatLng().lng}`;
+    const to = `${endMarker.getLatLng().lat},${endMarker.getLatLng().lng}`;
+    const waypoints = intermediateMarkers.length
+        ? intermediateMarkers.map(m => `${m.getLatLng().lat},${m.getLatLng().lng}`)
+        : undefined;
+
+    try {
+        const response = await routesApi.getRouteFromOsrm({ from, to, waypoints });
+        const data = response.data;
+        if (data.routes && data.routes.length > 0) {
+            osrmRoutesCache.value = data.routes;
+            selectedAlternativeIndex.value = 0;
+            renderRoutes();
+        }
+    } catch (e) {
+        console.error('OSRM routing failed', e);
+        alertDialog.message = 'Could not calculate route. The routing service may be unavailable.';
+        alertDialog.show = true;
+    }
+};
+
+const renderRoutes = () => {
+    if (!osrmRoutesCache.value || !osrmRoutesCache.value.length) return;
+
+    clearRouteLayers();
+
+    // Draw alternatives (non-selected) as faded amber dashed lines
+    osrmRoutesCache.value.forEach((route, idx) => {
+        if (idx === selectedAlternativeIndex.value) return;
+        const latlngs = route.path.map(p => [p.lat, p.lng]);
+        const layer = L.polyline(latlngs, { color: '#f59e0b', weight: 4, dashArray: '10,8', opacity: 0.6 }).addTo(map);
+        layer.on('click', () => { selectedAlternativeIndex.value = idx; renderRoutes(); });
+        alternativeLayers.push(layer);
+    });
+
+    // Draw selected route as solid blue
+    const selected = osrmRoutesCache.value[selectedAlternativeIndex.value] || osrmRoutesCache.value[0];
+    const latlngs = selected.path.map(p => [p.lat, p.lng]);
+    routeLayer = L.polyline(latlngs, { color: '#2563eb', weight: 6, opacity: 0.9 }).addTo(map);
+
+    pathData.value = selected.path;
+    routeDistance.value = selected.distance_km;
+    routeDuration.value = selected.duration_min;
+
+    placeHandles(latlngs);
+
+    try { map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] }); } catch (_) {}
+};
+
+const clearRouteLayers = () => {
+    if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+    alternativeLayers.forEach(l => map.removeLayer(l));
+    alternativeLayers = [];
+    clearHandles();
+};
+
+// --- Draggable route handles ---
+const placeHandles = (latlngs) => {
+    clearHandles();
+    if (latlngs.length < 2) return;
+
+    const count = Math.min(6, latlngs.length);
+    const step = count > 1 ? Math.floor((latlngs.length - 1) / (count - 1)) : 0;
+
+    for (let i = 0; i < count; i++) {
+        const idx = i === 0 ? 0 : Math.min(i * step, latlngs.length - 1);
+        const pos = latlngs[idx];
+
+        const handle = L.marker(pos, { icon: handleIcon(), draggable: true, zIndexOffset: 1000 })
+            .addTo(map)
+            .bindTooltip('Drag to adjust route', { direction: 'top', offset: [0, -14] });
+
+        handle.on('mouseover', function () { this.setIcon(handleIcon(true)); });
+        handle.on('mouseout', function () { this.setIcon(handleIcon(false)); });
+
+        handle.on('dragend', function () {
+            const ll = this.getLatLng();
+            addIntermediateMarker(ll.lat, ll.lng);
+        });
+
+        routeHandles.push(handle);
+    }
+};
+
+const clearHandles = () => {
+    routeHandles.forEach(h => { try { map.removeLayer(h); } catch (_) {} });
+    routeHandles = [];
+};
+
+// --- Load existing route (view mode — no handles) ---
+const loadPathOnMap = (pathArray) => {
+    if (!map) return;
+    clearAllMapLayers();
+
+    if (!pathArray || pathArray.length < 2) return;
+
+    const latlngs = pathArray.map(p => [p.lat, p.lng]);
+    routeLayer = L.polyline(latlngs, { color: '#2563eb', weight: 5 }).addTo(map);
+    pathData.value = [...pathArray];
+    routeDistance.value = '';
+    routeDuration.value = '';
+
+    try { map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] }); } catch (_) {}
+};
+
+// --- Cleanup helpers ---
+const clearAllMapLayers = () => {
+    clearRouteLayers();
+    if (startMarker) { map.removeLayer(startMarker); startMarker = null; }
+    if (endMarker) { map.removeLayer(endMarker); endMarker = null; }
+    intermediateMarkers.forEach(m => { try { map.removeLayer(m); } catch (_) {} });
+    intermediateMarkers = [];
+};
+
+const resetFormState = () => {
+    pathData.value = [];
+    routeDistance.value = '';
+    routeDuration.value = '';
+    addingWaypoint.value = false;
+    selectedAlternativeIndex.value = 0;
+    osrmRoutesCache.value = null;
+};
+
+// --- API actions ---
 const fetchRoutes = async () => {
     loadingRoutes.value = true;
     try {
@@ -388,30 +571,23 @@ const fetchRoutes = async () => {
 };
 
 const editRoute = async (id) => {
-    currentView.value = 'form'; // Switch view immediately
+    currentView.value = 'form';
     loadingRouteDetails.value = true;
-
     try {
         const response = await routesApi.getRoute(id);
         const routeData = response.data;
-
         selectedRoute.value = routeData;
-        form.value = {
-            name: routeData.name,
-            allowed_deviation_meters: routeData.allowed_deviation_meters
-        };
-
-        // Ensure map is ready before drawing
+        form.value = { name: routeData.name, allowed_deviation_meters: routeData.allowed_deviation_meters };
+        resetFormState();
         nextTick(() => {
             if (map) map.invalidateSize();
             loadPathOnMap(routeData.path);
         });
-
     } catch (e) {
         console.error('Failed to load route details', e);
         alertDialog.message = 'Failed to load route details.';
         alertDialog.show = true;
-        closeForm(); // Go back if it fails
+        closeForm();
     } finally {
         loadingRouteDetails.value = false;
     }
@@ -421,13 +597,11 @@ const createNewRoute = () => {
     currentView.value = 'form';
     selectedRoute.value = null;
     form.value = { name: '', allowed_deviation_meters: 500 };
-    pathData.value = [];
-
+    resetFormState();
     nextTick(() => {
         if (map) {
             map.invalidateSize();
-            if (currentLayer) map.removeLayer(currentLayer);
-            map.pm.getGeomanDrawLayers().forEach(layer => map.removeLayer(layer));
+            clearAllMapLayers();
             if (userMarker) map.setView(userMarker.getLatLng(), 15);
             else map.setView([-1.9441, 30.0619], 13);
         }
@@ -437,11 +611,9 @@ const createNewRoute = () => {
 const closeForm = () => {
     currentView.value = 'list';
     selectedRoute.value = null;
-
-    // Clean up map
+    resetFormState();
     if (map) {
-        if (currentLayer) map.removeLayer(currentLayer);
-        map.pm.getGeomanDrawLayers().forEach(layer => map.removeLayer(layer));
+        clearAllMapLayers();
         map.setView([-1.9441, 30.0619], 7);
         setTimeout(() => map.invalidateSize(), 300);
     }
@@ -473,20 +645,14 @@ const executeDelete = async () => {
 const saveRoute = async () => {
     saving.value = true;
     try {
-        const payload = {
-            ...form.value,
-            path: pathData.value
-        };
-
+        const payload = { ...form.value, path: pathData.value };
         if (editingMode.value) {
             await routesApi.updateRoute(selectedRoute.value.id, payload);
         } else {
             await routesApi.createRoute(payload);
         }
-
-        await fetchRoutes(); // Refresh the list
-        closeForm(); // Return to list view
-
+        await fetchRoutes();
+        closeForm();
     } catch (e) {
         console.error('Failed to save route', e);
         alertDialog.message = 'Failed to save route. Please check the inputs.';
@@ -496,20 +662,21 @@ const saveRoute = async () => {
     }
 };
 
+// Global listener for waypoint remove buttons inside popups
+if (typeof document !== 'undefined') {
+    document.addEventListener('remove-wp', (e) => removeIntermediateMarker(e.detail));
+}
+
 onMounted(() => {
     fetchRoutes();
-    setTimeout(initMap, 500); // Allow DOM to stabilize
+    setTimeout(initMap, 500);
 });
 </script>
 
 <style>
 .leaflet-container { font-family: inherit; z-index: 1 !important; border-radius: 3rem !important; }
-/* Style Geoman buttons to match your UI */
-.leaflet-pm-toolbar .leaflet-buttons-control-button {
-    border-radius: 8px !important;
-    border: 1px solid #e2e8f0 !important;
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important;
-}
+.route-handle { cursor: grab; }
+.route-handle:active { cursor: grabbing; }
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 </style>

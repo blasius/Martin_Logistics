@@ -58,4 +58,8 @@ return [
         'nls' => env('FINES_NLS'),
     ],
 
+    'osrm' => [
+        'url' => env('OSRM_URL', 'https://router.project-osrm.org'),
+    ],
+
 ];

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Route;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 class RoutesController extends Controller
@@ -95,5 +96,70 @@ class RoutesController extends Controller
         $route->delete();
 
         return response()->json(['message' => 'Route deleted successfully']);
+    }
+
+    public function routeFromOsrm(Request $request)
+    {
+        $validated = $request->validate([
+            'from' => 'required|string',
+            'to'   => 'required|string',
+            'waypoints' => 'nullable|array',
+            'waypoints.*' => 'string',
+        ]);
+
+        $coords = collect();
+
+        // Parse optional intermediate waypoints first
+        if (!empty($validated['waypoints'])) {
+            foreach ($validated['waypoints'] as $wp) {
+                $parts = array_map('floatval', explode(',', $wp));
+                if (count($parts) === 2) {
+                    $coords->push("{$parts[1]},{$parts[0]}");
+                }
+            }
+        }
+
+        // Parse start and end (OSRM expects start;waypoints;end)
+        $fromParts = array_map('floatval', explode(',', $validated['from']));
+        $toParts = array_map('floatval', explode(',', $validated['to']));
+
+        if (count($fromParts) !== 2 || count($toParts) !== 2) {
+            return response()->json(['message' => 'Invalid coordinates format. Use "lat,lng"'], 422);
+        }
+
+        $coords->prepend("{$fromParts[1]},{$fromParts[0]}");
+        $coords->push("{$toParts[1]},{$toParts[0]}");
+
+        $coordString = $coords->implode(';');
+        $osrmUrl = config('services.osrm.url');
+        $url = "{$osrmUrl}/route/v1/driving/{$coordString}?overview=full&geometries=geojson&alternatives=true";
+
+        try {
+            $response = Http::timeout(10)->get($url);
+            $data = $response->json();
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Routing service is unavailable.'], 502);
+        }
+
+        if (!isset($data['routes']) || empty($data['routes'])) {
+            return response()->json(['message' => 'No route found between the given points.'], 422);
+        }
+
+        $routes = collect($data['routes'])->map(function ($route) {
+            $coords = collect($route['geometry']['coordinates'])->map(fn ($c) => [
+                'lat' => round($c[1], 6),
+                'lng' => round($c[0], 6),
+            ])->values();
+
+            return [
+                'path'        => $coords,
+                'distance_km' => round($route['distance'] / 1000, 2),
+                'duration_min'=> round($route['duration'] / 60, 1),
+            ];
+        });
+
+        return response()->json([
+            'routes' => $routes->values(),
+        ]);
     }
 }

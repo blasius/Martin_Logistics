@@ -19,5 +19,9 @@ export const routesApi = {
 
     deleteRoute(id) {
         return api.delete(`/portal/routes/${id}`);
-    }
+    },
+
+    getRouteFromOsrm(params) {
+        return api.get('/portal/routes/route', { params });
+    },
 };
