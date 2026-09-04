@@ -185,6 +185,7 @@ export const menu = [
         label: "Finance",
         icon: Receipt,
         children: [
+            { label: "Cost Playground", to: "/finance/playground" },
             { label: "Expenses", to: "/finance/expenses" },
             { label: "Expense Types", to: "/finance/expense-types" },
             { label: "Wallets", to: "/wallets" },

@@ -174,6 +174,7 @@ const router = createRouter({
                 { path: "payments/aging", component: () => import("../pages/Payments/AgingReport.vue") },
 
                 // Finance / Expense Management
+                { path: "finance/playground", component: () => import("../pages/Finance/CostPlayground.vue") },
                 { path: "finance/expense-types", component: () => import("../pages/Finance/ExpenseTypes/Index.vue") },
                 { path: "finance/expense-types/create", component: () => import("../pages/Finance/ExpenseTypes/Create.vue") },
                 { path: "finance/expenses", component: () => import("../pages/Finance/Expenses/Index.vue") },
