@@ -116,27 +116,15 @@ function seedDefaults() {
     applySeeds(USD_SEEDS, 1)
 }
 
+const conversionFactor = computed(() => {
+    const base = baseCurrency.value
+    const sel = selectedCurrency.value
+    if (!base || !sel) return 1
+    return rateBetween(base.id, sel.id)
+})
+
 function round2(n: number) {
     return Math.round(n * 100) / 100
-}
-
-function onCurrencyChange(e: Event) {
-    const target = e.target as HTMLSelectElement
-    const from = selectedCurrency.value
-    const to = currencies.value.find(c => c.id === Number(target.value))
-    if (!from || !to) return
-    selectedCurrencyId.value = to.id
-    const factor = rateBetween(from.id, to.id)
-    if (factor === 1) return
-    fuel.price_per_liter = round2(fuel.price_per_liter * factor)
-    costs.driver_per_km = round2(costs.driver_per_km * factor)
-    costs.driver_flat = round2(costs.driver_flat * factor)
-    costs.tolls = round2(costs.tolls * factor)
-    costs.insurance_per_trip = round2(costs.insurance_per_trip * factor)
-    costs.maintenance_per_km = round2(costs.maintenance_per_km * factor)
-    costs.loading_offloading = round2(costs.loading_offloading * factor)
-    costs.customs_documentation = round2(costs.customs_documentation * factor)
-    for (const c of otherCosts.value) if (c.amount) c.amount = round2(c.amount * factor)
 }
 
 // ── Derived Values ──
@@ -340,8 +328,9 @@ function removeOtherCost(index: number) {
 function formatCurrency(val: number) {
     if (val == null || isNaN(val)) return '—'
     const c = selectedCurrency.value || { code: 'RWF', symbol: 'RWF' }
+    const converted = Number(val) * conversionFactor.value
     const prefix = c.code === 'RWF' ? 'RWF ' : (c.symbol || c.code) + ' '
-    return prefix + Number(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    return prefix + converted.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 async function loadExchangeData() {
@@ -389,7 +378,7 @@ onUnmounted(() => {
                 <p class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Finance Playground &middot; Estimate trip costs before dispatch</p>
             </div>
             <div class="flex gap-3 items-center">
-                <select :value="selectedCurrencyId" @change="onCurrencyChange"
+                <select v-model="selectedCurrencyId"
                         class="text-[10px] font-black uppercase px-3 py-2.5 rounded-2xl border border-slate-200 bg-white text-slate-600 outline-none focus:ring-2 focus:ring-amber-200 transition cursor-pointer">
                     <option v-for="c in currencies" :key="c.id" :value="c.id">
                         {{ c.code }} — {{ c.name }}
@@ -456,6 +445,10 @@ onUnmounted(() => {
                         <div class="flex items-center justify-between">
                             <div>
                                 <h2 class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Cost Breakdown</h2>
+                                <p v-if="baseCurrency && baseCurrency.id !== selectedCurrency?.id"
+                                   class="text-[9px] font-bold text-amber-600 uppercase tracking-wider mt-0.5">
+                                    Inputs in {{ baseCurrency.code }} &middot; Displaying {{ selectedCurrency?.code }}
+                                </p>
                             </div>
                             <div v-if="fuel.distance_km > 0" class="flex items-center gap-1.5 bg-emerald-50 px-3 py-1 rounded-full">
                                 <span class="text-[9px] font-black text-emerald-600 uppercase">{{ formatCurrency(costPerKm) }} /km</span>
