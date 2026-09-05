@@ -89,7 +89,7 @@ function rateBetween(fromId: number, toId: number): number {
 interface Seeds { price_per_liter: number; driver_per_km: number; maintenance_per_km: number }
 const USD_SEEDS: Seeds = { price_per_liter: 1.25, driver_per_km: 0.45, maintenance_per_km: 0.08 }
 const CODE_SEEDS: Record<string, Seeds> = {
-    RWF: { price_per_liter: 1650, driver_per_km: 400, maintenance_per_km: 120 },
+    RWF: { price_per_liter: 2927, driver_per_km: 400, maintenance_per_km: 120 },
 }
 
 function applySeeds(seeds: Seeds, factor: number) {
@@ -101,6 +101,10 @@ function applySeeds(seeds: Seeds, factor: number) {
 function seedDefaults() {
     const def = baseCurrency.value
     if (!def) return
+    if (CODE_SEEDS[def.code]) {
+        applySeeds(CODE_SEEDS[def.code], 1)
+        return
+    }
     const usd = currencies.value.find(c => c.code === 'USD')
     if (usd) {
         const factor = rateBetween(usd.id, def.id)
@@ -109,10 +113,6 @@ function seedDefaults() {
             return
         }
     }
-    if (CODE_SEEDS[def.code]) {
-        applySeeds(CODE_SEEDS[def.code], 1)
-        return
-    }
     applySeeds(USD_SEEDS, 1)
 }
 
@@ -120,10 +120,12 @@ function round2(n: number) {
     return Math.round(n * 100) / 100
 }
 
-function onCurrencyChange() {
+function onCurrencyChange(e: Event) {
+    const target = e.target as HTMLSelectElement
     const from = selectedCurrency.value
-    const to = currencies.value.find(c => c.id === selectedCurrencyId.value)
+    const to = currencies.value.find(c => c.id === Number(target.value))
     if (!from || !to) return
+    selectedCurrencyId.value = to.id
     const factor = rateBetween(from.id, to.id)
     if (factor === 1) return
     fuel.price_per_liter = round2(fuel.price_per_liter * factor)
@@ -387,7 +389,7 @@ onUnmounted(() => {
                 <p class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Finance Playground &middot; Estimate trip costs before dispatch</p>
             </div>
             <div class="flex gap-3 items-center">
-                <select v-model="selectedCurrencyId" @change="onCurrencyChange"
+                <select :value="selectedCurrencyId" @change="onCurrencyChange"
                         class="text-[10px] font-black uppercase px-3 py-2.5 rounded-2xl border border-slate-200 bg-white text-slate-600 outline-none focus:ring-2 focus:ring-amber-200 transition cursor-pointer">
                     <option v-for="c in currencies" :key="c.id" :value="c.id">
                         {{ c.code }} — {{ c.name }}
