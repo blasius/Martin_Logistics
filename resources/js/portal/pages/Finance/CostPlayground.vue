@@ -61,11 +61,8 @@ const selectedCurrency = computed(() =>
     currencies.value.find(c => c.id === selectedCurrencyId.value) || baseCurrency.value
 )
 
-const conversionRate = computed(() => {
-    const base = baseCurrency.value
-    const sel = selectedCurrency.value
-    if (!base || !sel || base.id === sel.id) return 1
-
+function rateBetween(fromId: number, toId: number): number {
+    if (fromId === toId) return 1
     const now = new Date()
     const isActive = (r: { valid_from: string | null; valid_to: string | null }) => {
         const from = r.valid_from ? new Date(r.valid_from) : new Date(0)
@@ -77,17 +74,68 @@ const conversionRate = computed(() => {
         new Date(b.valid_from || 0).getTime() - new Date(a.valid_from || 0).getTime()
 
     const direct = exchangeRates.value
-        .filter(r => r.base_currency_id === base.id && r.target_currency_id === sel.id && isActive(r))
+        .filter(r => r.base_currency_id === fromId && r.target_currency_id === toId && isActive(r))
         .sort(newestFirst)[0]
     if (direct) return Number(direct.rate)
 
     const inverse = exchangeRates.value
-        .filter(r => r.base_currency_id === sel.id && r.target_currency_id === base.id && isActive(r))
+        .filter(r => r.base_currency_id === toId && r.target_currency_id === fromId && isActive(r))
         .sort(newestFirst)[0]
     if (inverse) return 1 / Number(inverse.rate)
 
     return 1
-})
+}
+
+interface Seeds { price_per_liter: number; driver_per_km: number; maintenance_per_km: number }
+const USD_SEEDS: Seeds = { price_per_liter: 1.25, driver_per_km: 0.45, maintenance_per_km: 0.08 }
+const CODE_SEEDS: Record<string, Seeds> = {
+    RWF: { price_per_liter: 1650, driver_per_km: 400, maintenance_per_km: 120 },
+}
+
+function applySeeds(seeds: Seeds, factor: number) {
+    fuel.price_per_liter = round2(seeds.price_per_liter * factor)
+    costs.driver_per_km = round2(seeds.driver_per_km * factor)
+    costs.maintenance_per_km = round2(seeds.maintenance_per_km * factor)
+}
+
+function seedDefaults() {
+    const def = baseCurrency.value
+    if (!def) return
+    const usd = currencies.value.find(c => c.code === 'USD')
+    if (usd) {
+        const factor = rateBetween(usd.id, def.id)
+        if (factor !== 1) {
+            applySeeds(USD_SEEDS, factor)
+            return
+        }
+    }
+    if (CODE_SEEDS[def.code]) {
+        applySeeds(CODE_SEEDS[def.code], 1)
+        return
+    }
+    applySeeds(USD_SEEDS, 1)
+}
+
+function round2(n: number) {
+    return Math.round(n * 100) / 100
+}
+
+function onCurrencyChange() {
+    const from = selectedCurrency.value
+    const to = currencies.value.find(c => c.id === selectedCurrencyId.value)
+    if (!from || !to) return
+    const factor = rateBetween(from.id, to.id)
+    if (factor === 1) return
+    fuel.price_per_liter = round2(fuel.price_per_liter * factor)
+    costs.driver_per_km = round2(costs.driver_per_km * factor)
+    costs.driver_flat = round2(costs.driver_flat * factor)
+    costs.tolls = round2(costs.tolls * factor)
+    costs.insurance_per_trip = round2(costs.insurance_per_trip * factor)
+    costs.maintenance_per_km = round2(costs.maintenance_per_km * factor)
+    costs.loading_offloading = round2(costs.loading_offloading * factor)
+    costs.customs_documentation = round2(costs.customs_documentation * factor)
+    for (const c of otherCosts.value) if (c.amount) c.amount = round2(c.amount * factor)
+}
 
 // ── Derived Values ──
 const distanceMultiplier = computed(() => (tripType.value === 'round' ? 2 : 1))
@@ -290,9 +338,8 @@ function removeOtherCost(index: number) {
 function formatCurrency(val: number) {
     if (val == null || isNaN(val)) return '—'
     const c = selectedCurrency.value || { code: 'RWF', symbol: 'RWF' }
-    const converted = Number(val) * conversionRate.value
     const prefix = c.code === 'RWF' ? 'RWF ' : (c.symbol || c.code) + ' '
-    return prefix + converted.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    return prefix + Number(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 async function loadExchangeData() {
@@ -310,6 +357,7 @@ async function loadExchangeData() {
     } catch (e) {
         console.error('Failed to load exchange rates', e)
     }
+    seedDefaults()
 }
 
 function formatDuration(minutes: number) {
@@ -339,7 +387,7 @@ onUnmounted(() => {
                 <p class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Finance Playground &middot; Estimate trip costs before dispatch</p>
             </div>
             <div class="flex gap-3 items-center">
-                <select v-model="selectedCurrencyId"
+                <select v-model="selectedCurrencyId" @change="onCurrencyChange"
                         class="text-[10px] font-black uppercase px-3 py-2.5 rounded-2xl border border-slate-200 bg-white text-slate-600 outline-none focus:ring-2 focus:ring-amber-200 transition cursor-pointer">
                     <option v-for="c in currencies" :key="c.id" :value="c.id">
                         {{ c.code }} — {{ c.name }}
@@ -406,10 +454,6 @@ onUnmounted(() => {
                         <div class="flex items-center justify-between">
                             <div>
                                 <h2 class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Cost Breakdown</h2>
-                                <p v-if="baseCurrency && baseCurrency.id !== selectedCurrency?.id"
-                                   class="text-[9px] font-bold text-amber-600 uppercase tracking-wider mt-0.5">
-                                    Inputs in {{ baseCurrency.code }} &middot; Displaying {{ selectedCurrency?.code }}
-                                </p>
                             </div>
                             <div v-if="fuel.distance_km > 0" class="flex items-center gap-1.5 bg-emerald-50 px-3 py-1 rounded-full">
                                 <span class="text-[9px] font-black text-emerald-600 uppercase">{{ formatCurrency(costPerKm) }} /km</span>
