@@ -43,6 +43,9 @@ const costs = reactive({
 
 const otherCosts = ref<{ name: string; amount: number }[]>([])
 
+// ── Trip Type ──
+const tripType = ref<'round' | 'one_way'>('round')
+
 // ── UI State ──
 
 // ── Currency Conversion ──
@@ -87,18 +90,22 @@ const conversionRate = computed(() => {
 })
 
 // ── Derived Values ──
+const distanceMultiplier = computed(() => (tripType.value === 'round' ? 2 : 1))
+const effectiveDistanceKm = computed(() => fuel.distance_km * distanceMultiplier.value)
+const effectiveDurationMin = computed(() => routeDuration.value * distanceMultiplier.value)
+
 const fuelLiters = computed(() => {
-    return fuel.distance_km > 0 ? (fuel.distance_km / 100) * fuel.consumption_l_per_100km : 0
+    return effectiveDistanceKm.value > 0 ? (effectiveDistanceKm.value / 100) * fuel.consumption_l_per_100km : 0
 })
 
 const fuelCost = computed(() => fuelLiters.value * fuel.price_per_liter)
 
 const driverCost = computed(() => {
     if (costs.use_driver_flat) return costs.driver_flat
-    return fuel.distance_km * costs.driver_per_km
+    return effectiveDistanceKm.value * costs.driver_per_km
 })
 
-const maintenanceCost = computed(() => fuel.distance_km * costs.maintenance_per_km)
+const maintenanceCost = computed(() => effectiveDistanceKm.value * costs.maintenance_per_km)
 
 const otherTotal = computed(() => otherCosts.value.reduce((sum, c) => sum + (c.amount || 0), 0))
 
@@ -113,7 +120,7 @@ const subtotal = computed(() =>
     otherTotal.value
 )
 
-const costPerKm = computed(() => fuel.distance_km > 0 ? subtotal.value / fuel.distance_km : 0)
+const costPerKm = computed(() => effectiveDistanceKm.value > 0 ? subtotal.value / effectiveDistanceKm.value : 0)
 
 const estimatedFuelCostPercent = computed(() =>
     subtotal.value > 0 ? (fuelCost.value / subtotal.value) * 100 : 0
@@ -352,12 +359,13 @@ onUnmounted(() => {
                     <div class="flex items-center gap-4">
                         <div class="flex items-center gap-2">
                             <RouteIcon class="w-4 h-4 text-blue-600" />
-                            <span class="text-sm font-black text-slate-800">{{ fuel.distance_km }} km</span>
+                            <span class="text-sm font-black text-slate-800">{{ effectiveDistanceKm }} km</span>
+                            <span v-if="tripType === 'round'" class="text-[8px] font-black text-white bg-blue-600 px-1.5 py-0.5 rounded-full">RT</span>
                         </div>
                         <div class="w-px h-4 bg-slate-200"></div>
                         <div class="flex items-center gap-2">
                             <Clock class="w-4 h-4 text-amber-600" />
-                            <span class="text-sm font-black text-slate-800">{{ formatDuration(routeDuration) }}</span>
+                            <span class="text-sm font-black text-slate-800">{{ formatDuration(effectiveDurationMin) }}</span>
                         </div>
                     </div>
                 </div>
@@ -399,9 +407,23 @@ onUnmounted(() => {
 
                         <!-- ─── Route Info ─── -->
                         <div class="bg-slate-50 rounded-2xl p-4 border border-slate-100">
-                            <div class="flex items-center gap-2 mb-3">
-                                <MapPin class="w-4 h-4 text-slate-400" />
-                                <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Route</span>
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="flex items-center gap-2">
+                                    <MapPin class="w-4 h-4 text-slate-400" />
+                                    <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Route</span>
+                                </div>
+                                <div class="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+                                    <button @click="tripType = 'round'"
+                                            class="px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all active:scale-95"
+                                            :class="tripType === 'round' ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400 hover:text-slate-500'">
+                                        Round Trip
+                                    </button>
+                                    <button @click="tripType = 'one_way'"
+                                            class="px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all active:scale-95"
+                                            :class="tripType === 'one_way' ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400 hover:text-slate-500'">
+                                        One Way
+                                    </button>
+                                </div>
                             </div>
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
@@ -420,11 +442,13 @@ onUnmounted(() => {
                             <div v-if="fuel.distance_km > 0" class="mt-3 pt-3 border-t border-slate-200 grid grid-cols-2 gap-3">
                                 <div>
                                     <p class="text-[9px] font-bold text-slate-400 uppercase mb-0.5">Distance</p>
-                                    <p class="text-lg font-black text-slate-800">{{ fuel.distance_km }} km</p>
+                                    <p class="text-lg font-black text-slate-800">{{ effectiveDistanceKm }} km</p>
+                                    <p v-if="tripType === 'round'" class="text-[9px] font-bold text-slate-400">{{ fuel.distance_km }} km each way</p>
                                 </div>
                                 <div>
                                     <p class="text-[9px] font-bold text-slate-400 uppercase mb-0.5">Est. Duration</p>
-                                    <p class="text-lg font-black text-slate-800">{{ formatDuration(routeDuration) }}</p>
+                                    <p class="text-lg font-black text-slate-800">{{ formatDuration(effectiveDurationMin) }}</p>
+                                    <p v-if="tripType === 'round'" class="text-[9px] font-bold text-slate-400">{{ formatDuration(routeDuration) }} each way</p>
                                 </div>
                             </div>
                         </div>
@@ -608,7 +632,7 @@ onUnmounted(() => {
                                 <p class="text-[9px] font-bold text-slate-400 uppercase">Cost per km</p>
                                 <p class="text-sm font-black text-emerald-600">{{ formatCurrency(costPerKm) }}</p>
                                 <p v-if="fuel.distance_km > 0" class="text-[9px] font-bold text-slate-400 mt-1">
-                                    {{ formatDuration(routeDuration) }} drive time
+                                    {{ formatDuration(effectiveDurationMin) }} drive time
                                 </p>
                             </div>
                         </div>
