@@ -3,6 +3,8 @@ import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { routesApi } from '../../api/routes'
+import { currenciesApi } from '../../api/currencies'
+import { exchangeRatesApi } from '../../api/exchange-rates'
 import { Fuel, MapPin, Plus, Trash2, DollarSign, Clock, Route as RouteIcon, Info, RotateCcw } from 'lucide-vue-next'
 
 // ── Map State ──
@@ -42,6 +44,47 @@ const costs = reactive({
 const otherCosts = ref<{ name: string; amount: number }[]>([])
 
 // ── UI State ──
+
+// ── Currency Conversion ──
+const currencies = ref<{ id: number; code: string; name: string; symbol: string; is_default: boolean }[]>([])
+const exchangeRates = ref<{ base_currency_id: number; target_currency_id: number; rate: number | string; valid_from: string | null; valid_to: string | null }[]>([])
+const selectedCurrencyId = ref<number | null>(null)
+
+const baseCurrency = computed(() =>
+    currencies.value.find(c => c.is_default) || currencies.value[0] || null
+)
+
+const selectedCurrency = computed(() =>
+    currencies.value.find(c => c.id === selectedCurrencyId.value) || baseCurrency.value
+)
+
+const conversionRate = computed(() => {
+    const base = baseCurrency.value
+    const sel = selectedCurrency.value
+    if (!base || !sel || base.id === sel.id) return 1
+
+    const now = new Date()
+    const isActive = (r: { valid_from: string | null; valid_to: string | null }) => {
+        const from = r.valid_from ? new Date(r.valid_from) : new Date(0)
+        if (from > now) return false
+        if (r.valid_to && new Date(r.valid_to) < now) return false
+        return true
+    }
+    const newestFirst = (a: { valid_from: string | null }, b: { valid_from: string | null }) =>
+        new Date(b.valid_from || 0).getTime() - new Date(a.valid_from || 0).getTime()
+
+    const direct = exchangeRates.value
+        .filter(r => r.base_currency_id === base.id && r.target_currency_id === sel.id && isActive(r))
+        .sort(newestFirst)[0]
+    if (direct) return Number(direct.rate)
+
+    const inverse = exchangeRates.value
+        .filter(r => r.base_currency_id === sel.id && r.target_currency_id === base.id && isActive(r))
+        .sort(newestFirst)[0]
+    if (inverse) return 1 / Number(inverse.rate)
+
+    return 1
+})
 
 // ── Derived Values ──
 const fuelLiters = computed(() => {
@@ -223,7 +266,28 @@ function removeOtherCost(index: number) {
 }
 
 function formatCurrency(val: number) {
-    return val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    if (val == null || isNaN(val)) return '—'
+    const c = selectedCurrency.value || { code: 'RWF', symbol: 'RWF' }
+    const converted = Number(val) * conversionRate.value
+    const prefix = c.code === 'RWF' ? 'RWF ' : (c.symbol || c.code) + ' '
+    return prefix + converted.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+async function loadExchangeData() {
+    try {
+        const res = await currenciesApi.getAll()
+        currencies.value = res.data
+        const def = currencies.value.find(c => c.is_default) || currencies.value[0]
+        selectedCurrencyId.value = def?.id ?? null
+    } catch (e) {
+        console.error('Failed to load currencies', e)
+    }
+    try {
+        const res = await exchangeRatesApi.getAll()
+        exchangeRates.value = res.data
+    } catch (e) {
+        console.error('Failed to load exchange rates', e)
+    }
 }
 
 function formatDuration(minutes: number) {
@@ -234,6 +298,7 @@ function formatDuration(minutes: number) {
 
 // ── Lifecycle ──
 onMounted(async () => {
+    await loadExchangeData()
     await nextTick()
     initMap()
 })
@@ -251,7 +316,13 @@ onUnmounted(() => {
                 <h1 class="text-3xl font-black text-slate-800 tracking-tight uppercase italic leading-none">Trip Cost Estimator</h1>
                 <p class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Finance Playground &middot; Estimate trip costs before dispatch</p>
             </div>
-            <div class="flex gap-3">
+            <div class="flex gap-3 items-center">
+                <select v-model="selectedCurrencyId"
+                        class="text-[10px] font-black uppercase px-3 py-2.5 rounded-2xl border border-slate-200 bg-white text-slate-600 outline-none focus:ring-2 focus:ring-amber-200 transition cursor-pointer">
+                    <option v-for="c in currencies" :key="c.id" :value="c.id">
+                        {{ c.code }} — {{ c.name }}
+                    </option>
+                </select>
                 <button @click="clearMap"
                         class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-5 py-2.5 rounded-2xl text-[10px] font-black transition-all active:scale-95 uppercase">
                     <RotateCcw class="w-3.5 h-3.5 inline -mt-0.5 mr-1" /> Reset All
@@ -310,9 +381,15 @@ onUnmounted(() => {
                     <!-- Panel Header -->
                     <div class="p-5 border-b border-slate-100 bg-slate-50/50 shrink-0">
                         <div class="flex items-center justify-between">
-                            <h2 class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Cost Breakdown</h2>
+                            <div>
+                                <h2 class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Cost Breakdown</h2>
+                                <p v-if="baseCurrency && baseCurrency.id !== selectedCurrency?.id"
+                                   class="text-[9px] font-bold text-amber-600 uppercase tracking-wider mt-0.5">
+                                    Inputs in {{ baseCurrency.code }} &middot; Displaying {{ selectedCurrency?.code }}
+                                </p>
+                            </div>
                             <div v-if="fuel.distance_km > 0" class="flex items-center gap-1.5 bg-emerald-50 px-3 py-1 rounded-full">
-                                <span class="text-[9px] font-black text-emerald-600 uppercase">{{ costPerKm.toFixed(2) }} /km</span>
+                                <span class="text-[9px] font-black text-emerald-600 uppercase">{{ formatCurrency(costPerKm) }} /km</span>
                             </div>
                         </div>
                     </div>
@@ -524,12 +601,12 @@ onUnmounted(() => {
                             <div>
                                 <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Estimated Total</p>
                                 <p class="text-2xl font-black text-slate-800 tracking-tight mt-0.5">
-                                    ${{ formatCurrency(subtotal) }}
+                                    {{ formatCurrency(subtotal) }}
                                 </p>
                             </div>
                             <div class="text-right">
                                 <p class="text-[9px] font-bold text-slate-400 uppercase">Cost per km</p>
-                                <p class="text-sm font-black text-emerald-600">${{ costPerKm.toFixed(2) }}</p>
+                                <p class="text-sm font-black text-emerald-600">{{ formatCurrency(costPerKm) }}</p>
                                 <p v-if="fuel.distance_km > 0" class="text-[9px] font-bold text-slate-400 mt-1">
                                     {{ formatDuration(routeDuration) }} drive time
                                 </p>
