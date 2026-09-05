@@ -155,7 +155,22 @@ function initMap() {
     setTimeout(() => {
         map?.invalidateSize()
         mapReady.value = true
+        locateUser()
     }, 400)
+}
+
+function locateUser() {
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            const { latitude, longitude } = pos.coords
+            map?.flyTo([latitude, longitude], 17, { duration: 3 })
+            setOrigin(latitude, longitude)
+            mapClickMode.value = 'destination'
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 10000 }
+    )
 }
 
 function onMapClick(e: L.LeafletMouseEvent) {
