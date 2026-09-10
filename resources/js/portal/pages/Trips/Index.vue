@@ -245,18 +245,50 @@
             </div>
         </div>
     </div>
+
+    <!-- Trip Created Confirmation Modal -->
+    <div v-if="showConfirmation"
+        class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40"
+        @click.self="closeConfirmation">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
+            <div class="p-6 text-center">
+                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
+                </div>
+                <h2 class="text-xl font-bold text-slate-800">Trip Dispatched</h2>
+                <p class="text-sm text-slate-500 mt-2">
+                    Trip <strong class="text-slate-700">#{{ createdTrip?.id }}</strong> was successfully created and dispatched.
+                </p>
+            </div>
+            <div class="flex justify-end gap-2 bg-slate-50 px-6 py-4 border-t border-slate-100">
+                <button @click="closeConfirmation"
+                    class="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100">
+                    Add Another
+                </button>
+                <button @click="viewCreatedTrip"
+                    class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-500">
+                    View Trip
+                </button>
+            </div>
+        </div>
+    </div>
 </template>
 
 <script setup>
 import { ref, onMounted, computed, nextTick } from 'vue';
+import { useRouter } from 'vue-router';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { tripsApi } from "../../api/trips";
 import { clearanceApi } from "../../api/clearance";
 
+const router = useRouter();
+
 // State
 const mapReady = ref(false);
 const saving = ref(false);
+const showConfirmation = ref(false);
+const createdTrip = ref(null);
 const searchQueries = ref({ order: '', assignment: '', route: '' });
 const searchResults = ref({ orders: [], assignments: [], routes: [] });
 const selectedOrder = ref(null);
@@ -458,7 +490,9 @@ const confirmTrip = async () => {
             }
         }
 
-        await tripsApi.createTrip(form.value);
+        const res = await tripsApi.createTrip(form.value);
+        createdTrip.value = { id: res.data.trip_id };
+        showConfirmation.value = true;
 
         form.value = { order_id: '', assignment: '', route_id: '', allocated_weight: 0, status: 'assigned' };
         searchQueries.value = { order: '', assignment: '', route: '' };
@@ -521,6 +555,16 @@ async function submitBypass() {
     } catch (e) {
         alert(e.response?.data?.message || 'Failed to submit');
     } finally { savingBypass.value = false; }
+}
+
+function closeConfirmation() {
+    showConfirmation.value = false;
+    createdTrip.value = null;
+}
+
+function viewCreatedTrip() {
+    if (!createdTrip.value) return;
+    router.push({ name: 'trips.show', params: { id: createdTrip.value.id } });
 }
 
 onMounted(async () => {
