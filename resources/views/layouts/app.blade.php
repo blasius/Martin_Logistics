@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Martin Logistics</title>
+    <link rel="icon" type="image/png" href="{{ asset('images/martin_hardware_logo.png') }}">
     @vite('resources/css/app.css')
     @include('partials.ga-analytics')
 </head>
