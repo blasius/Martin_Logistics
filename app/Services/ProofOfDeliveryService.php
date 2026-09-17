@@ -9,10 +9,14 @@ use App\Models\TripHistory;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 
 class ProofOfDeliveryService
 {
-    public function __construct(protected TripStateMachineService $tripStateMachine) {}
+    public function __construct(
+        protected TripStateMachineService $tripStateMachine,
+        protected YardService $yardService,
+    ) {}
 
     public function submit(array $data, ?UploadedFile $photo = null): ProofOfDelivery
     {
@@ -63,7 +67,17 @@ class ProofOfDeliveryService
 
     public function confirm(ProofOfDelivery $pod): ProofOfDelivery
     {
-        $pod->update(['status' => 'confirmed']);
+        DB::transaction(function () use ($pod) {
+            $pod->update(['status' => 'confirmed']);
+
+            // Point 4: on validated delivery, register expected yard arrival and
+            // allocate a free unload dock door for the vehicle.
+            $trip = $pod->trip;
+            if ($trip) {
+                $this->yardService->scheduleUnloadingAfterDelivery($trip, $pod);
+            }
+        });
+
         return $pod->fresh()->load(['order', 'trip', 'submitter']);
     }
 

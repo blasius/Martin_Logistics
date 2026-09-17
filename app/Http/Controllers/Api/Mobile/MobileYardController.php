@@ -71,6 +71,36 @@ class MobileYardController extends Controller
         return response()->json($entries);
     }
 
+    public function assignedDock(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user->driver) {
+            return response()->json(['message' => 'User is not registered as a driver.'], 403);
+        }
+
+        $vehicleId = $user->driver->vehicle_id;
+
+        $entry = YardEntry::with(['vehicle:id,plate_number,make,model', 'dockDoor:id,code,name'])
+            ->where('vehicle_id', $vehicleId)
+            ->whereNull('check_out_at')
+            ->orderByDesc('check_in_at')
+            ->first();
+
+        $queue = ServiceQueue::with(['vehicle:id,plate_number,make,model'])
+            ->where('vehicle_id', $vehicleId)
+            ->whereIn('status', ['queued', 'in_progress'])
+            ->orderByDesc('entered_at')
+            ->first();
+
+        return response()->json([
+            'yard_entry' => $entry,
+            'queue' => $queue,
+            'dock_door' => $entry?->dockDoor,
+            'wait_estimate' => $queue ? $this->yardService->estimatedWaitTime($queue->service_type) : null,
+        ]);
+    }
+
     public function checkOut(Request $request)
     {
         $user = $request->user();

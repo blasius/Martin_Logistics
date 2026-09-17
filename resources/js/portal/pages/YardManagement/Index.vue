@@ -115,6 +115,34 @@ async function doCheckIn() {
         dashboard.value = dashRes.data
     } catch {}
 }
+
+const arrivals = computed(() => dashboard.value?.expected_arrivals || [])
+const freeUnloadDoors = computed(() =>
+    dockDoors.value.filter(d => d.service_type === 'unload_dock' && !d.is_occupied)
+)
+const pendingArrivalDoor = ref<Record<number, string>>({})
+
+function arrivalStatusBadge(status: string) {
+    return status === 'queued' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'
+}
+
+function arrivalStatusLabel(status: string) {
+    return status === 'queued' ? 'Waiting for dock' : 'At dock'
+}
+
+async function assignDoorToArrival(entry: any) {
+    const doorId = pendingArrivalDoor.value[entry.id]
+    if (!doorId) {
+        alert('Select an available unload dock first.')
+        return
+    }
+    try {
+        await yardApi.assignDockDoor(entry.id, Number(doorId))
+        pendingArrivalDoor.value[entry.id] = ''
+        const dashRes = await yardApi.dashboard()
+        dashboard.value = dashRes.data
+    } catch {}
+}
 </script>
 
 <template>
@@ -223,6 +251,54 @@ async function doCheckIn() {
                     <div v-else class="text-center py-8 text-slate-400">
                         No data for this service type.
                     </div>
+                </div>
+            </div>
+
+            <!-- Expected Arrivals -->
+            <div class="bg-white rounded-xl border border-slate-100 shadow-sm mb-6 overflow-hidden">
+                <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                    <h2 class="text-sm font-bold text-slate-700">Expected Arrivals</h2>
+                    <span class="text-xs font-semibold text-slate-400">{{ arrivals.length }} waiting for a dock</span>
+                </div>
+                <div v-if="arrivals.length" class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead>
+                            <tr class="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                                <th class="px-6 py-3">Vehicle</th>
+                                <th class="px-6 py-3">Status</th>
+                                <th class="px-6 py-3">Queue Pos</th>
+                                <th class="px-6 py-3">Est. Wait</th>
+                                <th class="px-6 py-3">Dock Door</th>
+                                <th class="px-6 py-3">Assign</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <tr v-for="entry in arrivals" :key="entry.id" class="hover:bg-slate-50">
+                                <td class="px-6 py-3 text-sm font-semibold text-slate-700">{{ entry.vehicle?.plate_number || '-' }}</td>
+                                <td class="px-6 py-3">
+                                    <span class="inline-flex text-xs font-bold px-2.5 py-1 rounded-full" :class="arrivalStatusBadge(entry.status)">{{ arrivalStatusLabel(entry.status) }}</span>
+                                </td>
+                                <td class="px-6 py-3 text-sm text-slate-600">{{ entry.position ?? '-' }}</td>
+                                <td class="px-6 py-3 text-sm text-slate-600">{{ entry.wait_estimate?.estimated_wait_minutes ?? '-' }} min</td>
+                                <td class="px-6 py-3 text-sm font-semibold text-slate-700">{{ entry.assigned_station || '-' }}</td>
+                                <td class="px-6 py-3">
+                                    <div v-if="entry.status === 'queued' && freeUnloadDoors.length" class="flex items-center gap-2">
+                                        <select v-model="pendingArrivalDoor[entry.id]"
+                                            class="border border-slate-200 rounded-lg px-2 py-1 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                                            <option value="" disabled>Select door</option>
+                                            <option v-for="d in freeUnloadDoors" :key="d.id" :value="String(d.id)">{{ d.code }}</option>
+                                        </select>
+                                        <button @click="assignDoorToArrival(entry)"
+                                            class="text-xs font-semibold text-indigo-600 hover:text-indigo-800">Assign</button>
+                                    </div>
+                                    <span v-else class="text-xs text-slate-400">Auto-assigned</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div v-else class="p-12 text-center text-slate-400 text-sm">
+                    No vehicles waiting for an unload dock.
                 </div>
             </div>
 

@@ -143,6 +143,7 @@ Route::prefix('mobile')->middleware('auth:sanctum')->group(function () {
     Route::prefix('yard')->group(function () {
         Route::post('check-in', [\App\Http\Controllers\Api\Mobile\MobileYardController::class, 'checkIn']);
         Route::get('my-queue', [\App\Http\Controllers\Api\Mobile\MobileYardController::class, 'myQueue']);
+        Route::get('assigned-dock', [\App\Http\Controllers\Api\Mobile\MobileYardController::class, 'assignedDock']);
         Route::post('check-out', [\App\Http\Controllers\Api\Mobile\MobileYardController::class, 'checkOut']);
     });
 

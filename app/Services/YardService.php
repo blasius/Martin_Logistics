@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\DockDoor;
 use App\Models\Place;
+use App\Models\ProofOfDelivery;
 use App\Models\ServiceQueue;
+use App\Models\Trip;
 use App\Models\Vehicle;
 use App\Models\YardEntry;
 use Illuminate\Support\Facades\DB;
@@ -295,7 +297,22 @@ class YardService
         $entry = YardEntry::findOrFail($yardEntryId);
         abort_unless($entry->check_out_at === null, 422, 'Already checked out.');
 
-        $entry->update(['check_out_at' => now()]);
+        DB::transaction(function () use ($entry) {
+            $entry->update(['check_out_at' => now()]);
+
+            // Free the dock door when the vehicle leaves the yard.
+            if ($entry->service_queue_id) {
+                $queue = ServiceQueue::find($entry->service_queue_id);
+                if ($queue && $queue->status === 'in_progress') {
+                    $door = DockDoor::where('current_queue_id', $queue->id)
+                        ->where('current_vehicle_id', $entry->vehicle_id)
+                        ->first();
+                    if ($door) {
+                        $this->releaseDockDoor($door->id);
+                    }
+                }
+            }
+        });
 
         return $entry->fresh();
     }
@@ -312,6 +329,89 @@ class YardService
             'yard_entry' => $yardEntry->fresh(),
             'queue_entry' => $queueEntry->fresh()->load('vehicle:id,plate_number,make,model'),
         ];
+    }
+
+    // --- Arrival / dock automation ---
+
+    /**
+     * On POD validation, register the vehicle at the yard (unloading), enqueue
+     * it on the unload dock and allocate a free dock door so the driver knows
+     * where to park. Reuses an open unloading entry / active queue if present.
+     */
+    public function scheduleUnloadingAfterDelivery(Trip $trip, ProofOfDelivery $pod): array
+    {
+        $vehicleId = $trip->vehicle_id;
+        if (!$vehicleId) {
+            return ['yard_entry' => null, 'queue_entry' => null, 'dock_door' => null];
+        }
+
+        $submittedBy = $pod->submitted_by ?? $trip->created_by;
+        $driverId = $trip->driver_id ?? $pod->submitter?->driver_id;
+
+        return DB::transaction(function () use ($trip, $pod, $vehicleId, $submittedBy, $driverId) {
+            $yardEntry = YardEntry::where('vehicle_id', $vehicleId)
+                ->whereNull('check_out_at')
+                ->where('purpose', 'unloading')
+                ->latest('check_in_at')
+                ->first();
+
+            if (!$yardEntry) {
+                $yardEntry = $this->checkIn($vehicleId, 'unloading', $driverId, $submittedBy);
+            }
+
+            $queueEntry = ServiceQueue::where('vehicle_id', $vehicleId)
+                ->where('service_type', 'unload_dock')
+                ->whereIn('status', ['queued', 'in_progress'])
+                ->latest('entered_at')
+                ->first();
+
+            if (!$queueEntry) {
+                $queueEntry = $this->enqueue($vehicleId, 'unload_dock', $submittedBy);
+            }
+
+            $yardEntry->update(['service_queue_id' => $queueEntry->id]);
+
+            $dockDoor = null;
+            if ($queueEntry->status === 'queued') {
+                $dockDoor = DockDoor::where('service_type', 'unload_dock')
+                    ->where('is_active', true)
+                    ->where('is_occupied', false)
+                    ->orderBy('code')
+                    ->first();
+
+                if ($dockDoor) {
+                    $this->assignDockDoor($queueEntry->id, $dockDoor->id);
+                    $yardEntry->update(['dock_door_id' => $dockDoor->id]);
+                    $dockDoor->refresh();
+                }
+            }
+
+            return [
+                'yard_entry' => $yardEntry->fresh(),
+                'queue_entry' => $queueEntry->fresh()->load('vehicle:id,plate_number,make,model'),
+                'dock_door' => $dockDoor?->fresh(),
+            ];
+        });
+    }
+
+    /**
+     * Dock doors that are currently occupied, plus queued/in-progress unload
+     * arrivals still waiting for a dock — powers the dispatcher yard map.
+     */
+    public function expectedArrivals(): array
+    {
+        return ServiceQueue::with(['vehicle:id,plate_number,make,model', 'submitter:id,name'])
+            ->where('service_type', 'unload_dock')
+            ->whereIn('status', ['queued', 'in_progress'])
+            ->orderBy('position')
+            ->orderBy('entered_at')
+            ->get()
+            ->map(function ($entry) {
+                $entry->wait_estimate = $this->estimatedWaitTime('unload_dock');
+                return $entry;
+            })
+            ->values()
+            ->toArray();
     }
 
     // --- Dashboard ---
@@ -348,6 +448,7 @@ class YardService
             ],
             'active_entries' => $activeEntries,
             'recent_entries' => $recentEntries,
+            'expected_arrivals' => $this->expectedArrivals(),
             'stats' => $this->queueStats(),
         ];
     }
