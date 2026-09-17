@@ -473,6 +473,76 @@ class FleetReportController extends Controller
     }
 
     /**
+     * Access review & permission hygiene report — flags inactive accounts,
+     * idle dispatchers, drivers without assignments, inactive mechanics and
+     * orphaned role assignments. Mirrors the `access:review` command.
+     */
+    public function accessReview(Request $request)
+    {
+        $service = app(\App\Services\AccessReviewService::class);
+        $review = $service->review();
+        $findings = collect($review['findings']);
+
+        if ($request->filled('category')) {
+            $findings = $findings->where('category', $request->get('category'));
+        }
+        if ($request->filled('severity')) {
+            $findings = $findings->where('severity', $request->get('severity'));
+        }
+        if ($request->filled('role')) {
+            $role = $request->get('role');
+            $findings = $findings->filter(fn ($f) => in_array($role, $f['roles'], true));
+        }
+        if ($request->filled('perimeter')) {
+            $perimeter = $request->get('perimeter');
+            $findings = $findings->filter(fn ($f) => in_array($perimeter, $f['perimeters'], true));
+        }
+
+        $roles = \App\Models\Role::withCount(['users', 'permissions'])
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($r) => [
+                'id' => $r->id,
+                'name' => $r->name,
+                'is_active' => (bool) $r->is_active,
+                'is_super_admin' => (bool) $r->is_super_admin,
+                'users_count' => $r->users_count,
+                'permissions_count' => $r->permissions_count,
+                'perimeters' => $service->perimetersFor([$r->name]),
+            ])
+            ->sortByDesc('users_count')
+            ->values();
+
+        return response()->json([
+            'summary' => $review['summary'],
+            'findings' => $findings->values(),
+            'roles' => $roles,
+            'auto_deactivate' => (bool) config('access_review.auto_deactivate'),
+            'generated_at' => now()->toISOString(),
+        ]);
+    }
+
+    /**
+     * Filter option lists for the access review report.
+     */
+    public function accessReviewOptions()
+    {
+        return response()->json([
+            'roles' => \App\Models\Role::orderBy('name')->pluck('name'),
+            'categories' => [
+                'inactive_user',
+                'idle_dispatcher',
+                'driver_inactive',
+                'mechanic_inactive',
+                'orphan_role',
+                'locked',
+            ],
+            'severities' => ['high', 'medium', 'low'],
+            'perimeters' => ['portal', 'mobile', 'customer'],
+        ]);
+    }
+
+    /**
      * Filter option lists for the profitability report.
      */
     public function profitabilityOptions()

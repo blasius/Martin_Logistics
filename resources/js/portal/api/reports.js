@@ -13,6 +13,12 @@ export const reportsApi = {
     stopsOptions() {
         return api.get('/portal/reports/stops/options');
     },
+    accessReview(params = {}) {
+        return api.get('/portal/reports/access-review', { params });
+    },
+    accessReviewOptions() {
+        return api.get('/portal/reports/access-review/options');
+    },
     options() {
         return api.get('/portal/reports/profitability/options');
     },

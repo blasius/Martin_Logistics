@@ -1819,6 +1819,32 @@ thresholds.
 
 ---
 
+### 5.11 Access Review & Permission Hygiene
+
+Scheduled review of account health and permission hygiene. Flags stale/inactive accounts, idle dispatchers,
+drivers and mechanics with broken assignment integrity, and orphaned role assignments; reports to managers
+and optionally auto-deactivates accounts under a config-gated policy.
+
+**Implementation:**
+- `config/access_review.php` — configurable thresholds (inactive days, dispatcher/driver
+  inactivity windows, protected roles, auto-deactivation toggle + grace window).
+- `users.locked_at` column — deactivated accounts are locked (not deleted); the `EnsureUserNotLocked`
+  middleware (web + api groups) logs locked users out and 403s API/portal requests.
+- `app/Services/AccessReviewService.php` — single review pass shared by the command and the report:
+  session-activity, trip/assignment and mechanic-profile integrity checks, with per-user role/perimeter
+  mapping (portal/mobile/customer).
+- `app/Console/Commands/ReviewAccess.php` (`access:review`) — weekly job printing the summary + findings,
+  locking eligible accounts when auto-deactivation is enabled (or `--force`), and notifying managers via
+  `AccessReviewNotification`.
+- Report: `GET /portal/reports/access-review` + `/options` (role-restricted) and portal "Access Review"
+  page — KPI cards, filterable findings log, role × users × permissions × perimeters audit, CSV export.
+- Role/permission change history continues to be captured by `RolePermissionAudit` and surfaced in the
+  Role Management audit log.
+
+**Dependencies:** Users/Roles (existing), Dispatchers (6.x), Drivers (existing), Workshop/Mechanics (2.x), Auto-tickets & escalation (7)
+
+---
+
 ## Phase 6 — Commercial
 
 *Builds on Phases 1–5. Includes the sales-to-operations handoff workflow.*

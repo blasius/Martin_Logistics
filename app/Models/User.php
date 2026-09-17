@@ -48,6 +48,7 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
             'email_verification_code_expires_at' => 'datetime',
             'password' => 'hashed',
             'notification_preferences' => 'array',
+            'locked_at' => 'datetime',
         ];
     }
 

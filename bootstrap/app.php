@@ -26,10 +26,18 @@ return Application::configure(basePath: dirname(__DIR__))
             ShareErrorsFromSession::class,
         ]);
 
+        $middleware->web(append: [
+            \App\Http\Middleware\EnsureUserNotLocked::class,
+        ]);
+
         $middleware->statefulApi();
 
         $middleware->api(prepend: [
             EnsureFrontendRequestsAreStateful::class,
+        ]);
+
+        $middleware->api(append: [
+            \App\Http\Middleware\EnsureUserNotLocked::class,
         ]);
 
         $middleware->alias([
@@ -37,6 +45,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
             'auth.api_key' => \App\Http\Middleware\ApiKeyMiddleware::class,
+            'locked' => \App\Http\Middleware\EnsureUserNotLocked::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

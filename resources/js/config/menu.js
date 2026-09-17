@@ -145,6 +145,7 @@ export const menu = [
             { label: "Profitability", to: "/reports/profitability" },
             { label: "Costing", to: "/reports/costing" },
             { label: "Driver Stops", to: "/reports/stops" },
+            { label: "Access Review", to: "/reports/access-review", roles: ['super_admin', 'Admin', 'Director of Operations', 'Logistics Manager', 'Operations Manager'] },
             { label: "Trip Fuel", to: "/reports/trip-fuel" },
             { label: "Performance", to: "/performance" },
         ],

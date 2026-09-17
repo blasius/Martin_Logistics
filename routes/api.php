@@ -284,6 +284,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/reports/costing', [FleetReportController::class, 'costing']);
         Route::get('/reports/stops', [FleetReportController::class, 'stops']);
         Route::get('/reports/stops/options', [FleetReportController::class, 'stopsOptions']);
+        Route::get('/reports/access-review', [FleetReportController::class, 'accessReview'])
+            ->middleware('role:super_admin|Admin|Director of Operations|Logistics Manager|Operations Manager');
+        Route::get('/reports/access-review/options', [FleetReportController::class, 'accessReviewOptions'])
+            ->middleware('role:super_admin|Admin|Director of Operations|Logistics Manager|Operations Manager');
         Route::get('/reports/trip-fuel', [FuelReportController::class, 'index']);
         Route::get('/reports/trip-fuel/{trip}', [FuelReportController::class, 'show']);
 
