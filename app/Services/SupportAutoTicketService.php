@@ -4,7 +4,10 @@ namespace App\Services;
 
 use App\Models\SupportCategory;
 use App\Models\SupportTicket;
+use App\Models\Trip;
 use App\Models\User;
+use App\Models\Vehicle;
+use App\Notifications\SupportTicketAssigned;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -15,6 +18,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class SupportAutoTicketService
 {
+    public function __construct(protected DispatcherAssignmentService $dispatcherAssignment) {}
     /**
      * Open an auto-generated support ticket for an anomaly.
      *
@@ -47,6 +51,7 @@ class SupportAutoTicketService
                 ->firstOrFail();
         }
 
+        $assignedTo ??= $this->resolveOwnerForSubject($subject);
         $category = $this->resolveCategory($categoryName);
 
         $ticket = SupportTicket::create([
@@ -73,7 +78,29 @@ class SupportAutoTicketService
             ],
         ]);
 
+        if ($assignedTo) {
+            $assignee = User::find($assignedTo);
+            $assignee?->notify(new SupportTicketAssigned($ticket));
+        }
+
         return $ticket;
+    }
+
+    /**
+     * Route tickets touching a dispatcher-owned vehicle to that dispatcher
+     * (per-vehicle single dispatcher ownership from the dispatch load work).
+     */
+    private function resolveOwnerForSubject(?Model $subject): ?int
+    {
+        $vehicleId = match (true) {
+            $subject instanceof Vehicle => $subject->getKey(),
+            $subject instanceof Trip => $subject->vehicle_id,
+            default => null,
+        };
+
+        if (!$vehicleId) return null;
+
+        return $this->dispatcherAssignment->ownerOf((int) $vehicleId)?->id;
     }
 
     public function hasOpenTicket(string $source, ?Model $subject, ?string $title = null, int $withinDays = 7): bool

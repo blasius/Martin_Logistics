@@ -57,6 +57,13 @@ class SupportTicket extends Model
     public const PRIORITY_HIGH   = 'high';
     public const PRIORITY_URGENT = 'urgent';
 
+    public const AUTO_SOURCES = [
+        'auto_route_deviation',
+        'auto_delay',
+        'auto_fuel_flag',
+        'auto_fines',
+    ];
+
     /* -----------------------------------------------------------------
      |  Relationships
      |------------------------------------------------------------------*/
@@ -112,14 +119,14 @@ class SupportTicket extends Model
 
     public function scopeRouteAlertsForDispatcher($query, int $dispatcherUserId)
     {
-        return $query->whereIn('source', ['auto_route_deviation', 'auto_delay', 'auto_fuel_flag'])
+        return $query->whereIn('source', self::AUTO_SOURCES)
             ->where('assigned_to', $dispatcherUserId)
             ->whereIn('status', ['open', 'in_progress', 'waiting']);
     }
 
     public function scopeUnassignedAlerts($query)
     {
-        return $query->whereIn('source', ['auto_route_deviation', 'auto_delay', 'auto_fuel_flag'])
+        return $query->whereIn('source', self::AUTO_SOURCES)
             ->whereNull('assigned_to')
             ->whereIn('status', ['open', 'in_progress', 'waiting']);
     }

@@ -95,7 +95,7 @@ class EscalationService
         $processed = [];
 
         $escalatedTickets = SupportTicket::whereIn('status', ['open', 'in_progress', 'waiting'])
-            ->whereIn('source', ['auto_route_deviation', 'auto_delay', 'auto_fuel_flag'])
+            ->whereIn('source', SupportTicket::AUTO_SOURCES)
             ->whereNotNull('escalation_level')
             ->whereNotNull('escalated_at')
             ->get();
@@ -152,11 +152,11 @@ class EscalationService
      */
     public function getRouteAlertStats(): array
     {
-        $open = SupportTicket::whereIn('source', ['auto_route_deviation', 'auto_delay', 'auto_fuel_flag'])
+        $open = SupportTicket::whereIn('source', SupportTicket::AUTO_SOURCES)
             ->whereIn('status', ['open', 'in_progress', 'waiting'])
             ->count();
 
-        $escalated = SupportTicket::whereIn('source', ['auto_route_deviation', 'auto_delay', 'auto_fuel_flag'])
+        $escalated = SupportTicket::whereIn('source', SupportTicket::AUTO_SOURCES)
             ->whereIn('status', ['open', 'in_progress', 'waiting'])
             ->whereNotNull('escalation_level')
             ->count();
