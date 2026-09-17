@@ -132,6 +132,7 @@ export const menu = [
         children: [
             { label: "Queue", to: "/logistics/queue" },
             { label: "Preparation", to: "/dispatcher" },
+            { label: "Dispatcher Load", to: "/dispatch/load" },
             { label: "Bypass Requests", to: "/clearance/bypass-requests" },
         ],
     },

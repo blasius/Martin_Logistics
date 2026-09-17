@@ -160,6 +160,7 @@ const router = createRouter({
                 },
                 { path: "logistics/queue", component: () => import("../pages/Logistics/Queue.vue") },
                 { path: "dispatcher", component: () => import("../pages/Dispatcher/Index.vue") },
+                { path: "dispatch/load", component: () => import("../pages/Dispatcher/LoadOverview.vue") },
                 { path: "clearance/bypass-requests", component: () => import("../pages/Clearance/BypassRequests.vue") },
 
                 // Invoices

@@ -46,4 +46,7 @@ export const dispatchPrepApi = {
     markReady(tripId) {
         return api.post(`/portal/dispatch-preparation/${tripId}/mark-ready`);
     },
+    loadOverview(days = 30) {
+        return api.get('/portal/dispatch/load-overview', { params: { days } });
+    },
 };

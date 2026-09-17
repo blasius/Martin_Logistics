@@ -58,18 +58,9 @@ class RatingService
 
     public function calculateDispatcherScore(User $user, string $periodStart, string $periodEnd): PerformanceScore
     {
-        $tripsManaged = Trip::where('dispatcher_id', $user->id)
-            ->whereBetween('created_at', [$periodStart, $periodEnd])
-            ->count();
+        $onTime = $this->dispatcherOnTimeMetrics($user, $periodStart, $periodEnd);
 
-        $onTimeTrips = Trip::where('dispatcher_id', $user->id)
-            ->whereBetween('created_at', [$periodStart, $periodEnd])
-            ->where('status', 'completed')
-            ->whereNotNull('arrival_time')
-            ->whereRaw('arrival_time <= departure_time + interval \'1 day\' * 2')
-            ->count();
-
-        $onTimeRate = $tripsManaged > 0 ? ($onTimeTrips / $tripsManaged) * 100 : 0;
+        $onTimeRate = $onTime['on_time_rate'];
 
         $humanAgg = $this->humanRatingAggregateForUser($user, $periodStart, $periodEnd);
 
@@ -96,6 +87,26 @@ class RatingService
                 'calculated_at' => now(),
             ]
         );
+    }
+
+    public function dispatcherOnTimeMetrics(User $user, string $periodStart, string $periodEnd): array
+    {
+        $tripsManaged = Trip::where('dispatcher_id', $user->id)
+            ->whereBetween('created_at', [$periodStart, $periodEnd])
+            ->count();
+
+        $onTimeTrips = Trip::where('dispatcher_id', $user->id)
+            ->whereBetween('created_at', [$periodStart, $periodEnd])
+            ->where('status', 'completed')
+            ->whereNotNull('arrival_time')
+            ->whereRaw('arrival_time <= DATE_ADD(departure_time, INTERVAL 2 DAY)')
+            ->count();
+
+        return [
+            'trips_managed' => $tripsManaged,
+            'on_time_trips' => $onTimeTrips,
+            'on_time_rate' => $tripsManaged > 0 ? round(($onTimeTrips / $tripsManaged) * 100, 1) : 0,
+        ];
     }
 
     public function leaderboard(string $periodStart, string $periodEnd, int $limit = 20, string $sort = 'desc'): array

@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\SearchController;
 use App\Http\Controllers\Api\RoutesController;
 use App\Http\Controllers\Api\PlacesController;
 use App\Http\Controllers\Api\TripController;
+use App\Http\Controllers\Api\DispatcherLoadController;
 use App\Http\Controllers\Api\TripFlowController;
 use App\Http\Controllers\Api\MockDispatchController;
 use App\Http\Controllers\Api\DashboardController;
@@ -232,6 +233,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/dispatch/activate', [DispatchController::class, 'activateVehicle']);
         Route::get('/dispatch/print-url', [DispatchController::class, 'getPrintUrl']);
         Route::post('/dispatch/toggle-status', [DispatchController::class, 'toggleStatus']);
+        Route::get('/dispatch/load-overview', [DispatcherLoadController::class, 'index']);
 
         Route::get('/insurances', [InsuranceController::class, 'index']);
         Route::post('/insurances', [InsuranceController::class, 'store']);

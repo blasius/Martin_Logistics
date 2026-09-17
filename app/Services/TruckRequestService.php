@@ -9,7 +9,10 @@ use Illuminate\Support\Facades\DB;
 
 class TruckRequestService
 {
-    public function __construct(protected TripStateMachineService $tripStateMachine) {}
+    public function __construct(
+        protected TripStateMachineService $tripStateMachine,
+        protected DispatcherAssignmentService $dispatcherAssignment,
+    ) {}
 
     public function generateReference(): string
     {
@@ -20,33 +23,13 @@ class TruckRequestService
 
     public function assignDispatcher(): ?User
     {
-        $dispatcherRole = \Spatie\Permission\Models\Role::where('name', 'Dispatcher')->first();
-        if (!$dispatcherRole) return null;
-
-        $dispatchers = $dispatcherRole->users()->pluck('users.id');
-
-        if ($dispatchers->isEmpty()) return null;
-
-        $lastAssigned = TruckRequest::whereIn('dispatcher_id', $dispatchers)
-            ->whereNotNull('dispatcher_id')
-            ->orderBy('created_at', 'desc')
-            ->value('dispatcher_id');
-
-        if (!$lastAssigned || !$dispatchers->contains($lastAssigned)) {
-            return User::find($dispatchers->first());
-        }
-
-        $ids = $dispatchers->toArray();
-        $idx = array_search($lastAssigned, $ids);
-        $nextIdx = ($idx + 1) % count($ids);
-
-        return User::find($ids[$nextIdx]);
+        return $this->dispatcherAssignment->roundRobin();
     }
 
     public function assignAndCreateTrip(TruckRequest $request, int $vehicleId, ?int $trailerId = null): TruckRequest
     {
         return DB::transaction(function () use ($request, $vehicleId, $trailerId) {
-            $dispatcher = $this->assignDispatcher();
+            $dispatcher = $this->dispatcherAssignment->assignForVehicle($vehicleId);
 
             $initialStatus = $this->tripStateMachine->initialState()?->key ?? 'pre_departure';
 
@@ -56,6 +39,8 @@ class TruckRequestService
                 'status' => $initialStatus,
                 'order_id' => $request->order_id,
             ]);
+
+            $this->dispatcherAssignment->recordOwnership($vehicleId, $dispatcher?->id);
 
             $this->tripStateMachine->recordStatus($trip, $initialStatus, [
                 'action' => 'truck_request_trip_created',

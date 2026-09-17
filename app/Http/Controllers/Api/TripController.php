@@ -9,6 +9,7 @@ use App\Models\Vehicle;
 use App\Models\Driver;
 use App\Models\ClearanceBypassRequest;
 use App\Services\ClearanceService;
+use App\Services\DispatcherAssignmentService;
 use App\Services\TripStateMachineService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,6 +20,7 @@ class TripController extends Controller
     public function __construct(
         protected ClearanceService $clearanceService,
         protected TripStateMachineService $tripStateMachine,
+        protected DispatcherAssignmentService $dispatcherAssignment,
     ) {}
 
     public function store(Request $request)
@@ -75,14 +77,21 @@ class TripController extends Controller
         $statusKey = $state?->key ?? 'pre_departure';
 
         return DB::transaction(function () use ($validated, $vehicleId, $driverId, $statusKey) {
+            $dispatcher = $this->dispatcherAssignment->assignForVehicle($vehicleId);
+
             $trip = Trip::create([
                 'order_id'       => $validated['order_id'],
                 'vehicle_id'     => $vehicleId,
                 'driver_id'      => $driverId,
                 'route_id'       => $validated['route_id'],
                 'status'         => $statusKey,
+                'dispatcher_id'  => $dispatcher?->id,
                 'created_by'     => Auth::id() ?? 1,
             ]);
+
+            if ($vehicleId) {
+                $this->dispatcherAssignment->recordOwnership($vehicleId, $dispatcher?->id);
+            }
 
             $this->tripStateMachine->recordStatus($trip, $statusKey, [
                 'actor' => auth()->user(),
