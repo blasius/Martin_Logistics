@@ -226,6 +226,7 @@ const router = createRouter({
                 { path: "performance/rate/driver/:id", component: () => import("../pages/Performance/RateDriver.vue") },
                 { path: "performance/rate/dispatcher/:id", component: () => import("../pages/Performance/RateDriver.vue") },
                 { path: "performance/dispatchers", component: () => import("../pages/Performance/DispatcherProfiles.vue") },
+                { path: "performance/mechanics", component: () => import("../pages/Performance/MechanicProfiles.vue") },
                 { path: "notifications", component: () => import("../pages/Notifications/Index.vue") },
                 { path: "documents", component: () => import("../pages/Documents/Index.vue") },
                 {

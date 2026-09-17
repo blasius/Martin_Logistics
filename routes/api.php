@@ -175,6 +175,11 @@ Route::prefix('mobile')->middleware('auth:sanctum')->group(function () {
         Route::get('pending', [MobileRatingController::class, 'pending']);
         Route::get('received', [MobileRatingController::class, 'received']);
         Route::post('submit', [MobileRatingController::class, 'submit']);
+
+        // Workshop / mechanic ratings after repair release
+        Route::get('repairs/pending', [MobileRatingController::class, 'pendingRepairs']);
+        Route::get('repairs/received', [MobileRatingController::class, 'receivedRepairs']);
+        Route::post('repairs/submit', [MobileRatingController::class, 'submitRepair']);
     });
 
     // Mobile Vehicle Regulatory Documents
@@ -431,6 +436,10 @@ Route::middleware('auth')->group(function () {
         Route::post('ratings/calculate', [RatingController::class, 'calculateScores']);
         Route::get('ratings/available-drivers', [RatingController::class, 'availableDrivers']);
         Route::get('ratings/available-dispatchers', [RatingController::class, 'availableDispatchers']);
+        Route::get('ratings/available-mechanics', [RatingController::class, 'availableMechanics']);
+        Route::get('ratings/mechanics/leaderboard', [RatingController::class, 'mechanicLeaderboard']);
+        Route::get('ratings/mechanics/{id}', [RatingController::class, 'mechanicProfile']);
+        Route::post('ratings/mechanics/{id}/calculate', [RatingController::class, 'calculateMechanicScore']);
 
         // Trip Lifecycle
         Route::get('/trips', [TripController::class, 'index']);

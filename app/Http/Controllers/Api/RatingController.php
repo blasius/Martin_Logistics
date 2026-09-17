@@ -75,6 +75,45 @@ class RatingController extends Controller
         return response()->json(['data' => $profile]);
     }
 
+    public function mechanicLeaderboard(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'period_start' => 'required|date',
+            'period_end' => 'required|date|after_or_equal:period_start',
+            'limit' => 'nullable|integer|min:1|max:100',
+            'sort' => 'nullable|in:asc,desc',
+        ]);
+
+        $data = $this->ratingService->mechanicLeaderboard(
+            $validated['period_start'],
+            $validated['period_end'],
+            $validated['limit'] ?? 20,
+            $validated['sort'] ?? 'desc'
+        );
+
+        return response()->json(['data' => $data]);
+    }
+
+    public function mechanicProfile(Request $request, int $userId): JsonResponse
+    {
+        $validated = $request->validate([
+            'period_start' => 'required|date',
+            'period_end' => 'required|date|after_or_equal:period_start',
+        ]);
+
+        $profile = $this->ratingService->mechanicProfile(
+            $userId,
+            $validated['period_start'],
+            $validated['period_end']
+        );
+
+        if (!$profile) {
+            return response()->json(['message' => 'Mechanic not found'], 404);
+        }
+
+        return response()->json(['data' => $profile]);
+    }
+
     public function submitRating(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -181,6 +220,30 @@ class RatingController extends Controller
         ]);
     }
 
+    public function calculateMechanicScore(Request $request, int $userId): JsonResponse
+    {
+        $validated = $request->validate([
+            'period_start' => 'required|date',
+            'period_end' => 'required|date|after_or_equal:period_start',
+        ]);
+
+        $user = User::find($userId);
+        if (!$user) {
+            return response()->json(['message' => 'Mechanic not found'], 404);
+        }
+
+        $score = $this->ratingService->calculateMechanicScore(
+            $user,
+            $validated['period_start'],
+            $validated['period_end']
+        );
+
+        return response()->json([
+            'message' => 'Mechanic score calculated',
+            'data' => $score,
+        ]);
+    }
+
     public function topDrivers(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -237,5 +300,16 @@ class RatingController extends Controller
         ]);
 
         return response()->json(['data' => $dispatchers]);
+    }
+
+    public function availableMechanics(): JsonResponse
+    {
+        $mechanics = User::role('mechanic')->get()->map(fn($u) => [
+            'id' => $u->id,
+            'name' => $u->name,
+            'email' => $u->email,
+        ]);
+
+        return response()->json(['data' => $mechanics]);
     }
 }

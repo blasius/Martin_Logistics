@@ -38,7 +38,7 @@ class RepairAssignment extends Model
         if (!$this->started_at) return null;
 
         $end = $this->completed_at ?? now();
-        $minutes = (int) $end->diffInMinutes($this->started_at);
+        $minutes = (int) abs($end->diffInMinutes($this->started_at));
 
         if ($minutes < 60) return "{$minutes}m";
         $hours = floor($minutes / 60);

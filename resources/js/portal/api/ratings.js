@@ -53,4 +53,23 @@ export const ratingsApi = {
     availableDispatchers() {
         return api.get('/portal/ratings/available-dispatchers');
     },
+    availableMechanics() {
+        return api.get('/portal/ratings/available-mechanics');
+    },
+    mechanicLeaderboard(periodStart, periodEnd, limit = 20, sort = 'desc') {
+        return api.get('/portal/ratings/mechanics/leaderboard', {
+            params: { period_start: periodStart, period_end: periodEnd, limit, sort },
+        });
+    },
+    mechanicProfile(userId, periodStart, periodEnd) {
+        return api.get(`/portal/ratings/mechanics/${userId}`, {
+            params: { period_start: periodStart, period_end: periodEnd },
+        });
+    },
+    calculateMechanicScore(userId, periodStart, periodEnd) {
+        return api.post(`/portal/ratings/mechanics/${userId}/calculate`, {
+            period_start: periodStart,
+            period_end: periodEnd,
+        });
+    },
 };

@@ -124,6 +124,12 @@
               >
                 Dispatcher Profiles
               </router-link>
+              <router-link
+                to="/performance/mechanics"
+                class="block text-sm text-blue-600 hover:underline"
+              >
+                Mechanic Profiles
+              </router-link>
             </div>
           </div>
         </div>

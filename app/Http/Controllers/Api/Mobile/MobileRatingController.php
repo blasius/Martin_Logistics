@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Mobile;
 use App\Http\Controllers\Controller;
 use App\Models\Driver;
 use App\Models\RatingSubmission;
+use App\Models\RepairRequest;
 use App\Models\Trip;
 use App\Models\User;
 use App\Services\RatingService;
@@ -186,6 +187,197 @@ class MobileRatingController extends Controller
             ],
             'data' => $ratings,
         ]);
+    }
+
+    /**
+     * Released repair requests the authenticated user can still rate: a driver
+     * rates the mechanic who did the work, a dispatcher/manager rates the
+     * workshop response.
+     */
+    public function pendingRepairs(Request $request)
+    {
+        $user = $request->user();
+        $role = $this->ratingRole($user, $request->query('role'));
+
+        if ($role === null) {
+            return response()->json(['message' => 'No rating surface is available for this account.'], 403);
+        }
+
+        $query = RepairRequest::query()
+            ->where('status', 'released')
+            ->with(['vehicle:id,plate_number', 'release'])
+            ->latest('id');
+
+        if ($role === 'driver') {
+            $query->where('driver_id', $user->id);
+        }
+
+        $repairs = $query->limit(50)->get()
+            ->map(fn (RepairRequest $rr) => [$rr, $this->resolveMechanicFor($rr)])
+            ->filter(fn (array $pair) => $pair[1] !== null)
+            ->reject(fn (array $pair) => $this->ratingService->alreadyRated(
+                $user->id,
+                User::class,
+                $pair[1]->id,
+                $pair[0],
+            ))
+            ->map(fn (array $pair) => $this->repairPayload($pair[0], $pair[1]))
+            ->values();
+
+        return response()->json([
+            'message' => $repairs->isEmpty() ? 'No repairs awaiting your rating.' : 'Repairs awaiting your rating.',
+            'role' => $role,
+            'data' => $repairs,
+        ]);
+    }
+
+    /**
+     * Submit a rating for a released repair request. The subject is the
+     * mechanic responsible for the work. One rating per repair per subject.
+     */
+    public function submitRepair(Request $request)
+    {
+        $user = $request->user();
+        $role = $this->ratingRole($user, $request->input('role'));
+
+        if ($role === null) {
+            return response()->json(['message' => 'No rating surface is available for this account.'], 403);
+        }
+
+        $validated = $request->validate([
+            'repair_request_id' => 'required|integer|exists:repair_requests,id',
+            'rating' => 'required|integer|min:1|max:5',
+            'category' => 'nullable|string',
+            'comment' => 'nullable|string|max:1000',
+        ]);
+
+        $repairRequest = RepairRequest::with(['vehicle:id,plate_number', 'release'])
+            ->findOrFail($validated['repair_request_id']);
+
+        if ($repairRequest->status !== 'released') {
+            return response()->json(['message' => 'You can rate this repair only after it is released.'], 422);
+        }
+
+        if ($role === 'driver' && $repairRequest->driver_id !== $user->id) {
+            return response()->json(['message' => 'This repair request is not linked to you.'], 403);
+        }
+
+        $mechanic = $this->resolveMechanicFor($repairRequest);
+
+        if ($mechanic === null) {
+            return response()->json(['message' => 'This repair has no mechanic to rate.'], 422);
+        }
+
+        $categories = $role === 'driver'
+            ? ['timeliness', 'quality', 'overall']
+            : ['workshop_response', 'overall'];
+
+        $category = $validated['category'] ?? 'overall';
+
+        if (!in_array($category, $categories, true)) {
+            return response()->json([
+                'message' => 'Invalid rating category.',
+                'allowed_categories' => $categories,
+            ], 422);
+        }
+
+        try {
+            $submission = $this->ratingService->submit(
+                $user,
+                User::class,
+                $mechanic->id,
+                $validated['rating'],
+                $category,
+                $validated['comment'] ?? null,
+                $repairRequest,
+            );
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 409);
+        }
+
+        return response()->json([
+            'message' => 'Rating submitted successfully.',
+            'data' => [
+                'id' => $submission->id,
+                'rating' => (int) $submission->rating,
+                'category' => $submission->category,
+                'comment' => $submission->comment,
+                'rated' => 'mechanic',
+                'rated_name' => $mechanic->name,
+                'repair_request_id' => $repairRequest->id,
+            ],
+        ], 201);
+    }
+
+    /**
+     * Workshop ratings the authenticated user has received as a mechanic.
+     */
+    public function receivedRepairs(Request $request)
+    {
+        $user = $request->user();
+
+        $aggregate = DB::table('rating_submissions')
+            ->whereNull('deleted_at')
+            ->where('rateable_type', User::class)
+            ->where('rateable_id', $user->id)
+            ->whereIn('category', RatingService::MECHANIC_CATEGORIES)
+            ->selectRaw('AVG(rating) AS avg, COUNT(*) AS cnt')
+            ->first();
+
+        $ratings = RatingSubmission::where('rateable_type', User::class)
+            ->where('rateable_id', $user->id)
+            ->whereIn('category', RatingService::MECHANIC_CATEGORIES)
+            ->with('rater')
+            ->orderByDesc('created_at')
+            ->limit(50)
+            ->get()
+            ->map(fn (RatingSubmission $s) => [
+                'id' => $s->id,
+                'rating' => (int) $s->rating,
+                'category' => $s->category,
+                'comment' => $s->comment,
+                'rater_name' => $s->rater?->name,
+                'created_at' => $s->created_at,
+            ]);
+
+        return response()->json([
+            'message' => 'Workshop ratings received.',
+            'summary' => [
+                'average' => $aggregate->avg ? round((float) $aggregate->avg, 2) : null,
+                'count' => (int) $aggregate->cnt,
+            ],
+            'data' => $ratings,
+        ]);
+    }
+
+    /**
+     * The mechanic responsible for a repair request: the most recent assigned
+     * mechanic, falling back to the request's primary mechanic.
+     */
+    private function resolveMechanicFor(RepairRequest $repairRequest): ?User
+    {
+        $mechanicId = $repairRequest->assignments()->latest('id')->value('mechanic_id')
+            ?? $repairRequest->mechanic_id;
+
+        return $mechanicId ? User::find($mechanicId) : null;
+    }
+
+    private function repairPayload(RepairRequest $repairRequest, User $mechanic): array
+    {
+        return [
+            'id' => $repairRequest->id,
+            'reference' => $repairRequest->reference,
+            'status' => $repairRequest->status,
+            'type' => $repairRequest->type,
+            'vehicle' => $repairRequest->vehicle?->plate_number,
+            'released_at' => $repairRequest->release?->released_at,
+            'ratee' => [
+                'type' => User::class,
+                'id' => $mechanic->id,
+                'name' => $mechanic->name,
+                'role' => 'mechanic',
+            ],
+        ];
     }
 
     /**

@@ -8,6 +8,8 @@ use App\Models\Expense;
 use App\Models\PerformanceScore;
 use App\Models\ProofOfDelivery;
 use App\Models\RatingSubmission;
+use App\Models\RepairAssignment;
+use App\Models\RepairRelease;
 use App\Models\Trip;
 use App\Models\User;
 use App\Models\TripFuelAnalysis;
@@ -33,6 +35,13 @@ class RatingService
         'overall',
     ];
 
+    public const MECHANIC_CATEGORIES = [
+        'timeliness',
+        'quality',
+        'workshop_response',
+        'overall',
+    ];
+
     /**
      * Persist a rating after enforcing the "one rating per trip per subject"
      * rule, then refresh the subject's score for the current month.
@@ -49,7 +58,7 @@ class RatingService
         ?Model $context = null
     ): RatingSubmission {
         if ($context && $this->alreadyRated($rater->id, $rateableType, $rateableId, $context)) {
-            throw new \RuntimeException('You have already rated this trip.');
+            throw new \RuntimeException('You have already rated this.');
         }
 
         $submission = RatingSubmission::create([
@@ -101,7 +110,11 @@ class RatingService
 
         if ($rateableType === User::class) {
             if ($user = User::find($rateableId)) {
-                $this->calculateDispatcherScore($user, $periodStart, $periodEnd);
+                if ($user->hasRole('mechanic') && !$user->hasRole('Dispatcher')) {
+                    $this->calculateMechanicScore($user, $periodStart, $periodEnd);
+                } else {
+                    $this->calculateDispatcherScore($user, $periodStart, $periodEnd);
+                }
             }
         }
     }
@@ -178,6 +191,108 @@ class RatingService
                 'calculated_at' => now(),
             ]
         );
+    }
+
+    public function calculateMechanicScore(User $mechanic, string $periodStart, string $periodEnd): PerformanceScore
+    {
+        $metrics = $this->mechanicMetrics($mechanic, $periodStart, $periodEnd);
+
+        $automatedScore = collect([
+            $metrics['completion_score'],
+            $metrics['turnaround_score'],
+            $metrics['release_quality_score'],
+        ])->average();
+
+        $humanAgg = $this->humanRatingAggregateForUser($mechanic, $periodStart, $periodEnd);
+
+        $overall = ($automatedScore * 0.6) + (($humanAgg['avg'] ?? 0) * 20 * 0.4);
+
+        if ($humanAgg['avg'] === null) {
+            $overall = $automatedScore;
+        }
+
+        return PerformanceScore::updateOrCreate(
+            [
+                'scoreable_type' => User::class,
+                'scoreable_id' => $mechanic->id,
+                'period_start' => $periodStart,
+                'period_end' => $periodEnd,
+            ],
+            [
+                'overall_score' => round($overall, 2),
+                'human_rating_avg' => $humanAgg['avg'],
+                'human_rating_count' => $humanAgg['count'],
+                'automated_score' => round($automatedScore, 2),
+                'calculated_at' => now(),
+            ]
+        );
+    }
+
+    /**
+     * Workshop metrics feeding a mechanic's automated score: completion rate,
+     * average turnaround time and release quality (checklist + unresolved issues).
+     */
+    public function mechanicMetrics(User $mechanic, string $periodStart, string $periodEnd): array
+    {
+        $assignments = RepairAssignment::where('mechanic_id', $mechanic->id)
+            ->whereBetween('assigned_at', [$periodStart, $periodEnd])
+            ->get();
+
+        $total = $assignments->count();
+        $completed = $assignments->where('status', 'completed')->count();
+        $completionScore = $total > 0 ? round(($completed / $total) * 100, 2) : 50.0;
+
+        $durations = $assignments
+            ->filter(fn ($a) => $a->started_at && $a->completed_at)
+            ->map(fn ($a) => (float) abs($a->started_at->diffInMinutes($a->completed_at)));
+
+        $avgTurnaround = $durations->isNotEmpty() ? round($durations->avg(), 1) : null;
+
+        if ($avgTurnaround === null) {
+            $turnaroundScore = 50.0;
+        } elseif ($avgTurnaround <= 60) {
+            $turnaroundScore = 100.0;
+        } elseif ($avgTurnaround <= 120) {
+            $turnaroundScore = 90.0;
+        } elseif ($avgTurnaround <= 240) {
+            $turnaroundScore = 80.0;
+        } elseif ($avgTurnaround <= 480) {
+            $turnaroundScore = 60.0;
+        } elseif ($avgTurnaround <= 1440) {
+            $turnaroundScore = 40.0;
+        } else {
+            $turnaroundScore = 20.0;
+        }
+
+        $repairRequestIds = RepairAssignment::where('mechanic_id', $mechanic->id)
+            ->pluck('repair_request_id');
+
+        $releases = RepairRelease::whereIn('repair_request_id', $repairRequestIds)
+            ->whereBetween('released_at', [$periodStart, $periodEnd])
+            ->get();
+
+        $releasedTotal = $releases->count();
+        $unresolved = $releases->filter(
+            fn ($r) => $r->unresolved_issues !== null && trim((string) $r->unresolved_issues) !== ''
+        )->count();
+
+        $checklistRate = $releasedTotal > 0
+            ? ($releases->where('checklist_completed', true)->count() / $releasedTotal) * 100
+            : 50.0;
+
+        $releaseQualityScore = max(0, round($checklistRate - ($unresolved * 25), 2));
+
+        return [
+            'assignments_total' => $total,
+            'assignments_completed' => $completed,
+            'completion_rate' => $total > 0 ? round(($completed / $total) * 100, 1) : 0,
+            'completion_score' => $completionScore,
+            'avg_turnaround_minutes' => $avgTurnaround,
+            'turnaround_score' => $turnaroundScore,
+            'releases_total' => $releasedTotal,
+            'unresolved_releases' => $unresolved,
+            'release_quality_score' => $releaseQualityScore,
+        ];
     }
 
     public function dispatcherOnTimeMetrics(User $user, string $periodStart, string $periodEnd): array
@@ -333,6 +448,85 @@ class RatingService
                 'completion_rate' => $tripsManaged > 0 ? round(($completedTrips / $tripsManaged) * 100, 1) : 0,
             ],
             'ratings' => $submissions->map(fn($s) => [
+                'id' => $s->id,
+                'rating' => $s->rating,
+                'category' => $s->category,
+                'comment' => $s->comment,
+                'rater_name' => $s->rater?->name,
+                'created_at' => $s->created_at,
+            ]),
+        ];
+    }
+
+    public function mechanicLeaderboard(string $periodStart, string $periodEnd, int $limit = 20, string $sort = 'desc'): array
+    {
+        $mechanicIds = User::role('mechanic')->pluck('id');
+
+        return PerformanceScore::where('scoreable_type', User::class)
+            ->whereIn('scoreable_id', $mechanicIds)
+            ->where('period_start', $periodStart)
+            ->where('period_end', $periodEnd)
+            ->orderBy('overall_score', $sort)
+            ->limit($limit)
+            ->get()
+            ->map(function ($score) {
+                $mechanic = User::find($score->scoreable_id);
+
+                return [
+                    'id' => $score->id,
+                    'mechanic_id' => $score->scoreable_id,
+                    'mechanic_name' => $mechanic?->name ?? 'Unknown',
+                    'overall_score' => $score->overall_score,
+                    'automated_score' => $score->automated_score,
+                    'human_rating_avg' => $score->human_rating_avg,
+                    'human_rating_count' => $score->human_rating_count,
+                ];
+            })
+            ->toArray();
+    }
+
+    public function mechanicProfile(int $userId, string $periodStart, string $periodEnd): ?array
+    {
+        $mechanic = User::find($userId);
+        if (!$mechanic) return null;
+
+        $score = PerformanceScore::where('scoreable_type', User::class)
+            ->where('scoreable_id', $userId)
+            ->where('period_start', $periodStart)
+            ->where('period_end', $periodEnd)
+            ->first();
+
+        $metrics = $this->mechanicMetrics($mechanic, $periodStart, $periodEnd);
+
+        $submissions = RatingSubmission::where('rateable_type', User::class)
+            ->where('rateable_id', $userId)
+            ->whereIn('category', self::MECHANIC_CATEGORIES)
+            ->whereBetween('created_at', [$periodStart, $periodEnd])
+            ->with('rater')
+            ->orderByDesc('created_at')
+            ->get();
+
+        return [
+            'mechanic' => [
+                'id' => $mechanic->id,
+                'name' => $mechanic->name,
+                'email' => $mechanic->email,
+            ],
+            'score' => $score ? [
+                'overall_score' => $score->overall_score,
+                'automated_score' => $score->automated_score,
+                'human_rating_avg' => $score->human_rating_avg,
+                'human_rating_count' => $score->human_rating_count,
+            ] : null,
+            'stats' => [
+                'assignments_total' => $metrics['assignments_total'],
+                'assignments_completed' => $metrics['assignments_completed'],
+                'completion_rate' => $metrics['completion_rate'],
+                'avg_turnaround_minutes' => $metrics['avg_turnaround_minutes'],
+                'releases_total' => $metrics['releases_total'],
+                'unresolved_releases' => $metrics['unresolved_releases'],
+            ],
+            'ratings' => $submissions->map(fn ($s) => [
                 'id' => $s->id,
                 'rating' => $s->rating,
                 'category' => $s->category,

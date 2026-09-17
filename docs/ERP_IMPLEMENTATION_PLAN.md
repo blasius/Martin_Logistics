@@ -1947,6 +1947,31 @@ expiry into operations alerts via the shared auto-ticket workflow.
 
 ---
 
+### 5.16 Mechanic / Workshop Ratings After Repairs
+
+Closes the loop on repair releases: drivers rate the mechanic who did the work and
+dispatchers/managers rate the workshop response, feeding a mechanic score and portal leaderboard.
+
+**Implementation:**
+- `RatingService` gains `MECHANIC_CATEGORIES` (`timeliness`, `quality`, `workshop_response`,
+  `overall`), `calculateMechanicScore()` and `mechanicMetrics()` (completion rate, average
+  turnaround time, release quality from checklist + unresolved issues), plus
+  `mechanicLeaderboard()` / `mechanicProfile()`. `recomputeForRateable()` routes mechanic users to
+  the mechanic calculation while preserving dispatcher scoring.
+- `MobileRatingController` adds `pendingRepairs` / `submitRepair` / `receivedRepairs` behind
+  `api/mobile/ratings/repairs/*`; the mechanic is resolved from the repair's latest assignment, the
+  driver surface allows `timeliness`/`quality`, the dispatcher surface allows `workshop_response`,
+  and the repair request is the uniqueness context (one rating per repair per subject).
+- Portal `RatingController` exposes `mechanicLeaderboard` / `mechanicProfile` /
+  `calculateMechanicScore` / `availableMechanics`, surfaced on a new
+  `Performance/MechanicProfiles.vue` page linked from the leaderboard quick actions.
+- `RepairAssignment::getDurationAttribute()` now uses `abs()` around the Carbon diff, fixing
+  negative durations in time calculations.
+
+**Dependencies:** Performance tables & `RatingService` (5.6), Repair request lifecycle (`RepairRequestService::release`), Mobile API conventions
+
+---
+
 ## Phase 6 — Commercial
 
 *Builds on Phases 1–5. Includes the sales-to-operations handoff workflow.*
