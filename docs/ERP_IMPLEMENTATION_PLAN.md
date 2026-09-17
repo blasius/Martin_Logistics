@@ -1790,6 +1790,35 @@ Unified Reporting & Analytics (5.8)
 
 ---
 
+### 5.10 Driver Rest & Stop Monitoring
+
+Automated detection of stationary periods during in-flight trips, using the 60-second Wialon
+telemetry pass as the signal source. Each stop window is recorded, classified as **expected**
+(delivery/yard — within the planned route endpoints or inside a geofence) or **unexpected/off-corridor**,
+and the trip's dispatcher is alerted via an auto-created support ticket when rest exceeds configurable
+thresholds.
+
+**Implementation:**
+- `config/stops.php` — configurable thresholds (stationary speed, expected stop radius,
+  unexpected-alert minutes, off-corridor alert minutes, re-alert cooldown).
+- `app/Services/StopDetectionService.php` — called from inside `WialonService::syncTelemetry` per
+  vehicle; opens/closes stop windows on the trip, classifies them, computes off-corridor distance
+  vs the trip's route path, and opens dispatcher tickets through `SupportAutoTicketService` with
+  source `auto_unexpected_stop`.
+- `trip_stops` table + `TripStop` model — one row per stationary window (`started_at`, `ended_at`,
+  `duration_minutes`, classification, reason, off-corridor distance, alert state).
+- `trips` rest fields — `stop_started_at`, `stop_latitude/longitude`, `stop_alerted_at`,
+  `total_rest_minutes`, `unexpected_stop_count` for real-time KPI.
+- `TripHistory` entries for `stop_started`, `stop_ended` and `stop_alerted` events.
+- Escalation rules seeded for `auto_unexpected_stop` (levels 1–3), end-to-end dispatcher notification
+  via the auto-ticket stack (Point 7).
+- Report: `GET /portal/reports/stops` + portal "Driver Stops" page (summary KPIs, filterable stop log,
+  CSV export).
+
+**Dependencies:** Telemetry sync (existing), Route intelligence (4.x), Auto-tickets & escalation (7)
+
+---
+
 ## Phase 6 — Commercial
 
 *Builds on Phases 1–5. Includes the sales-to-operations handoff workflow.*

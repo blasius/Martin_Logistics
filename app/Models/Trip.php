@@ -20,8 +20,14 @@ class Trip extends Model
         'planned_distance_km', 'actual_distance_km',
         'start_odometer', 'end_odometer',
         'is_deviated', 'deviation_detected_at',
-        'deviation_duration_minutes', 'deviation_max_distance_meters',
+        'deviation_duration_minutes',         'deviation_max_distance_meters',
         'auto_ticket_id',
+        'stop_started_at',
+        'stop_latitude',
+        'stop_longitude',
+        'stop_alerted_at',
+        'total_rest_minutes',
+        'unexpected_stop_count',
     ];
 
     protected $casts = [
@@ -29,6 +35,8 @@ class Trip extends Model
         'deviation_detected_at' => 'datetime',
         'departure_time' => 'datetime',
         'arrival_time' => 'datetime',
+        'stop_started_at' => 'datetime',
+        'stop_alerted_at' => 'datetime',
     ];
 
     public function order()
@@ -64,6 +72,11 @@ class Trip extends Model
     public function deviationLogs()
     {
         return $this->hasMany(RouteDeviationLog::class);
+    }
+
+    public function stops()
+    {
+        return $this->hasMany(TripStop::class);
     }
 
     public function autoTicket()

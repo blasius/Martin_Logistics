@@ -42,6 +42,9 @@ class EscalationRule extends Model
             ['ticket_source' => 'auto_fines',           'level' => 1, 'escalate_after_minutes' => 120, 'assign_to_role' => 'Logistics Manager'],
             ['ticket_source' => 'auto_fines',           'level' => 2, 'escalate_after_minutes' => 240, 'assign_to_role' => 'Director of Operations'],
             ['ticket_source' => 'auto_fines',           'level' => 3, 'escalate_after_minutes' => 480, 'assign_to_role' => 'Managing Director'],
+            ['ticket_source' => 'auto_unexpected_stop', 'level' => 1, 'escalate_after_minutes' => 120, 'assign_to_role' => 'Logistics Manager'],
+            ['ticket_source' => 'auto_unexpected_stop', 'level' => 2, 'escalate_after_minutes' => 240, 'assign_to_role' => 'Director of Operations'],
+            ['ticket_source' => 'auto_unexpected_stop', 'level' => 3, 'escalate_after_minutes' => 480, 'assign_to_role' => 'Managing Director'],
         ];
 
         foreach ($defaults as $rule) {

@@ -371,6 +371,14 @@ class WialonService
                             }
                         }
 
+                        app(\App\Services\StopDetectionService::class)->process(
+                            $vehicleId,
+                            $lat,
+                            $lon,
+                            $speed,
+                            $recordedAt
+                        );
+
                         return true;
                     });
 

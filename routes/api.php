@@ -282,6 +282,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/reports/profitability', [FleetReportController::class, 'profitability']);
         Route::get('/reports/profitability/options', [FleetReportController::class, 'profitabilityOptions']);
         Route::get('/reports/costing', [FleetReportController::class, 'costing']);
+        Route::get('/reports/stops', [FleetReportController::class, 'stops']);
+        Route::get('/reports/stops/options', [FleetReportController::class, 'stopsOptions']);
         Route::get('/reports/trip-fuel', [FuelReportController::class, 'index']);
         Route::get('/reports/trip-fuel/{trip}', [FuelReportController::class, 'show']);
 

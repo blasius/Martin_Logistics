@@ -16,6 +16,7 @@ use App\Models\Requisition;
 use App\Models\ExpenseType;
 use App\Models\VehicleSnapshot;
 use App\Models\TelemetryEvent;
+use App\Models\TripStop;
 use App\Models\Currency;
 use App\Services\CurrencyService;
 use App\Services\ReportingService;
@@ -393,6 +394,82 @@ class FleetReportController extends Controller
         return response()->json(
             app(\App\Services\TripCostingService::class)->periodCostReport($filters)
         );
+    }
+
+    /**
+     * Driver rest & stop monitoring report — stationary windows logged by the
+     * telemetry pass, with expected/unexpected classification and off-corridor flags.
+     */
+    public function stops(Request $request)
+    {
+        $from = Carbon::parse($request->get('from', now()->subDays(30)->toDateString()))->startOfDay();
+        $to   = Carbon::parse($request->get('to', now()->toDateString()))->endOfDay();
+
+        $query = TripStop::with(['trip.vehicle', 'trip.driver.user', 'trip.dispatcher'])
+            ->whereBetween('started_at', [$from, $to]);
+
+        if ($request->filled('vehicle_id')) $query->where('vehicle_id', $request->integer('vehicle_id'));
+        if ($request->filled('dispatcher_id')) $query->whereHas('trip', fn ($q) => $q->where('dispatcher_id', $request->integer('dispatcher_id')));
+        if ($request->filled('driver_id')) $query->whereHas('trip', fn ($q) => $q->where('driver_id', $request->integer('driver_id')));
+        if ($request->filled('classification')) $query->where('classification', $request->get('classification'));
+
+        $stops = $query->orderByDesc('started_at')->get();
+
+        $totals = collect($stops);
+        $unexpected = $totals->where('classification', 'unexpected');
+        $durationMinutes = $totals->whereNotNull('duration_minutes')->sum('duration_minutes');
+
+        $summary = [
+            'total_stops' => $totals->count(),
+            'expected_stops' => $totals->where('classification', 'expected')->count(),
+            'unexpected_stops' => $unexpected->count(),
+            'off_corridor_stops' => $totals->where('is_off_corridor', true)->count(),
+            'alerts_raised' => $totals->whereNotNull('alert_sent_at')->count(),
+            'total_rest_hours' => round($durationMinutes / 60, 1),
+            'avg_stop_minutes' => $totals->whereNotNull('duration_minutes')->count()
+                ? round($totals->whereNotNull('duration_minutes')->avg('duration_minutes'))
+                : 0,
+            'longest_u_stop_minutes' => (int) ($unexpected->whereNotNull('duration_minutes')->max('duration_minutes') ?? 0),
+        ];
+
+        $rows = $stops->map(fn (TripStop $s) => [
+            'id' => $s->id,
+            'trip_reference' => $s->trip?->reference,
+            'trip_id' => $s->trip_id,
+            'plate_number' => $s->trip?->vehicle?->plate_number,
+            'driver_name' => $s->trip?->driver?->user?->name,
+            'dispatcher_name' => $s->trip?->dispatcher?->name,
+            'classification' => $s->classification,
+            'reason' => $s->reason,
+            'started_at' => $s->started_at,
+            'ended_at' => $s->ended_at,
+            'duration_minutes' => $s->duration_minutes,
+            'is_off_corridor' => $s->is_off_corridor,
+            'distance_from_route_meters' => $s->distance_from_route_meters,
+            'latitude' => $s->latitude,
+            'longitude' => $s->longitude,
+            'alerted' => $s->alert_sent_at !== null,
+        ])->values();
+
+        return response()->json([
+            'summary' => $summary,
+            'stops' => $rows,
+        ]);
+    }
+
+    /**
+     * Filter option lists for the driver stops report.
+     */
+    public function stopsOptions()
+    {
+        return response()->json([
+            'vehicles' => Vehicle::orderBy('plate_number')->get(['id', 'plate_number']),
+            'drivers' => Driver::with('user:id,name')->get()->map(fn ($d) => [
+                'id' => $d->id,
+                'name' => $d->user?->name ?: ('Driver #' . $d->id),
+            ]),
+            'dispatchers' => User::role('Dispatcher')->orderBy('name')->get(['id', 'name']),
+        ]);
     }
 
     /**
