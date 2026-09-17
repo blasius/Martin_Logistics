@@ -281,6 +281,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/reports/trip-profitability', [FleetReportController::class, 'tripProfitability']);
         Route::get('/reports/profitability', [FleetReportController::class, 'profitability']);
         Route::get('/reports/profitability/options', [FleetReportController::class, 'profitabilityOptions']);
+        Route::get('/reports/costing', [FleetReportController::class, 'costing']);
         Route::get('/reports/trip-fuel', [FuelReportController::class, 'index']);
         Route::get('/reports/trip-fuel/{trip}', [FuelReportController::class, 'show']);
 
@@ -303,6 +304,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/dashboard/overview', [DashboardController::class, 'getOverview']);
         Route::get('/dashboard/analytics', [DashboardController::class, 'getAnalytics']);
         Route::get('/dashboard/operational-status', [DashboardController::class, 'getOperationalStatus']);
+        Route::get('/dashboard/costing', [DashboardController::class, 'costingKpi']);
 
         Route::get('/drivers/{driver}', [SearchController::class, 'showDriver']);
         Route::get('/vehicles/{vehicle}', [SearchController::class, 'showVehicle']);

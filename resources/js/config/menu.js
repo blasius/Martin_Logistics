@@ -143,6 +143,7 @@ export const menu = [
             { label: "Reports Dashboard", to: "/reports" },
             { label: "Analytics", to: "/reports/analytics" },
             { label: "Profitability", to: "/reports/profitability" },
+            { label: "Costing", to: "/reports/costing" },
             { label: "Trip Fuel", to: "/reports/trip-fuel" },
             { label: "Performance", to: "/performance" },
         ],

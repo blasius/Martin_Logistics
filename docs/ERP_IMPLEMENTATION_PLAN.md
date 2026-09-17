@@ -1757,6 +1757,37 @@ Operations Manager opens dashboard
 
 **Dependencies:** All preceding phases (data sources), User Roles (1.2) for role-based visibility
 
+### 5.9 Trip Costing & P&L (Cost vs Revenue)
+
+The per-trip and per-period profit & loss view that reconciles **revenue** (order price) against the
+operational costs that actually drive a trip: **fuel** (dispenses), **maintenance** (repair items) and
+**other expenses / allowances** (trip-linked expense records). Exposes `cost per trip` and
+`cost per km` for every dimension (truck, trip, driver, dispatcher, route, client, month).
+
+**Implementation (`app/Services/TripCostingService.php`):**
+- `tripCostBreakdown(Trip)` — one delivered trip's revenue, fuel liters/amount (dispenses by
+  `trip_id`), attributed maintenance, trip expenses, total cost, profit, margin and cost/km.
+- `periodCostReport(filters)` — delivered trips in a date range grouped by dimension; returns a
+  full P&L summary, grouped breakdown rows (with km, cost and cost/km), a monthly revenue-vs-cost
+  trend, a fuel/maintenance/other cost breakdown, and top profitable / top loss groups.
+- `costVsRevenueKpi()` — dashboard KPI: current month P&L summary plus a trailing 12-month trend.
+- Endpoints: `GET /portal/reports/costing` (report) and `GET /portal/dashboard/costing` (KPI).
+
+**Cost attribution rules (deterministic, no double counting):**
+- **Fuel:** dispenses linked to the trip via `fuel_dispenses.trip_id`; liters + `calculated_amount`.
+- **Maintenance:** a completed/released repair is charged to the trip of the same vehicle that
+  started **last before the repair was submitted** (most recent preceding departure). Repairs whose
+  owning trip is outside the report window are reported as *unattributed maintenance* rather than
+  silently dropped. Only **actual** item totals count — estimates never count as incurred cost.
+- **Other / allowances:** approved or paid expense records linked to the trip via `expenses.trip_id`.
+
+**Commercial usage:** feeds Phase 6 rate negotiation ("is this client profitable?"), validates
+Phase 7 invoice amounts, and surfaces loss-making trucks/routes/clients for review by Logistics and
+Operations Managers.
+
+**Dependencies:** Trips (existing), Orders (existing), Fuel (3.1/3.3), Workshop (2.3), Expenses (5.4),
+Unified Reporting & Analytics (5.8)
+
 ---
 
 ## Phase 6 — Commercial

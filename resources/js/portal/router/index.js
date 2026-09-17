@@ -53,6 +53,7 @@ const router = createRouter({
                 { path: "reports/trip-fuel", component: () => import("../pages/Reports/TripFuel.vue") },
                 { path: "reports/analytics", component: () => import("../pages/Analytics.vue") },
                 { path: "reports/profitability", component: () => import("../pages/Reports/Profitability.vue") },
+                { path: "reports/costing", component: () => import("../pages/Reports/Costing.vue") },
                 { path: "support", component: () => import("../pages/Support/Index.vue") },
                 { path: "settings", component: () => import("../pages/Settings.vue") },
                 { path: "fines", component: () => import("../pages/Fines/Index.vue") },

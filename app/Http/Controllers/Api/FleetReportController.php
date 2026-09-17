@@ -381,6 +381,21 @@ class FleetReportController extends Controller
     }
 
     /**
+     * Cost-vs-revenue report — revenue reconciled against fuel dispenses, attributed maintenance
+     * and trip expenses/allowances, with cost per trip and cost per km per group.
+     */
+    public function costing(Request $request)
+    {
+        $filters = $request->only([
+            'from', 'to', 'vehicle_id', 'driver_id', 'route_id', 'dispatcher_id', 'client_id', 'group_by',
+        ]);
+
+        return response()->json(
+            app(\App\Services\TripCostingService::class)->periodCostReport($filters)
+        );
+    }
+
+    /**
      * Filter option lists for the profitability report.
      */
     public function profitabilityOptions()

@@ -552,4 +552,15 @@ class DashboardController extends Controller
             ->where('next_maintenance_date', '<=', now()->addDays(7))
             ->get(['plate_number', 'next_maintenance_date']);
     }
+
+    /**
+     * Cost-vs-revenue KPI: this month's P&L (revenue vs fuel + maintenance + other costs)
+     * plus a trailing 12-month trend. Drives the reporting dashboard cost KPI.
+     */
+    public function costingKpi()
+    {
+        return response()->json(
+            app(\App\Services\TripCostingService::class)->costVsRevenueKpi()
+        );
+    }
 }
