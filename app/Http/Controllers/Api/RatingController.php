@@ -8,6 +8,7 @@ use App\Models\PerformanceScore;
 use App\Models\RatingSubmission;
 use App\Models\User;
 use App\Services\RatingService;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -86,9 +87,27 @@ class RatingController extends Controller
             'submission_context_id' => 'nullable|integer',
         ]);
 
-        $validated['rater_id'] = $request->user()->id;
+        $context = null;
+        if (!empty($validated['submission_context_type']) && !empty($validated['submission_context_id'])) {
+            $contextType = $validated['submission_context_type'];
+            if (class_exists($contextType) && is_subclass_of($contextType, Model::class)) {
+                $context = $contextType::find($validated['submission_context_id']);
+            }
+        }
 
-        $submission = RatingSubmission::create($validated);
+        try {
+            $submission = $this->ratingService->submit(
+                $request->user(),
+                $validated['rateable_type'],
+                $validated['rateable_id'],
+                $validated['rating'],
+                $validated['category'],
+                $validated['comment'] ?? null,
+                $context,
+            );
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 409);
+        }
 
         return response()->json([
             'message' => 'Rating submitted successfully',

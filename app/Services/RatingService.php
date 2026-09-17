@@ -11,10 +11,101 @@ use App\Models\RatingSubmission;
 use App\Models\Trip;
 use App\Models\User;
 use App\Models\TripFuelAnalysis;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
 class RatingService
 {
+    public const DRIVER_CATEGORIES = [
+        'fuel_efficiency',
+        'on_time_delivery',
+        'route_compliance',
+        'expense_management',
+        'safety',
+        'overall',
+    ];
+
+    public const DISPATCHER_CATEGORIES = [
+        'communication',
+        'planning',
+        'support',
+        'accuracy',
+        'overall',
+    ];
+
+    /**
+     * Persist a rating after enforcing the "one rating per trip per subject"
+     * rule, then refresh the subject's score for the current month.
+     *
+     * @throws \RuntimeException when the rater already scored the subject for the same context
+     */
+    public function submit(
+        User $rater,
+        string $rateableType,
+        int $rateableId,
+        int $rating,
+        string $category,
+        ?string $comment = null,
+        ?Model $context = null
+    ): RatingSubmission {
+        if ($context && $this->alreadyRated($rater->id, $rateableType, $rateableId, $context)) {
+            throw new \RuntimeException('You have already rated this trip.');
+        }
+
+        $submission = RatingSubmission::create([
+            'rateable_type' => $rateableType,
+            'rateable_id' => $rateableId,
+            'rating' => $rating,
+            'category' => $category,
+            'comment' => $comment,
+            'rater_id' => $rater->id,
+            'submission_context_type' => $context?->getMorphClass(),
+            'submission_context_id' => $context?->getKey(),
+        ]);
+
+        $this->recomputeForRateable($rateableType, $rateableId);
+
+        return $submission;
+    }
+
+    /**
+     * Whether the rater already scored this subject within the given context
+     * (e.g. the same trip). Soft-deleted submissions are ignored so a removed
+     * rating can be resubmitted.
+     */
+    public function alreadyRated(int $raterId, string $rateableType, int $rateableId, Model $context): bool
+    {
+        return RatingSubmission::where('rater_id', $raterId)
+            ->where('rateable_type', $rateableType)
+            ->where('rateable_id', $rateableId)
+            ->where('submission_context_type', $context->getMorphClass())
+            ->where('submission_context_id', $context->getKey())
+            ->exists();
+    }
+
+    /**
+     * Refresh the current-month performance score for a freshly rated subject.
+     */
+    public function recomputeForRateable(string $rateableType, int $rateableId): void
+    {
+        $periodStart = now()->startOfMonth()->toDateString();
+        $periodEnd = now()->endOfMonth()->toDateString();
+
+        if ($rateableType === Driver::class) {
+            if ($driver = Driver::find($rateableId)) {
+                $this->calculateAutomatedScore($driver, $periodStart, $periodEnd);
+            }
+
+            return;
+        }
+
+        if ($rateableType === User::class) {
+            if ($user = User::find($rateableId)) {
+                $this->calculateDispatcherScore($user, $periodStart, $periodEnd);
+            }
+        }
+    }
+
     public function calculateAutomatedScore(Driver $driver, string $periodStart, string $periodEnd): PerformanceScore
     {
         $fuelScore = $this->fuelEfficiencyScore($driver, $periodStart, $periodEnd);

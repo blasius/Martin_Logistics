@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\MobileTripController;
 use App\Http\Controllers\Api\Mobile\FcmTokenController;
 use App\Http\Controllers\Api\Mobile\MobileWorkshopController;
 use App\Http\Controllers\Api\Mobile\MobileRepairRequestController;
+use App\Http\Controllers\Api\Mobile\MobileRatingController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Api\ComplianceSummaryController;
@@ -166,6 +167,13 @@ Route::prefix('mobile')->middleware('auth:sanctum')->group(function () {
         Route::get('{repairRequest}', [MobileRepairRequestController::class, 'show']);
         Route::post('{repairRequest}/submit', [MobileRepairRequestController::class, 'submit']);
         Route::post('{repairRequest}/cancel', [MobileRepairRequestController::class, 'cancel']);
+    });
+
+    // Mobile Ratings (driver rates dispatcher / dispatcher rates driver)
+    Route::prefix('ratings')->group(function () {
+        Route::get('pending', [MobileRatingController::class, 'pending']);
+        Route::get('received', [MobileRatingController::class, 'received']);
+        Route::post('submit', [MobileRatingController::class, 'submit']);
     });
 });
 

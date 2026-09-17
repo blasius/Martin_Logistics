@@ -1892,6 +1892,33 @@ Wakes the dormant route-deviation detector and wires ongoing deviations into the
 
 ---
 
+### 5.14 Mobile Driver / Dispatcher Ratings
+
+Adds the missing in-app submission surface so drivers and dispatchers can rate each other
+after a delivery, closing the human-ratings loop that feeds `PerformanceScore`.
+
+**Implementation:**
+- New `MobileRatingController` (`routes/api.php` mobile group):
+  - `GET mobile/ratings/pending` — delivered trips the caller can still rate (driver → its
+    dispatcher, dispatcher/creator → the driver), with the counterparty resolved on the trip
+    (falls back to the trip creator when no dispatcher is assigned).
+  - `POST mobile/ratings/submit` — records the rating for the counterparty, using the trip as
+    the submission context; rejects non-delivered trips (422) and invalid categories (422).
+  - `GET mobile/ratings/received` — average/count plus the ratings the caller has received.
+  - A user holding both roles may choose the surface with `?role=driver|dispatcher`.
+- `RatingService::submit()` centralises persistence: enforces **one rating per trip per subject**
+  (`alreadyRated()`, soft-deleted rows ignored) and recomputes the subject's current-month
+  `PerformanceScore` (`recomputeForRateable()`). Portal `RatingController::submitRating` now
+  routes through the service too, so the guard and recompute apply everywhere.
+- Category sets: `RatingService::DRIVER_CATEGORIES` (existing driver metrics) and
+  `RatingService::DISPATCHER_CATEGORIES` (communication, planning, support, accuracy, overall).
+- Portal leaderboard / driver profile / dispatcher profile pages already expose the metrics and
+  are unchanged; ratings from mobile now appear there after recompute.
+
+**Dependencies:** Performance tables & `RatingService` (5.6), Trip state machine (1), Mobile API conventions
+
+---
+
 ## Phase 6 — Commercial
 
 *Builds on Phases 1–5. Includes the sales-to-operations handoff workflow.*
