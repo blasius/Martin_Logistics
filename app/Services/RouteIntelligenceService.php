@@ -36,14 +36,29 @@ class RouteIntelligenceService
             return null;
         }
 
-        $log = RouteDeviationLog::create([
-            'trip_id' => $trip->id,
-            'vehicle_id' => $trip->vehicle_id,
-            'latitude' => $snapshot->latitude,
-            'longitude' => $snapshot->longitude,
-            'distance_from_route_meters' => round($distance, 2),
-            'detected_at' => now(),
-        ]);
+        $log = RouteDeviationLog::where('trip_id', $trip->id)
+            ->whereNull('resolved_at')
+            ->latest('id')
+            ->first();
+
+        if ($log) {
+            // Ongoing deviation: refresh position/distance rather than stacking a
+            // new log on every telemetry pass.
+            $log->update([
+                'latitude' => $snapshot->latitude,
+                'longitude' => $snapshot->longitude,
+                'distance_from_route_meters' => round(max((float) $log->distance_from_route_meters, $distance), 2),
+            ]);
+        } else {
+            $log = RouteDeviationLog::create([
+                'trip_id' => $trip->id,
+                'vehicle_id' => $trip->vehicle_id,
+                'latitude' => $snapshot->latitude,
+                'longitude' => $snapshot->longitude,
+                'distance_from_route_meters' => round($distance, 2),
+                'detected_at' => now(),
+            ]);
+        }
 
         $trip->updateQuietly([
             'is_deviated' => true,
@@ -151,6 +166,42 @@ class RouteIntelligenceService
         ]);
 
         return $ticket;
+    }
+
+    /**
+     * Evaluate a trip's live deviation and raise (or reuse) the dispatcher-routed
+     * auto-ticket, guarded by a cooldown so a single excursion cannot spam the
+     * support inbox. Called from the telemetry sync pass.
+     */
+    public function checkDeviationAndTicket(Trip $trip): ?RouteDeviationLog
+    {
+        $log = $this->checkDeviation($trip);
+
+        if (!$log || $this->withinTicketCooldown($trip)) {
+            return $log;
+        }
+
+        $this->createDeviationTicket($log);
+
+        return $log;
+    }
+
+    /**
+     * Whether an auto deviation ticket for this trip was opened inside the
+     * configured cooldown window.
+     */
+    protected function withinTicketCooldown(Trip $trip): bool
+    {
+        $cooldownHours = (int) config('route_intelligence.ticket_cooldown_hours', 6);
+
+        if ($cooldownHours <= 0) {
+            return false;
+        }
+
+        return SupportTicket::where('source', 'auto_route_deviation')
+            ->where('title', "Route Deviation — Trip #{$trip->id}")
+            ->where('created_at', '>=', now()->subHours($cooldownHours))
+            ->exists();
     }
 
     public function dashboardStats(): array
@@ -280,16 +331,16 @@ class RouteIntelligenceService
         foreach ($activeLogs as $log) {
             $log->update([
                 'resolved_at' => $now,
-                'duration_minutes' => $now->diffInMinutes($log->detected_at),
+                'duration_minutes' => (int) round(abs($now->diffInMinutes($log->detected_at))),
             ]);
         }
 
         if ($trip->is_deviated) {
             $trip->updateQuietly([
                 'is_deviated' => false,
-                'deviation_duration_minutes' => $now->diffInMinutes(
+                'deviation_duration_minutes' => (int) round(abs($now->diffInMinutes(
                     $trip->deviation_detected_at ?? $now
-                ),
+                ))),
             ]);
         }
     }

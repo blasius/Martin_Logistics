@@ -1866,6 +1866,32 @@ Closes the loop on pre-trip clearance bypasses and puts the dormant fines/plate 
 
 ---
 
+### 5.13 Route Deviation Auto-Ticketing
+
+Wakes the dormant route-deviation detector and wires ongoing deviations into the auto-ticket workflow.
+
+**Implementation:**
+- `WialonService::syncTelemetry` now runs a deviation pass after the snapshot refresh:
+  `runDeviationPass()` walks in-flight trips (`assigned`/`on_route` with a route and vehicle),
+  eager-loads each `vehicle.snapshot`, and calls
+  `RouteIntelligenceService::checkDeviationAndTicket()` per trip. Individual trip failures are
+  logged and skipped; the pass is gated by `config('route_intelligence.auto_ticket')`.
+- `RouteIntelligenceService::checkDeviationAndTicket()` runs the existing `checkDeviation` and, when
+  the trip is outside `route.allowed_deviation_meters`, raises the `auto_route_deviation` ticket via
+  `createDeviationTicket` (through `SupportAutoTicketService`, deduped, assigned to the trip's
+  dispatcher, category "Route Deviation"). Escalation rules for `auto_route_deviation` already exist.
+- Spam guards: while a deviation is ongoing, `checkDeviation` refreshes the open
+  `RouteDeviationLog` (position + max distance) instead of stacking a new row per telemetry pass, and
+  `withinTicketCooldown()` suppresses new tickets for the same trip within
+  `route_intelligence.ticket_cooldown_hours` (default 6; 0 disables).
+- `resolveDeviation` duration math made absolute (Carbon 3 signed `diffInMinutes`) so resolved
+  deviations record a positive duration.
+- New `config/route_intelligence.php` exposes `auto_ticket` and `ticket_cooldown_hours`.
+
+**Dependencies:** Route intelligence (existing), Auto-tickets & escalation (7), Telemetry sync (existing)
+
+---
+
 ## Phase 6 — Commercial
 
 *Builds on Phases 1–5. Includes the sales-to-operations handoff workflow.*

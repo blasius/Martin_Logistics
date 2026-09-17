@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Trip;
 use App\Models\WialonUnit;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -398,7 +399,44 @@ class WialonService
         }
 
         Log::info("Wialon Sync: Global processing routine finished. Total mutated snapshots: {$processedCount}");
+
+        $this->runDeviationPass();
+
         return $processedCount;
+    }
+
+    /**
+     * After snapshots are refreshed, evaluate in-flight trips for route deviation
+     * and open the dispatcher-routed auto-ticket when tolerance is exceeded.
+     */
+    protected function runDeviationPass(): void
+    {
+        if (!config('route_intelligence.auto_ticket', true)) {
+            return;
+        }
+
+        $service = app(RouteIntelligenceService::class);
+        $processed = 0;
+
+        Trip::query()
+            ->whereIn('status', ['assigned', 'on_route'])
+            ->whereNotNull('route_id')
+            ->whereNotNull('vehicle_id')
+            ->with('vehicle.snapshot')
+            ->chunkById(100, function ($trips) use ($service, &$processed) {
+                foreach ($trips as $trip) {
+                    try {
+                        $service->checkDeviationAndTicket($trip);
+                        $processed++;
+                    } catch (\Throwable $e) {
+                        Log::warning("Wialon Sync: deviation pass failed for trip {$trip->id}: " . $e->getMessage());
+                    }
+                }
+            });
+
+        if ($processed > 0) {
+            Log::info("Wialon Sync: deviation pass evaluated {$processed} in-flight trip(s).");
+        }
     }
 
     /**
