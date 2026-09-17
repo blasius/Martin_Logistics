@@ -11,10 +11,24 @@
             </button>
         </div>
 
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
                 <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Drivers</p>
                 <p class="text-3xl font-black text-slate-800 mt-1">{{ stats.total || 0 }}</p>
+            </div>
+            <div class="bg-white rounded-2xl border border-teal-200 shadow-sm p-5">
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Active Drivers</p>
+                <div class="flex items-end justify-between mt-1 gap-2">
+                    <p class="text-3xl font-black text-teal-600">{{ stats.active || 0 }}</p>
+                    <span class="text-xs font-black text-teal-600 bg-teal-50 rounded-lg px-2 py-1">{{ stats.active_pct || 0 }}%</span>
+                </div>
+            </div>
+            <div class="bg-white rounded-2xl border border-rose-200 shadow-sm p-5">
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Inactive Drivers</p>
+                <div class="flex items-end justify-between mt-1 gap-2">
+                    <p class="text-3xl font-black text-rose-600">{{ stats.inactive || 0 }}</p>
+                    <span class="text-xs font-black text-rose-600 bg-rose-50 rounded-lg px-2 py-1">{{ stats.inactive_pct || 0 }}%</span>
+                </div>
             </div>
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
                 <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Male</p>
@@ -40,11 +54,29 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                 <h3 class="text-xs font-black text-slate-500 uppercase tracking-wider mb-4">Nationality Distribution</h3>
-                <canvas ref="nationalityCanvas" class="max-h-64"></canvas>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-[10px] font-black text-teal-600 uppercase tracking-wider mb-2">Active</p>
+                        <canvas ref="nationalityActiveCanvas" class="max-h-56"></canvas>
+                    </div>
+                    <div>
+                        <p class="text-[10px] font-black text-rose-600 uppercase tracking-wider mb-2">Inactive</p>
+                        <canvas ref="nationalityInactiveCanvas" class="max-h-56"></canvas>
+                    </div>
+                </div>
             </div>
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                 <h3 class="text-xs font-black text-slate-500 uppercase tracking-wider mb-4">Sex Distribution</h3>
-                <canvas ref="sexCanvas" class="max-h-64"></canvas>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-[10px] font-black text-teal-600 uppercase tracking-wider mb-2">Active</p>
+                        <canvas ref="sexActiveCanvas" class="max-h-56"></canvas>
+                    </div>
+                    <div>
+                        <p class="text-[10px] font-black text-rose-600 uppercase tracking-wider mb-2">Inactive</p>
+                        <canvas ref="sexInactiveCanvas" class="max-h-56"></canvas>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -187,8 +219,10 @@ const search = ref('');
 const showModal = ref(false);
 
 // Chart refs
-const nationalityCanvas = ref(null);
-const sexCanvas = ref(null);
+const nationalityActiveCanvas = ref(null);
+const nationalityInactiveCanvas = ref(null);
+const sexActiveCanvas = ref(null);
+const sexInactiveCanvas = ref(null);
 let chartInstances = [];
 const submitting = ref(false);
 const userSearch = ref('');
@@ -287,61 +321,58 @@ const destroyCharts = () => {
     chartInstances = [];
 };
 
+const buildDonut = (canvas, labels, data, colors) => {
+    if (!canvas || !data.length || data.every(v => v === 0)) return;
+    chartInstances.push(new Chart(canvas, {
+        type: 'doughnut',
+        data: {
+            labels,
+            datasets: [{ data, backgroundColor: colors.slice(0, labels.length), borderWidth: 0 }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 12, padding: 12 } },
+                datalabels: {
+                    color: '#fff', font: { weight: 'bold', size: 11 },
+                    formatter: (v) => v,
+                    display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0
+                }
+            }
+        }
+    }));
+};
+
 const renderCharts = () => {
     destroyCharts();
-
-    if (!stats.value.nationalities?.length) return;
 
     const nationalityColors = [
         '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6',
         '#ec4899', '#8b5cf6', '#14b8a6', '#f97316', '#06b6d4',
     ];
 
-    // Nationality Pie
-    if (nationalityCanvas.value) {
-        const labels = stats.value.nationalities.map(n => n.nationality);
-        const counts = stats.value.nationalities.map(n => n.count);
-        chartInstances.push(new Chart(nationalityCanvas.value, {
-            type: 'doughnut',
-            data: {
-                labels,
-                datasets: [{ data: counts, backgroundColor: nationalityColors.slice(0, labels.length), borderWidth: 0 }]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 12, padding: 12 } },
-                    datalabels: {
-                        color: '#fff', font: { weight: 'bold', size: 11 },
-                        formatter: (v) => v,
-                        display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0
-                    }
-                }
-            }
-        }));
-    }
+    const nats = stats.value.nationalities || [];
+    const activeNats = nats.filter(n => n.active > 0);
+    const inactiveNats = nats.filter(n => n.inactive > 0);
 
-    // Sex Distribution
-    if (sexCanvas.value && (stats.value.male > 0 || stats.value.female > 0)) {
-        chartInstances.push(new Chart(sexCanvas.value, {
-            type: 'doughnut',
-            data: {
-                labels: ['Male', 'Female'],
-                datasets: [{ data: [stats.value.male, stats.value.female], backgroundColor: ['#3b82f6', '#ec4899'], borderWidth: 0 }]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 12, padding: 12 } },
-                    datalabels: {
-                        color: '#fff', font: { weight: 'bold', size: 13 },
-                        formatter: (v) => v,
-                        display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0
-                    }
-                }
-            }
-        }));
-    }
+    buildDonut(nationalityActiveCanvas.value,
+        activeNats.map(n => n.nationality),
+        activeNats.map(n => n.active),
+        nationalityColors);
+
+    buildDonut(nationalityInactiveCanvas.value,
+        inactiveNats.map(n => n.nationality),
+        inactiveNats.map(n => n.inactive),
+        nationalityColors);
+
+    const sexActive = stats.value.sex_active || { male: 0, female: 0 };
+    const sexInactive = stats.value.sex_inactive || { male: 0, female: 0 };
+
+    buildDonut(sexActiveCanvas.value, ['Male', 'Female'],
+        [sexActive.male, sexActive.female], ['#3b82f6', '#ec4899']);
+
+    buildDonut(sexInactiveCanvas.value, ['Male', 'Female'],
+        [sexInactive.male, sexInactive.female], ['#3b82f6', '#ec4899']);
 };
 
 const closeModal = () => {

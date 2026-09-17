@@ -22,18 +22,45 @@ class DriverController extends Controller
                 ->orWhere('phone', 'like', '%' . $request->search . '%');
         }
 
+        $total = Driver::count();
+        $activeIds = Driver::whereHas('vehicles', function ($q) {
+            $q->whereNull('driver_vehicle_assignments.end_date');
+        })->pluck('id');
+        $active = $activeIds->count();
+        $inactive = max(0, $total - $active);
+
+        $male = Driver::where('sex', 'male')->count();
+        $female = Driver::where('sex', 'female')->count();
+        $maleActive = Driver::where('sex', 'male')->whereIn('id', $activeIds)->count();
+        $femaleActive = Driver::where('sex', 'female')->whereIn('id', $activeIds)->count();
+
+        $nationalities = Driver::whereNotNull('nationality')
+            ->get(['nationality', 'id'])
+            ->groupBy('nationality')
+            ->map(function ($drivers, $nationality) use ($activeIds) {
+                return [
+                    'nationality' => $nationality,
+                    'active' => $drivers->whereIn('id', $activeIds)->count(),
+                    'inactive' => $drivers->whereNotIn('id', $activeIds)->count(),
+                ];
+            })
+            ->values()
+            ->toArray();
+
         return response()->json([
             'drivers' => $query->latest()->paginate(15),
             'stats' => [
-                'total' => Driver::count(),
-                'male' => Driver::where('sex', 'male')->count(),
-                'female' => Driver::where('sex', 'female')->count(),
+                'total' => $total,
+                'active' => $active,
+                'inactive' => $inactive,
+                'active_pct' => $total ? round(($active / $total) * 100) : 0,
+                'inactive_pct' => $total ? round(($inactive / $total) * 100) : 0,
+                'male' => $male,
+                'female' => $female,
+                'sex_active' => ['male' => $maleActive, 'female' => $femaleActive],
+                'sex_inactive' => ['male' => $male - $maleActive, 'female' => $female - $femaleActive],
                 'new_this_month' => Driver::whereMonth('created_at', now()->month)->count(),
-                'nationalities' => Driver::select('nationality', DB::raw('count(*) as count'))
-                    ->whereNotNull('nationality')
-                    ->groupBy('nationality')
-                    ->orderByDesc('count')
-                    ->get(),
+                'nationalities' => $nationalities,
             ]
         ]);
     }
