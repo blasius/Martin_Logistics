@@ -98,6 +98,7 @@ const router = createRouter({
                 { path: "fuel/tanks/:id", name: "fuel.tanks.show", component: () => import("../pages/Fuel/Tanks/Show.vue"), props: true },
                 { path: "fuel/dispenses", component: () => import("../pages/Fuel/Dispenses/Index.vue") },
                 { path: "fuel/reports/pump-to-tank-variance", component: () => import("../pages/Fuel/Reports/PumpToTankVariance.vue") },
+                { path: "fuel/reports/lifecycle", component: () => import("../pages/Fuel/Reports/Lifecycle.vue") },
                 { path: "fuel/analytics/driver-efficiency", component: () => import("../pages/Fuel/Analytics/DriverEfficiency.vue") },
                 {
                     path: "workshop/purchase-orders/:id",

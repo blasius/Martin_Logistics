@@ -6,16 +6,24 @@ use App\Models\FuelDelivery;
 use App\Models\FuelDispense;
 use App\Models\FuelTank;
 use App\Models\Route;
+use App\Models\TelemetryEvent;
 use App\Models\Trip;
 use App\Models\TripFuelAnalysis;
 use App\Models\DriverFuelRating;
 use App\Models\Vehicle;
 use App\Models\VehicleRouteFuelRatio;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class FuelManagementService
 {
     const MIN_RESERVE_LITERS = 50;
+
+    /* Reconciliation thresholds (liters / relative %) — configurable knobs. */
+    const RECONCILE_CAUTION_LITERS = 10;
+    const RECONCILE_MATERIAL_LITERS = 30;
+    const RECONCILE_CAUTION_PERCENT = 10;
+    const RECONCILE_MATERIAL_PERCENT = 20;
 
     public function calculateDispenseAmount(Vehicle $vehicle, Route $route, ?float $currentFuelLevel = null): array
     {
@@ -495,5 +503,188 @@ class FuelManagementService
                 'is_low' => $t->isLow(),
             ]),
         ];
+    }
+
+    /**
+     * Full fuel-lifecycle overview for the portal page: recent bulk purchases,
+     * live tank inventory, planned dispenses and per-trip expected-vs-actual.
+     */
+    public function fuelLifecycleOverview(?int $days = 30): array
+    {
+        $since = now()->subDays($days ?? 30)->startOfDay();
+
+        $deliveries = FuelDelivery::with(['tank:id,name,code,fuel_type', 'supplier:id,name', 'receiver:id,name'])
+            ->where('delivered_at', '>=', $since)
+            ->orderByDesc('delivered_at')
+            ->limit(50)
+            ->get()
+            ->map(fn ($d) => [
+                'id' => $d->id,
+                'tank_name' => $d->tank?->name ?? $d->tank?->code ?? '—',
+                'fuel_type' => $d->fuel_type,
+                'quantity' => (float) $d->quantity,
+                'unit_price' => (float) ($d->unit_price ?? 0),
+                'total_amount' => (float) ($d->total_amount ?? 0),
+                'invoice_reference' => $d->invoice_reference,
+                'supplier' => $d->supplier?->name,
+                'received_by' => $d->receiver?->name,
+                'delivered_at' => $d->delivered_at?->toISOString(),
+            ]);
+
+        $periodTotals = (object) [
+            'purchased_liters' => FuelDelivery::where('delivered_at', '>=', $since)->sum('quantity'),
+            'purchase_amount' => FuelDelivery::where('delivered_at', '>=', $since)->sum('total_amount'),
+            'dispensed_liters' => FuelDispense::where('dispensed_at', '>=', $since)->sum('quantity'),
+        ];
+
+        $tanks = FuelTank::where('is_active', true)->get()->map(fn ($t) => [
+            'id' => $t->id,
+            'code' => $t->code,
+            'name' => $t->name,
+            'fuel_type' => $t->fuel_type,
+            'capacity' => (float) $t->capacity,
+            'current_level' => (float) $t->current_level,
+            'percent' => $t->capacity > 0 ? round(($t->current_level / $t->capacity) * 100, 1) : 0,
+            'is_low' => $t->isLow(),
+            'reorder_threshold' => (float) ($t->reorder_threshold ?? 0),
+        ]);
+
+        $tripReports = $this->tripFuelReports(['date_from' => $since->toDateString(), 'per_page' => 20]);
+
+        return [
+            'period_days' => $days ?? 30,
+            'period_start' => $since->toISOString(),
+            'totals' => [
+                'purchased_liters' => round($periodTotals->purchased_liters, 2),
+                'purchase_amount' => round($periodTotals->purchase_amount, 2),
+                'dispensed_liters' => round($periodTotals->dispensed_liters, 2),
+            ],
+            'deliveries' => $deliveries,
+            'tanks' => $tanks,
+            'trips' => $tripReports['data'],
+            'trip_totals' => $tripReports['totals'],
+        ];
+    }
+
+    /**
+     * Wialon fill-vs-dispense theft reconciliation. For each vehicle (and each
+     * tank) we compare the liters Wialon observed being added to the tank
+     * against the liters recorded as dispensed. A material surplus of detected
+     * fills over recorded dispenses points to unrecorded/unauthorised fuel
+     * handling; override-heavy dispense activity is surfaced as a secondary flag.
+     */
+    public function reconcileFuel(?string $dateFrom = null, ?string $dateTo = null): array
+    {
+        $dateFrom = $dateFrom ?? now()->subDays(30)->startOfDay()->toDateTimeString();
+        $dateTo = $dateTo ?? now()->toDateTimeString();
+
+        $vehicleIds = TelemetryEvent::where('type', 'fuel_refill')
+            ->whereBetween('occurred_at', [$dateFrom, $dateTo])
+            ->distinct()->pluck('vehicle_id');
+
+        $dispenseVehicleIds = FuelDispense::whereBetween('dispensed_at', [$dateFrom, $dateTo])
+            ->distinct()->pluck('vehicle_id');
+
+        $ids = $vehicleIds->merge($dispenseVehicleIds)->unique()->values();
+
+        $vehicles = Vehicle::whereIn('id', $ids)
+            ->with(['latestDriverAssignment.driver:id,name'])
+            ->orderBy('plate_number')
+            ->get();
+
+        $rows = $vehicles->map(function (Vehicle $vehicle) use ($dateFrom, $dateTo) {
+            $refills = (float) TelemetryEvent::where('vehicle_id', $vehicle->id)
+                ->where('type', 'fuel_refill')
+                ->whereBetween('occurred_at', [$dateFrom, $dateTo])
+                ->sum('value');
+
+            $dispenses = FuelDispense::where('vehicle_id', $vehicle->id)
+                ->whereBetween('dispensed_at', [$dateFrom, $dateTo]);
+
+            $total = (float) (clone $dispenses)->sum('quantity');
+            $overrides = (clone $dispenses)->whereNotNull('override_reason')->count();
+            $overrideLiters = (float) (clone $dispenses)->whereNotNull('override_reason')->sum('quantity');
+
+            $variance = $refills - $total;
+            $baseline = max($refills, $total, 1);
+            $variancePercent = round(($variance / $baseline) * 100, 2);
+
+            return [
+                'vehicle_id' => $vehicle->id,
+                'plate_number' => $vehicle->plate_number,
+                'vehicle_make' => $vehicle->make,
+                'vehicle_model' => $vehicle->model,
+                'driver_name' => $vehicle->latestDriverAssignment?->driver?->name,
+                'wialon_refills' => round($refills, 2),
+                'recorded_dispenses' => round($total, 2),
+                'variance_liters' => round($variance, 2),
+                'variance_percent' => $variancePercent,
+                'override_count' => $overrides,
+                'override_liters' => round($overrideLiters, 2),
+                'flag' => $this->reconcileFlag($variance, $variancePercent, $overrides, $total),
+                'escalate' => $this->shouldEscalate($variance, $total, $variancePercent),
+            ];
+        });
+
+        // Tank-level stock reconciliation reuses pump-to-tank variance.
+        $tanks = collect($this->pumpToTankVariance(
+            null,
+            Carbon::parse($dateFrom)->toDateString(),
+            Carbon::parse($dateTo)->toDateString()
+        ))
+            ->map(fn ($t) => [
+                'name' => $t['tank_name'],
+                'fuel_type' => $t['fuel_type'],
+                'variance_liters' => $t['variance'],
+                'variance_percent' => $t['variance_percent'],
+                'throughput_liters' => round(($t['book_stock'] ?? 0) + ($t['physical_stock'] ?? 0), 2),
+                'flag' => $this->flagByAbsolute($t['variance'], $t['variance_percent']),
+            ]);
+
+        return [
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
+            'vehicles' => $rows->values(),
+            'tanks' => $tanks->values(),
+        ];
+    }
+
+    private function shouldEscalate(float $variance, float $total, float $variancePercent): bool
+    {
+        // Only escalate genuine mismatches where dispense records exist for the
+        // period. Vehicles with zero recorded dispenses are surfaced in the
+        // report but not spammed into the support inbox.
+        if ($total > 0 && $this->flagByAbsolute($variance, $variancePercent) === 'material') {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function reconcileFlag(float $variance, float $variancePercent, int $overrides, float $total): string
+    {
+        $absoluteFlag = $this->flagByAbsolute($variance, $variancePercent);
+        if ($absoluteFlag === 'material' || $absoluteFlag === 'caution') {
+            return $absoluteFlag;
+        }
+
+        if ($total > 0 && $overrides > 0 && ($overrides / max(1, (int) round($total / 10))) >= 0.5) {
+            return 'override_heavy';
+        }
+
+        return 'ok';
+    }
+
+    private function flagByAbsolute(float $liters, float $percent): string
+    {
+        $abs = abs($liters);
+        if ($abs >= self::RECONCILE_MATERIAL_LITERS || $percent >= self::RECONCILE_MATERIAL_PERCENT) {
+            return 'material';
+        }
+        if ($abs >= self::RECONCILE_CAUTION_LITERS || $percent >= self::RECONCILE_CAUTION_PERCENT) {
+            return 'caution';
+        }
+
+        return 'ok';
     }
 }

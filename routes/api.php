@@ -568,6 +568,8 @@ Route::middleware('auth')->group(function () {
         // Fuel Management
         Route::prefix('fuel')->group(function () {
             Route::get('dashboard', [FuelDashboardController::class, 'index']);
+            Route::get('overview', [FuelDashboardController::class, 'overview']);
+            Route::post('reconcile', [FuelDashboardController::class, 'reconcile']);
 
             Route::get('tanks', [FuelTankController::class, 'index']);
             Route::post('tanks', [FuelTankController::class, 'store']);

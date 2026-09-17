@@ -11,3 +11,4 @@ Schedule::command('telemetry:maintain-partitions')->monthlyOn(1, '00:00')->witho
 Schedule::command('documents:check-expiry --days=30')->dailyAt('08:00');
 Schedule::command('tickets:process-escalations')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('payments:send-reminders')->dailyAt('07:00');
+Schedule::command('fuel:reconcile')->dailyAt('00:30')->withoutOverlapping();

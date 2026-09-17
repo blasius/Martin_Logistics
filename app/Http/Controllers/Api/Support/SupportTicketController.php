@@ -40,7 +40,6 @@ class SupportTicketController extends Controller
         $ticket = SupportTicket::create([
             ...$data,
             'user_id' => auth()->id(),
-            'reference' => SupportTicket::generateReference(),
         ]);
 
         $ticket->events()->create([

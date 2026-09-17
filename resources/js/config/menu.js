@@ -173,6 +173,7 @@ export const menu = [
         roles: ['Admin', 'super_admin', 'Operations Manager', 'Logistics Manager'],
         children: [
             { label: "Dashboard", to: "/fuel" },
+            { label: "Lifecycle", to: "/fuel/reports/lifecycle" },
             { label: "Dispenses", to: "/fuel/dispenses" },
             { label: "Variance Report", to: "/fuel/reports/pump-to-tank-variance" },
             { label: "Driver Efficiency", to: "/fuel/analytics/driver-efficiency" },
