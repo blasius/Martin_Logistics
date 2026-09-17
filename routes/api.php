@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\Mobile\FcmTokenController;
 use App\Http\Controllers\Api\Mobile\MobileWorkshopController;
 use App\Http\Controllers\Api\Mobile\MobileRepairRequestController;
 use App\Http\Controllers\Api\Mobile\MobileRatingController;
+use App\Http\Controllers\Api\Mobile\MobileVehicleDocsController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Api\ComplianceSummaryController;
@@ -175,6 +176,9 @@ Route::prefix('mobile')->middleware('auth:sanctum')->group(function () {
         Route::get('received', [MobileRatingController::class, 'received']);
         Route::post('submit', [MobileRatingController::class, 'submit']);
     });
+
+    // Mobile Vehicle Regulatory Documents
+    Route::get('vehicle-docs', [MobileVehicleDocsController::class, 'index']);
 });
 
 // Password reset (no auth — accessed via emailed link)

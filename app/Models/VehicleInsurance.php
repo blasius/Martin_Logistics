@@ -23,7 +23,7 @@ class VehicleInsurance extends Model implements Eventable
         'status',
     ];
 
-    protected $dates = [
+    protected $casts = [
         'issue_date' => 'date',
         'expiry_date' => 'date',
     ];

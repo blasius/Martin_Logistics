@@ -63,6 +63,7 @@ class SupportTicket extends Model
         'auto_fuel_flag',
         'auto_fines',
         'auto_unexpected_stop',
+        'auto_document_expiry',
     ];
 
     /* -----------------------------------------------------------------

@@ -1919,6 +1919,34 @@ after a delivery, closing the human-ratings loop that feeds `PerformanceScore`.
 
 ---
 
+### 5.15 Regulatory Documents on the Driver App
+
+Gives drivers visibility of the assigned vehicle's regulatory documents and turns document
+expiry into operations alerts via the shared auto-ticket workflow.
+
+**Implementation:**
+- New `MobileVehicleDocsController` (`GET api/mobile/vehicle-docs`) resolves the driver's assigned
+  vehicle (latest active trip, falling back to the active `driver_vehicle_assignments` row — the
+  same rule as `MobileTripController`) and returns:
+  - vehicle header (plate/make/model) and a `summary` (expired / expiring_soon / valid / unknown);
+  - one classified item per document: **insurance** (latest policy), **inspection** (latest, overdue
+    when scheduled and not completed), **plate**, **licence** (driver's `driving_licence`), plus any
+    uploaded `Document` rows morphed to the vehicle;
+  - `alerts` for expired / expiring-soon items, and a `window_days` query override backed by
+    `config/vehicle_docs.php` (`window_days`, `critical_days`).
+- `VehicleInsurance` date casts fixed (`$dates` → `$casts`) so `expiry_date`/`issue_date` are real
+  Carbon instances and maturity maths is correct.
+- `documents:check-expiry` (already scheduled daily at 08:00) extended beyond uploaded documents to
+  also scan **vehicle insurance** and **overdue inspections**, opening an `auto_document_expiry`
+  ticket through `SupportAutoTicketService` (subject = vehicle, category "Documents", priority high
+  when already expired/overdue). One open ticket per vehicle is enforced; reruns are idempotent.
+- `SupportTicket::AUTO_SOURCES` and `EscalationRule::seedDefaults()` gain `auto_document_expiry`
+  (escalation migration `2026_09_17_000014` seeds the three levels for existing environments).
+
+**Dependencies:** Auto-tickets & escalation (7), Fines/plate checks (existing), Mobile API conventions
+
+---
+
 ## Phase 6 — Commercial
 
 *Builds on Phases 1–5. Includes the sales-to-operations handoff workflow.*
