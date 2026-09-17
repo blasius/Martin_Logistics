@@ -91,7 +91,7 @@ class TripStateMachineService
      */
     public function canTransition(Trip $trip, mixed $to, array $options = []): bool
     {
-        $transition = $this->resolveTransition($trip, $to);
+        $transition = $this->resolveTransition($trip, $to, $options);
 
         if (!$transition) {
             return false;
@@ -120,7 +120,7 @@ class TripStateMachineService
     public function transition(Trip $trip, mixed $to, array $options = []): Trip
     {
         $strict = $options['strict'] ?? true;
-        $transition = $this->resolveTransition($trip, $to);
+        $transition = $this->resolveTransition($trip, $to, $options);
 
         if ($transition) {
             if (!$this->canTransition($trip, $transition, $options)) {
@@ -195,7 +195,7 @@ class TripStateMachineService
         return $trip->fresh();
     }
 
-    private function resolveTransition(Trip $trip, mixed $to): ?TripFlowTransition
+    private function resolveTransition(Trip $trip, mixed $to, array $options = []): ?TripFlowTransition
     {
         if ($to instanceof TripFlowTransition) {
             return $to;
@@ -224,7 +224,24 @@ class TripStateMachineService
                 return null;
             }
 
-            return (clone $base)->where('to_state_id', $target->id)->first();
+            // Destination state lookup: when several transitions share the same
+            // from->to pair (e.g. driver "arrive" vs system "confirm_pod"), prefer
+            // the one whose trigger matches the caller's context.
+            $trigger = $options['trigger'] ?? null;
+            $matching = (clone $base)
+                ->where('to_state_id', $target->id)
+                ->orderBy('sort_order')
+                ->get();
+
+            if ($trigger) {
+                $byTrigger = $matching->firstWhere('trigger', $trigger)
+                    ?? $matching->firstWhere('trigger', 'any');
+                if ($byTrigger) {
+                    return $byTrigger;
+                }
+            }
+
+            return $matching->first();
         }
 
         return null;

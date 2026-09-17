@@ -6,14 +6,17 @@ use App\Http\Controllers\Controller;
 use App\Models\ProofOfDelivery;
 use App\Services\ProofOfDeliveryService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class ProofOfDeliveryController extends Controller
 {
     public function __construct(private ProofOfDeliveryService $podService) {}
 
-    public function index()
+    public function index(Request $request)
     {
         $pods = ProofOfDelivery::with(['order.client.user:id,name', 'trip:id,status', 'submitter:id,name'])
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
+            ->when($request->filled('trip_id'), fn ($q) => $q->where('trip_id', $request->trip_id))
             ->orderByDesc('created_at')
             ->get()
             ->map(function ($pod) {
@@ -82,6 +85,20 @@ class ProofOfDeliveryController extends Controller
     {
         $pod = $this->podService->confirm($proofOfDelivery);
         return response()->json(['message' => 'Proof of delivery confirmed', 'pod' => $pod]);
+    }
+
+    public function reject(Request $request, ProofOfDelivery $proofOfDelivery)
+    {
+        if ($proofOfDelivery->status !== 'submitted') {
+            return response()->json(['message' => 'Only submitted proofs of delivery can be rejected.'], 422);
+        }
+
+        $validated = $request->validate([
+            'reason' => 'required|string|max:1000',
+        ]);
+
+        $pod = $this->podService->reject($proofOfDelivery, $validated['reason']);
+        return response()->json(['message' => 'Proof of delivery rejected. Driver can re-submit.', 'pod' => $pod]);
     }
 
     public function downloadPdf(ProofOfDelivery $proofOfDelivery)

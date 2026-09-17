@@ -321,6 +321,7 @@ Route::middleware('auth')->group(function () {
         Route::get('proofs-of-delivery/{proofOfDelivery}', [ProofOfDeliveryController::class, 'show']);
         Route::put('proofs-of-delivery/{proofOfDelivery}', [ProofOfDeliveryController::class, 'update']);
         Route::post('proofs-of-delivery/{proofOfDelivery}/confirm', [ProofOfDeliveryController::class, 'confirm']);
+        Route::post('proofs-of-delivery/{proofOfDelivery}/reject', [ProofOfDeliveryController::class, 'reject']);
         Route::get('proofs-of-delivery/{proofOfDelivery}/pdf', [ProofOfDeliveryController::class, 'downloadPdf']);
 
         // Rate Cards (Phase 6.1)

@@ -1,8 +1,8 @@
 import { api } from '../../plugins/axios';
 
 export const podApi = {
-    getAll() {
-        return api.get('/portal/proofs-of-delivery');
+    getAll(params = {}) {
+        return api.get('/portal/proofs-of-delivery', { params });
     },
 
     show(id) {
@@ -23,6 +23,10 @@ export const podApi = {
 
     confirm(id) {
         return api.post(`/portal/proofs-of-delivery/${id}/confirm`);
+    },
+
+    reject(id, reason) {
+        return api.post(`/portal/proofs-of-delivery/${id}/reject`, { reason });
     },
 
     downloadPdf(id) {

@@ -67,6 +67,68 @@ class ProofOfDeliveryService
         return $pod->fresh()->load(['order', 'trip', 'submitter']);
     }
 
+    /**
+     * Reject a submitted POD: send it back to draft so the driver can re-submit,
+     * and return the trip to the status it held immediately before this POD was
+     * submitted (via the state machine, so history stays consistent).
+     */
+    public function reject(ProofOfDelivery $pod, string $reason): ProofOfDelivery
+    {
+        $reason = trim($reason);
+
+        $pod->update([
+            'status' => 'draft',
+            'notes' => $pod->notes
+                ? $pod->notes . "\n[Rejected: {$reason}]"
+                : "[Rejected: {$reason}]",
+        ]);
+
+        $oldStatus = null;
+
+        if (!empty($pod->trip_id)) {
+            $trip = $pod->trip;
+            if ($trip) {
+                // Find the status held right before this POD pushed the trip forward.
+                $previous = TripHistory::where('trip_id', $trip->id)
+                    ->where('action', 'status_transition')
+                    ->where('changes->new_status', $trip->status)
+                    ->orderByDesc('id')
+                    ->first();
+
+                $oldStatus = $oldStatus ?? data_get($previous, 'changes.old_status');
+
+                if ($oldStatus && $oldStatus !== $trip->status) {
+                    $this->tripStateMachine->transition($trip, $oldStatus, [
+                        'actor' => auth()->user(),
+                        'trigger' => 'dispatcher',
+                        'strict' => false,
+                        'notes' => 'POD rejected: ' . $reason,
+                    ]);
+                }
+            }
+        }
+
+        TripHistory::create([
+            'trip_id' => $pod->trip_id,
+            'user_id' => auth()->id() ?? $pod->submitted_by,
+            'action' => 'pod_rejected',
+            'changes' => [
+                'pod_id' => $pod->id,
+                'reason' => $reason,
+                'returned_to' => $oldStatus,
+            ],
+        ]);
+
+        if (!empty($pod->order_id)) {
+            $order = $pod->order;
+            if ($order && $order->status === 'delivered') {
+                $order->update(['status' => 'in_transit']);
+            }
+        }
+
+        return $pod->fresh()->load(['order', 'trip', 'submitter']);
+    }
+
     public function generatePdf(ProofOfDelivery $pod)
     {
         $pod->load(['order.client', 'trip.vehicle', 'trip.driver', 'submitter']);

@@ -43,10 +43,11 @@ class WebhookDispatch
     {
         $this->webhookService->dispatch('delivery.confirmed', [
             'event_type' => 'delivery.confirmed',
-            'delivery_id' => $event->delivery->id,
-            'status' => $event->delivery->status,
-            'order_id' => $event->delivery->order_id,
-            'confirmed_by' => $event->delivery->confirmed_by,
+            'delivery_id' => $event->proofOfDelivery->id,
+            'status' => $event->proofOfDelivery->status,
+            'order_id' => $event->proofOfDelivery->order_id,
+            'trip_id' => $event->proofOfDelivery->trip_id,
+            'received_by' => $event->proofOfDelivery->received_by_name,
         ]);
     }
 

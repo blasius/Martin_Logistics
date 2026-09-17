@@ -42,6 +42,20 @@ async function confirmPod() {
     } catch {}
 }
 
+async function rejectPod() {
+    const reason = prompt('Rejection reason (required):')
+    if (reason === null || !reason.trim()) {
+        if (reason !== null) alert('A reason is required to reject a proof of delivery.')
+        return
+    }
+    if (!confirm('Reject this proof of delivery?')) return
+    try {
+        await podApi.reject(props.id, reason.trim())
+        pod.value.status = 'draft'
+        pod.value.notes = pod.value.notes ? pod.value.notes + ` [Rejected: ${reason.trim()}]` : `[Rejected: ${reason.trim()}]`
+    } catch {}
+}
+
 async function downloadPdf() {
     try {
         const res = await podApi.downloadPdf(props.id)
@@ -156,10 +170,14 @@ function openGps(lat: number, lng: number) {
                 </div>
             </div>
 
-            <div v-if="pod.status === 'submitted'" class="mt-6">
+            <div v-if="pod.status === 'submitted'" class="mt-6 flex items-center gap-3">
                 <button @click="confirmPod"
                     class="px-6 py-3 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-colors">
                     Confirm Delivery
+                </button>
+                <button @click="rejectPod"
+                    class="px-6 py-3 bg-rose-50 text-rose-600 text-sm font-semibold rounded-lg hover:bg-rose-100 transition-colors">
+                    Reject Delivery
                 </button>
             </div>
         </div>

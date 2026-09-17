@@ -4,15 +4,31 @@ import { podApi } from '../../api/proofs-of-delivery'
 
 const pods = ref([])
 const loading = ref(true)
+const statusFilter = ref('')
 
-onMounted(async () => {
+const statusTabs = [
+    { value: '', label: 'All' },
+    { value: 'submitted', label: 'Submitted' },
+    { value: 'confirmed', label: 'Confirmed' },
+    { value: 'draft', label: 'Draft' },
+]
+
+onMounted(load)
+
+async function load() {
+    loading.value = true
     try {
-        const res = await podApi.getAll()
+        const res = await podApi.getAll(statusFilter.value ? { status: statusFilter.value } : {})
         pods.value = res.data
     } catch {} finally {
         loading.value = false
     }
-})
+}
+
+function setFilter(value: string) {
+    statusFilter.value = value
+    load()
+}
 
 function formatDate(d: string | null) {
     if (!d) return '-'
@@ -38,6 +54,19 @@ async function confirmPod(id: number) {
         if (pod) pod.status = 'confirmed'
     } catch {}
 }
+
+async function rejectPod(id: number) {
+    const reason = prompt('Rejection reason (required):')
+    if (reason === null || !reason.trim()) {
+        if (reason !== null) alert('A reason is required to reject a proof of delivery.')
+        return
+    }
+    if (!confirm('Reject this proof of delivery?')) return
+    try {
+        await podApi.reject(id, reason.trim())
+        await load()
+    } catch {}
+}
 </script>
 
 <template>
@@ -49,6 +78,16 @@ async function confirmPod(id: number) {
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
                 New POD
             </router-link>
+        </div>
+
+        <div class="flex items-center gap-2 mb-6">
+            <div class="inline-flex bg-slate-100 rounded-lg p-1 gap-1">
+                <button v-for="tab in statusTabs" :key="tab.value" @click="setFilter(tab.value)"
+                    class="px-4 py-2 text-xs font-semibold rounded-md transition-colors"
+                    :class="statusFilter === tab.value ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'">
+                    {{ tab.label }}
+                </button>
+            </div>
         </div>
 
         <div v-if="loading" class="bg-white rounded-xl border border-slate-100 shadow-sm p-8">
@@ -110,6 +149,9 @@ async function confirmPod(id: number) {
                                 <button v-if="pod.status === 'submitted'"
                                     @click="confirmPod(pod.id)"
                                     class="text-xs font-semibold text-emerald-600 hover:text-emerald-700">Confirm</button>
+                                <button v-if="pod.status === 'submitted'"
+                                    @click="rejectPod(pod.id)"
+                                    class="text-xs font-semibold text-rose-500 hover:text-rose-700">Reject</button>
                             </div>
                         </td>
                     </tr>
