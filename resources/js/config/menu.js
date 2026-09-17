@@ -78,6 +78,7 @@ export const menu = [
             { label: "All Trips", to: "/trips/all" },
             { label: "Status Board", to: "/trips/board" },
             { label: "New Dispatch", to: "/trips/create" },
+            { label: "Trip Flow", to: "/trips/flow" },
         ],
     },
     {

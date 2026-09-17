@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\DB;
 
 class TruckRequestService
 {
+    public function __construct(protected TripStateMachineService $tripStateMachine) {}
+
     public function generateReference(): string
     {
         $year = now()->year;
@@ -46,11 +48,18 @@ class TruckRequestService
         return DB::transaction(function () use ($request, $vehicleId, $trailerId) {
             $dispatcher = $this->assignDispatcher();
 
+            $initialStatus = $this->tripStateMachine->initialState()?->key ?? 'pre_departure';
+
             $trip = Trip::create([
                 'vehicle_id' => $vehicleId,
                 'dispatcher_id' => $dispatcher?->id,
-                'status' => 'pre_departure',
+                'status' => $initialStatus,
                 'order_id' => $request->order_id,
+            ]);
+
+            $this->tripStateMachine->recordStatus($trip, $initialStatus, [
+                'action' => 'truck_request_trip_created',
+                'notes' => 'Trip created from truck request',
             ]);
 
             $request->update([

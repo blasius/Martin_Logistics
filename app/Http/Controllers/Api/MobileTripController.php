@@ -11,11 +11,14 @@ use App\Models\TripHistory;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleSnapshot;
+use App\Services\TripStateMachineService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class MobileTripController extends Controller
 {
+    public function __construct(protected TripStateMachineService $tripStateMachine) {}
+
     /**
      * Get the driver's currently active trip and the operational context
      * (driver identity, assigned truck/trailer, position, nearest place,
@@ -36,7 +39,7 @@ class MobileTripController extends Controller
         // trips.driver_id NULL). See driverTripQuery().
         $trip = $this->driverTripQuery($user->driver)
             ->with(['order', 'vehicle', 'route', 'dispatcher', 'createdBy'])
-            ->whereNotIn('status', ['delivered', 'cancelled'])
+            ->whereNotIn('status', $this->tripStateMachine->terminalStatuses())
             ->latest()
             ->first();
 
@@ -261,9 +264,12 @@ class MobileTripController extends Controller
     {
         $base = $this->driverTripQuery($driver);
 
+        $terminalStatuses = $this->tripStateMachine->terminalStatuses();
+        $deliveredStatus = $this->tripStateMachine->deliveredStatus();
+
         $total = (clone $base)->count();
-        $completed = (clone $base)->where('status', 'delivered')->count();
-        $pending = (clone $base)->whereNotIn('status', ['delivered', 'cancelled'])->count();
+        $completed = (clone $base)->where('status', $deliveredStatus)->count();
+        $pending = (clone $base)->whereNotIn('status', $terminalStatuses)->count();
 
         $distance = (clone $base)
             ->selectRaw('COALESCE(SUM(COALESCE(actual_distance_km, planned_distance_km)), 0) AS total')
@@ -307,7 +313,8 @@ class MobileTripController extends Controller
     }
 
     /**
-     * Update the status of a specific trip and log history.
+     * Update the status of a specific trip through the configured trip flow
+     * state machine and log history.
      */
     public function updateStatus(Request $request, Trip $trip)
     {
@@ -327,27 +334,34 @@ class MobileTripController extends Controller
         $newStatus = $validated['status'];
 
         if ($oldStatus === $newStatus && empty($validated['notes'])) {
-             return response()->json(['message' => 'Status is already set to ' . $newStatus], 422);
+            return response()->json(['message' => 'Status is already set to ' . $newStatus], 422);
         }
 
-        // 1. Update the Trip Status
-        $trip->update(['status' => $newStatus]);
+        $machine = $this->tripStateMachine;
 
-        // 2. Create the History Log
-        TripHistory::create([
-            'trip_id' => $trip->id,
-            'user_id' => $user->id,
-            'action'  => 'status_update',
-            'changes' => [
-                'old_status' => $oldStatus,
-                'new_status' => $newStatus,
-                'notes'      => $validated['notes'] ?? null,
-            ]
-        ]);
+        try {
+            $trip = $machine->transition($trip, $newStatus, [
+                'actor' => $user,
+                'trigger' => 'driver',
+                'notes' => $validated['notes'] ?? null,
+            ]);
+        } catch (\App\Exceptions\TripTransitionNotAllowedException $e) {
+            $available = $machine->availableTransitions($trip, ['trigger' => 'driver'])
+                ->map(fn ($t) => [
+                    'status' => $t->toState->key,
+                    'label' => $t->toState->label,
+                ])
+                ->values()
+                ->all();
+            return response()->json([
+                'message' => $e->getMessage(),
+                'available_statuses' => $available,
+            ], 422);
+        }
 
         return response()->json([
             'message' => 'Trip status updated successfully.',
-            'status' => $newStatus
+            'status' => $trip->status,
         ]);
     }
 }

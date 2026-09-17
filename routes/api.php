@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\SearchController;
 use App\Http\Controllers\Api\RoutesController;
 use App\Http\Controllers\Api\PlacesController;
 use App\Http\Controllers\Api\TripController;
+use App\Http\Controllers\Api\TripFlowController;
 use App\Http\Controllers\Api\MockDispatchController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\TrackerController;
@@ -207,6 +208,17 @@ Route::middleware('auth')->group(function () {
         Route::get('/drivers/search-users', [DriverController::class, 'searchUsers']);
         Route::post('/drivers', [DriverController::class, 'store']);
         Route::post('/trips', [TripController::class, 'store']);
+
+        // Trip Flow (configurable state machine)
+        Route::get('/trip-flow', [TripFlowController::class, 'index']);
+        Route::post('/trip-flow/states/reorder', [TripFlowController::class, 'reorderStates']);
+        Route::post('/trip-flow/states', [TripFlowController::class, 'storeState']);
+        Route::put('/trip-flow/states/{state}', [TripFlowController::class, 'updateState']);
+        Route::delete('/trip-flow/states/{state}', [TripFlowController::class, 'destroyState']);
+        Route::post('/trip-flow/transitions', [TripFlowController::class, 'storeTransition']);
+        Route::put('/trip-flow/transitions/{transition}', [TripFlowController::class, 'updateTransition']);
+        Route::delete('/trip-flow/transitions/{transition}', [TripFlowController::class, 'destroyTransition']);
+        Route::put('/trip-flow/defaults', [TripFlowController::class, 'updateDefaults']);
 
         Route::get('/vehicles', [VehicleController::class, 'index']);
 

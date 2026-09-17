@@ -9,13 +9,17 @@ use App\Models\Vehicle;
 use App\Models\Driver;
 use App\Models\ClearanceBypassRequest;
 use App\Services\ClearanceService;
+use App\Services\TripStateMachineService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 
 class TripController extends Controller
 {
-    public function __construct(protected ClearanceService $clearanceService) {}
+    public function __construct(
+        protected ClearanceService $clearanceService,
+        protected TripStateMachineService $tripStateMachine,
+    ) {}
 
     public function store(Request $request)
     {
@@ -24,7 +28,7 @@ class TripController extends Controller
             'assignment'     => 'required|string',
             'route_id'       => 'nullable|exists:routes,id',
             'allocated_weight' => 'nullable|numeric',
-            'status'         => 'required|in:pending,assigned,on_route',
+            'status'         => 'nullable|string',
         ]);
 
         // Parse assignment string
@@ -63,14 +67,27 @@ class TripController extends Controller
             }
         }
 
-        return DB::transaction(function () use ($validated, $vehicleId, $driverId) {
+        $providedStatus = $validated['status'] ?? null;
+        $state = $providedStatus ? $this->tripStateMachine->stateByKey($providedStatus) : null;
+        if (!$state || !$state->is_active) {
+            $state = $this->tripStateMachine->initialState();
+        }
+        $statusKey = $state?->key ?? 'pre_departure';
+
+        return DB::transaction(function () use ($validated, $vehicleId, $driverId, $statusKey) {
             $trip = Trip::create([
                 'order_id'       => $validated['order_id'],
                 'vehicle_id'     => $vehicleId,
                 'driver_id'      => $driverId,
                 'route_id'       => $validated['route_id'],
-                'status'         => $validated['status'],
+                'status'         => $statusKey,
                 'created_by'     => Auth::id() ?? 1,
+            ]);
+
+            $this->tripStateMachine->recordStatus($trip, $statusKey, [
+                'actor' => auth()->user(),
+                'action' => 'trip_created',
+                'notes' => 'Trip created via portal dispatch',
             ]);
 
             $order = Order::find($validated['order_id']);

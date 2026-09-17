@@ -32,6 +32,7 @@ const router = createRouter({
                 { path: "trips", redirect: "/trips/all" },
                 { path: "trips/all", component: () => import("../pages/Trips/All.vue") },
                 { path: "trips/board", component: () => import("../pages/Trips/Board.vue") },
+                { path: "trips/flow", component: () => import("../pages/Trips/Flow.vue") },
                 { path: "trips/create", component: () => import("../pages/Trips/Index.vue") },
                 {
                     path: "trips/:id",

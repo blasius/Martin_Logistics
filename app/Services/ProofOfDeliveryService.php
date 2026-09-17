@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Storage;
 
 class ProofOfDeliveryService
 {
+    public function __construct(protected TripStateMachineService $tripStateMachine) {}
+
     public function submit(array $data, ?UploadedFile $photo = null): ProofOfDelivery
     {
         if ($photo) {
@@ -26,8 +28,17 @@ class ProofOfDeliveryService
 
         if (!empty($data['trip_id'])) {
             $trip = Trip::find($data['trip_id']);
-            if ($trip && $trip->status !== 'delivered') {
-                $trip->update(['status' => 'delivered']);
+            if ($trip) {
+                $deliveryState = $this->tripStateMachine->configuredStateKey('trip_flow.pod_delivery_state', 'delivered');
+                if ($trip->status !== $deliveryState) {
+                    $this->tripStateMachine->transition($trip, $deliveryState, [
+                        'actor' => \App\Models\User::find($data['submitted_by']),
+                        'trigger' => 'system',
+                        'strict' => false,
+                        'notes' => 'POD submitted',
+                    ]);
+                }
+
                 TripHistory::create([
                     'trip_id' => $trip->id,
                     'user_id' => $data['submitted_by'],

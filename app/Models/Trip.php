@@ -93,7 +93,8 @@ class Trip extends Model
 
     public function scopeActive($query)
     {
-        return $query->whereIn('status', ['pre_departure', 'assigned', 'on_route']);
+        $terminal = app(\App\Services\TripStateMachineService::class)->terminalStatuses();
+        return $query->whereNotIn('status', $terminal);
     }
 
     public static function boot()

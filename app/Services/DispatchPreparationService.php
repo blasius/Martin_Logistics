@@ -7,6 +7,8 @@ use App\Models\Trip;
 
 class DispatchPreparationService
 {
+    public function __construct(protected TripStateMachineService $tripStateMachine) {}
+
     public function getOrCreate(int $tripId): TripPreparation
     {
         return TripPreparation::firstOrCreate(
@@ -35,15 +37,24 @@ class DispatchPreparationService
             'prepared_by' => auth()->id(),
         ]);
 
-        $prep->trip->update(['status' => 'assigned']);
+        try {
+            $this->tripStateMachine->transitionByCode($prep->trip, 'mark_ready', [
+                'actor' => auth()->user(),
+                'trigger' => 'dispatcher',
+            ]);
+        } catch (\App\Exceptions\TripTransitionNotAllowedException $e) {
+            throw new \RuntimeException($e->getMessage());
+        }
 
         return $prep->fresh();
     }
 
     public function needsPreparation(): array
     {
+        $stateKey = $this->tripStateMachine->configuredStateKey('trip_flow.needs_preparation_state', 'pre_departure');
+
         return Trip::with(['vehicle', 'preparation', 'dispatcher'])
-            ->where('status', 'pre_departure')
+            ->where('status', $stateKey)
             ->orderBy('created_at', 'asc')
             ->get()
             ->toArray();
@@ -51,8 +62,10 @@ class DispatchPreparationService
 
     public function readyToDepart(): array
     {
+        $stateKey = $this->tripStateMachine->configuredStateKey('trip_flow.ready_to_depart_state', 'assigned');
+
         return Trip::with(['vehicle', 'preparation', 'dispatcher'])
-            ->where('status', 'assigned')
+            ->where('status', $stateKey)
             ->orderBy('created_at', 'desc')
             ->get()
             ->toArray();
