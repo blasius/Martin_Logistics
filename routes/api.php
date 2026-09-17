@@ -41,6 +41,7 @@ use App\Http\Controllers\Api\Fuel\FuelTankController;
 use App\Http\Controllers\Api\Fuel\FuelDeliveryController;
 use App\Http\Controllers\Api\Fuel\FuelDispenseController;
 use App\Http\Controllers\Api\Fuel\FuelAnalyticsController;
+use App\Http\Controllers\Api\Fuel\FuelReportController;
 use App\Http\Controllers\Api\RouteIntelligenceController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\SupportTicketController;
@@ -277,6 +278,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/reports/trip-profitability', [FleetReportController::class, 'tripProfitability']);
         Route::get('/reports/profitability', [FleetReportController::class, 'profitability']);
         Route::get('/reports/profitability/options', [FleetReportController::class, 'profitabilityOptions']);
+        Route::get('/reports/trip-fuel', [FuelReportController::class, 'index']);
+        Route::get('/reports/trip-fuel/{trip}', [FuelReportController::class, 'show']);
 
         // Containers
         Route::get('/containers/dashboard', [ContainerController::class, 'dashboard']);

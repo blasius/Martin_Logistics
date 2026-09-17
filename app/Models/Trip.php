@@ -86,6 +86,11 @@ class Trip extends Model
         return $this->hasOne(TripPreparation::class);
     }
 
+    public function fuelAnalysis()
+    {
+        return $this->hasOne(TripFuelAnalysis::class);
+    }
+
     public function truckRequest()
     {
         return $this->hasOne(TruckRequest::class);

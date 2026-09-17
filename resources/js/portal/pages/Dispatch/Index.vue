@@ -144,6 +144,23 @@
                              'bg-rose-100 text-rose-700': v.status === 'inactive',
                              'bg-purple-100 text-purple-700': v.status === 'released_from_workshop'
                          }">{{ v.status === 'released_from_workshop' ? 'Released' : v.status }}</div>
+                     <div v-if="v.fuel_gate" class="mt-1.5 text-[9px] font-black uppercase flex items-center gap-1"
+                          :class="{
+                              'text-emerald-600': v.fuel_gate.status === 'ok',
+                              'text-amber-600': v.fuel_gate.status === 'caution',
+                              'text-rose-600': v.fuel_gate.status === 'insufficient',
+                              'text-slate-400': v.fuel_gate.status === 'no_trip' || v.fuel_gate.status === 'no_ratio'
+                          }" :title="v.fuel_gate.message">
+                         <AlertTriangle v-if="v.fuel_gate.status === 'caution' || v.fuel_gate.status === 'insufficient'" class="w-3 h-3" />
+                         <Check v-else-if="v.fuel_gate.status === 'ok'" class="w-3 h-3" />
+                         <Minus v-else class="w-3 h-3" />
+                         <template v-if="v.fuel_gate.has_trip">
+                             <span>{{ v.fuel_gate.current_level }}L / {{ v.fuel_gate.expected_consumption }}L</span>
+                         </template>
+                         <template v-else>
+                             {{ v.fuel_gate.status === 'no_ratio' ? 'No fuel ratio' : 'No trip ready' }}
+                         </template>
+                     </div>
                 </div>
 
                 <div class="col-span-2 text-xs text-slate-500 font-medium">{{ v.make }} {{ v.model }}</div>
@@ -210,7 +227,7 @@
 <script setup>
 import { ref, computed, onMounted, reactive, markRaw } from 'vue';
 import { api } from "../../../plugins/axios";
-import { Search, FileSpreadsheet, Printer, Truck, Check, CheckCircle, Info, Copy, History, X, Wrench, Lock, Link2, UserPlus, XCircle } from 'lucide-vue-next';
+import { Search, FileSpreadsheet, Printer, Truck, Check, CheckCircle, Info, Copy, History, X, Wrench, Lock, Link2, UserPlus, XCircle, AlertTriangle, Minus } from 'lucide-vue-next';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 dayjs.extend(relativeTime);

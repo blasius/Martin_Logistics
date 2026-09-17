@@ -10,12 +10,15 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use App\Exports\DispatchExport;
+use App\Services\FuelManagementService;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\URL;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class DispatchController extends Controller
 {
+    public function __construct(protected FuelManagementService $fuelService) {}
+
     public function index()
     {
         // Eager load everything to avoid N+1 query issues
@@ -37,6 +40,9 @@ class DispatchController extends Controller
                 ->first();
 
             $vehicle->current_driver = $currentDriver;
+
+            // Pre-departure fuel gate (expected consumption vs live tank level).
+            $vehicle->fuel_gate = $this->fuelService->preDepartureFuelGate($vehicle);
 
             // Map statuses to filter-friendly values
             $status = strtolower($vehicle->status);
