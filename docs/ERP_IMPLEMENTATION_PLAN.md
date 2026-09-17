@@ -1845,6 +1845,27 @@ and optionally auto-deactivates accounts under a config-gated policy.
 
 ---
 
+### 5.12 Trip Bypass & Fines Automation
+
+Closes the loop on pre-trip clearance bypasses and puts the dormant fines/plate checks on a schedule.
+
+**Implementation:**
+- `ClearanceController::approveBypass` now releases an awaiting trip: it records a `bypass_approved`
+  `TripHistory` entry and, when the trip is still `pending`/`pre_departure`, transitions it through the
+  configured trip flow (`assign` / `mark_ready`) to the dispatchable `assigned` state. Unconfigured flow
+  paths are swallowed so the approval itself always succeeds.
+- `routes/console.php` schedules the fines sweep: `fines:dispatch --only-new --hours=24` daily at 03:00
+  (incremental plate checks) and a full `fines:dispatch` weekly on Monday at 03:30, both `withoutOverlapping`.
+- `DispatchFinesChecks` `--only-new` window fixed (absolute hour difference) so plates last checked long
+  ago are re-checked instead of being skipped.
+- `FinesProcessorService` routes provider/plate-check failures through `SupportAutoTicketService` as an
+  `auto_fines` ticket (deduped, assigned to the vehicle's dispatcher), so Support stays the single inbox;
+  escalation rules for `auto_fines` already exist.
+
+**Dependencies:** Pre-trip clearance & bypass (4.4), Auto-tickets & escalation (7), Fines provider (existing)
+
+---
+
 ## Phase 6 — Commercial
 
 *Builds on Phases 1–5. Includes the sales-to-operations handoff workflow.*

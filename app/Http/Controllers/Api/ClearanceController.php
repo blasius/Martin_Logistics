@@ -2,15 +2,21 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Exceptions\TripTransitionNotAllowedException;
 use App\Http\Controllers\Controller;
 use App\Models\ClearanceBypassRequest;
 use App\Models\Trip;
+use App\Models\TripHistory;
 use App\Services\ClearanceService;
+use App\Services\TripStateMachineService;
 use Illuminate\Http\Request;
 
 class ClearanceController extends Controller
 {
-    public function __construct(protected ClearanceService $clearanceService) {}
+    public function __construct(
+        protected ClearanceService $clearanceService,
+        protected TripStateMachineService $tripStateMachine,
+    ) {}
 
     public function check(Request $request)
     {
@@ -97,6 +103,8 @@ class ClearanceController extends Controller
             'manager_comment' => $validated['comment'] ?? null,
         ]);
 
+        $this->releaseAwaitingTrip($bypass->refresh());
+
         return $bypass->load(['requester:id,name', 'approver:id,name']);
     }
 
@@ -118,5 +126,57 @@ class ClearanceController extends Controller
         ]);
 
         return $bypass->load(['requester:id,name', 'approver:id,name']);
+    }
+
+    /**
+     * Release a trip parked awaiting clearance once its bypass is approved:
+     * record the decision in the trip history and move it to the dispatchable
+     * "assigned" state when the configured flow allows it.
+     */
+    protected function releaseAwaitingTrip(ClearanceBypassRequest $bypass): void
+    {
+        if (!$bypass->trip_id) {
+            return;
+        }
+
+        $trip = Trip::find($bypass->trip_id);
+        if (!$trip) {
+            return;
+        }
+
+        $actor = auth()->user();
+
+        TripHistory::create([
+            'trip_id' => $trip->id,
+            'user_id' => $actor?->id ?? $trip->created_by,
+            'action' => 'bypass_approved',
+            'changes' => [
+                'bypass_id' => $bypass->id,
+                'check_name' => $bypass->check_name,
+                'check_label' => $bypass->check_label,
+                'manager_comment' => $bypass->manager_comment,
+            ],
+        ]);
+
+        $code = match ($trip->status) {
+            'pending'       => 'assign',
+            'pre_departure' => 'mark_ready',
+            default         => null,
+        };
+
+        if ($code === null) {
+            return;
+        }
+
+        try {
+            $this->tripStateMachine->transitionByCode($trip, $code, [
+                'actor' => $actor,
+                'trigger' => 'any',
+                'notes' => "Clearance bypass approved — {$bypass->check_label}",
+            ]);
+        } catch (TripTransitionNotAllowedException) {
+            // The configured flow has no path from this state; keep the status
+            // untouched — the approval itself is already recorded above.
+        }
     }
 }

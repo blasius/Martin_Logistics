@@ -2,12 +2,15 @@
 
 namespace App\Services;
 
+use App\Models\SupportTicket;
 use App\Models\TrafficFine;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class FinesProcessorService
 {
+    public function __construct(protected SupportAutoTicketService $autoTickets) {}
+
     /**
      * Persist the API result. When API returns 'clear' and we have existing unpaid fines for that fineable,
      * we mark them as PAID (keeps history).
@@ -101,6 +104,30 @@ class FinesProcessorService
             }
         });
 
+        if ($status === 'error') {
+            $this->openFailureTicket($plate, $fineable, $apiResult);
+        }
+
         Log::info("Processed fines for plate {$plate}: status={$status}, tickets=" . count($tickets));
+    }
+
+    /**
+     * Route a provider/plate-check failure into the shared auto-ticket stack
+     * (point 7) so Support is the single inbox for fines connectivity issues.
+     */
+    protected function openFailureTicket(string $plate, $fineable, array $apiResult): void
+    {
+        $reason = $apiResult['message'] ?? ($apiResult['raw'] ?? 'unknown error');
+
+        if (is_array($reason)) {
+            $reason = json_encode($reason);
+        }
+
+        $this->autoTickets->open([
+            'title' => "Fines check failed — {$plate}",
+            'description' => "The fines provider did not return a usable result for plate {$plate}. Reason: {$reason}. The plate will be retried on the next scheduled sweep.",
+            'priority' => SupportTicket::PRIORITY_HIGH,
+            'source' => 'auto_fines',
+        ], $fineable, 'Fines');
     }
 }

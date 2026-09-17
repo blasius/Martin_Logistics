@@ -12,4 +12,6 @@ Schedule::command('documents:check-expiry --days=30')->dailyAt('08:00');
 Schedule::command('tickets:process-escalations')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('payments:send-reminders')->dailyAt('07:00');
 Schedule::command('fuel:reconcile')->dailyAt('00:30')->withoutOverlapping();
+Schedule::command('fines:dispatch --only-new --hours=24')->dailyAt('03:00')->withoutOverlapping();
+Schedule::command('fines:dispatch')->weeklyOn(1, '03:30')->withoutOverlapping();
 Schedule::command('access:review')->weeklyOn(1, '06:00')->withoutOverlapping();

@@ -23,7 +23,7 @@ class DispatchFinesChecks extends Command
 
         $delay = 0;
         foreach ($plates as $p) {
-            if ($this->option('only-new') && $p['last'] && now()->diffInHours($p['last']) < $hours) {
+            if ($this->option('only-new') && $p['last'] && abs(now()->diffInHours($p['last'])) < $hours) {
                 continue;
             }
             $delay += rand(20, 35);
