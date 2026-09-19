@@ -29,6 +29,11 @@ return new class extends Migration
 
     public function up(): void
     {
+        // AUTO_INCREMENT/ALTER MODIFY are MySQL-only; SQLite manages rowid itself.
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
+
         // Some of these ids are referenced by foreign keys; temporarily disable
         // FK checks so the MODIFY is allowed. Column types are unchanged, so the
         // constraints remain valid.
@@ -44,6 +49,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
+
         DB::statement('SET FOREIGN_KEY_CHECKS = 0');
         try {
             foreach ($this->tables as $table) {

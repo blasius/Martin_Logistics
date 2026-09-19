@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -23,7 +24,10 @@ return new class extends Migration
             $table->geometry('location', subtype: 'point', srid: 4326);
             $table->decimal('radius_meters', 10, 2)->default(50);
             $table->timestamps();
-            $table->spatialIndex('location');
+
+            if (DB::getDriverName() === 'mysql') {
+                $table->spatialIndex('location');
+            }
         });
     }
 

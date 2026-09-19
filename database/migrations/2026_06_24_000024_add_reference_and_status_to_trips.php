@@ -15,8 +15,10 @@ return new class extends Migration {
             });
         }
 
-        // Change status from enum to string for flexibility
-        DB::statement("ALTER TABLE trips MODIFY COLUMN status VARCHAR(50) NOT NULL DEFAULT 'pre_departure'");
+        // Change status from enum to string for flexibility (MySQL-only syntax)
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE trips MODIFY COLUMN status VARCHAR(50) NOT NULL DEFAULT 'pre_departure'");
+        }
 
         // Add reference values for existing rows
         $year = now()->year;

@@ -7,6 +7,11 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // Partitioning is MySQL-only; SQLite and other drivers skip this table.
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
+
         // Use raw SQL to handle the complex Partitioning requirements of MySQL
         DB::statement("
             CREATE TABLE telemetry_history (
@@ -32,6 +37,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
+
         DB::statement("DROP TABLE IF EXISTS telemetry_history");
     }
 };

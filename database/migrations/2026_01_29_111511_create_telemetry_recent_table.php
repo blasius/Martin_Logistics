@@ -26,7 +26,10 @@ return new class extends Migration
 
             // Indexes
             $table->index(['vehicle_id', 'created_at']);
-            $table->spatialIndex('location'); // Critical for proximity checks
+
+            if (DB::getDriverName() === 'mysql') {
+                $table->spatialIndex('location'); // Critical for proximity checks
+            }
         });
     }
 

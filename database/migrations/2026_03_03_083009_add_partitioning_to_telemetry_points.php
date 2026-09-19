@@ -10,6 +10,11 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // Partitioning is MySQL-only; base table already covers non-MySQL drivers.
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
+
         // 1. Drop the Foreign Key Constraint
         // MySQL does not allow foreign keys on partitioned tables.
         Schema::table('telemetry_points', function (Blueprint $table) {
@@ -51,6 +56,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
+
         // 1. Remove Partitioning
         DB::statement("ALTER TABLE telemetry_points REMOVE PARTITIONING");
 

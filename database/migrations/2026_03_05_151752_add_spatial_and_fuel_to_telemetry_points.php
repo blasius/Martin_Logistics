@@ -2,12 +2,18 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
     public function up(): void
     {
+        // Spatial columns/sidecar data are MySQL-only; base table already covers non-MySQL drivers.
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
+
         // Clean up from the previous failed run if necessary
         Schema::dropIfExists('telemetry_points_new');
 

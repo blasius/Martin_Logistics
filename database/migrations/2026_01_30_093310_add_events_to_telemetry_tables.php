@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
@@ -13,10 +14,12 @@ return new class extends Migration {
             $blueprint->decimal('event_value', 10, 2)->nullable()->after('event_type'); // Liters stolen/added
         });
 
-        // Add to the Cold Table (History)
-        Schema::table('telemetry_history', function (Blueprint $blueprint) {
-            $blueprint->string('event_type')->nullable()->after('pwr_ext');
-            $blueprint->decimal('event_value', 10, 2)->nullable()->after('event_type');
-        });
+        // Add to the Cold Table (History) - telemetry_history only exists on MySQL
+        if (DB::getDriverName() === 'mysql') {
+            Schema::table('telemetry_history', function (Blueprint $blueprint) {
+                $blueprint->string('event_type')->nullable()->after('pwr_ext');
+                $blueprint->decimal('event_value', 10, 2)->nullable()->after('event_type');
+            });
+        }
     }
 };

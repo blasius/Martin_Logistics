@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -11,6 +12,11 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Spatial columns/sidecar status are MySQL-only; base table already covers non-MySQL drivers.
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
+
         // 1. Clean up from any previous failed runs
         Schema::dropIfExists('vehicle_snapshots_new');
 
