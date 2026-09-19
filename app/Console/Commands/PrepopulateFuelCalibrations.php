@@ -27,18 +27,23 @@ class PrepopulateFuelCalibrations extends Command
         foreach ($tokens as $fleetName => $token) {
             $this->info("Fetching calibrations for fleet: " . (is_string($fleetName) ? $fleetName : 'Account'));
 
-            $result = $wialon->callApi('core/search_items', [
-                'spec' => [
-                    'itemsType' => 'avl_unit',
-                    'propName' => 'sys_name',
-                    'propValueMask' => '*',
-                    'sortType' => 'sys_name',
-                ],
-                'force' => 1,
-                'flags' => 4097, // Base + Sensors
-                'from' => 0,
-                'to' => 0,
-            ], $token);
+            try {
+                $result = $wialon->callApi('core/search_items', [
+                    'spec' => [
+                        'itemsType' => 'avl_unit',
+                        'propName' => 'sys_name',
+                        'propValueMask' => '*',
+                        'sortType' => 'sys_name',
+                    ],
+                    'force' => 1,
+                    'flags' => 4097, // Base + Sensors
+                    'from' => 0,
+                    'to' => 0,
+                ], $token);
+            } catch (\Exception $e) {
+                $this->warn("Fleet failed ({$e->getMessage()}). Skipping.");
+                continue;
+            }
 
             if (!isset($result['items'])) {
                 $this->warn("No items found for this token.");

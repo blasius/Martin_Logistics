@@ -39,6 +39,9 @@ return [
         'url' => env('WIALON_API_URL'),
         'token' => env('WIALON_API_TOKEN'),
         'token_fleet_2' => env('WIALON_API_TOKEN_FLEET2'),
+        'timeout' => env('WIALON_TIMEOUT', 120),
+        'connect_timeout' => env('WIALON_CONNECT_TIMEOUT', 15),
+        'retries' => env('WIALON_RETRIES', 1),
     ],
 
     'twilio' => [

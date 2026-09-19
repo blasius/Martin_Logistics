@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\Trip;
 use App\Models\WialonUnit;
 use Carbon\Carbon;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -39,6 +41,25 @@ class WialonService
     }
 
     /**
+     * HTTP client tuned for the Wialon API, whose large payloads (e.g.
+     * core/search_items ~0.5MB) regularly exceed Laravel's 30s default timeout.
+     */
+    protected function http(): PendingRequest
+    {
+        return Http::timeout((int) config('services.wialon.timeout', 120))
+            ->connectTimeout((int) config('services.wialon.connect_timeout', 15));
+    }
+
+    /**
+     * Connection-level retries (timeouts, refused/reset connections). Semantic
+     * failures (bad token, API errors) are not retried — they surface to callers.
+     */
+    protected function maxRetries(): int
+    {
+        return (int) config('services.wialon.retries', 1);
+    }
+
+    /**
      * Diagnostic tool to verify all configured fleet connections.
      */
     public function test(): array
@@ -68,7 +89,7 @@ class WialonService
      */
     protected function loginToken(string $token): string
     {
-        $response = Http::get($this->url, [
+        $response = $this->http()->get($this->url, [
             'svc' => 'token/login',
             'params' => json_encode(['token' => $token]),
         ]);
@@ -92,48 +113,66 @@ class WialonService
     }
 
     /**
-     * Executes an API call for a specific fleet account.
+     * Executes an API call for a specific fleet account, retrying transient
+     * connection failures (timeout / reset) up to the configured limit.
      */
     public function callApi(string $svc, array $params, string $token)
     {
-        $sid = $this->ensureSession($token);
+        $attempt = 0;
 
-        $response = Http::get($this->url, [
-            'svc'   => $svc,
-            'sid'   => $sid,
-            'params'=> json_encode($params),
-        ]);
+        while (true) {
+            try {
+                $sid = $this->ensureSession($token);
 
-        $json = $response->json();
+                $response = $this->http()->get($this->url, [
+                    'svc'   => $svc,
+                    'sid'   => $sid,
+                    'params'=> json_encode($params),
+                ]);
 
-        // Handle expired session (Wialon Error 1)
-        if (isset($json['error']) && $json['error'] === 1) {
-            unset($this->sids[$token]);
-            $sid = $this->loginToken($token);
-            $response = Http::get($this->url, [
-                'svc'   => $svc,
-                'sid'   => $sid,
-                'params'=> json_encode($params),
-            ]);
-            $json = $response->json();
+                $json = $response->json();
+
+                // Handle expired session (Wialon Error 1)
+                if (isset($json['error']) && $json['error'] === 1) {
+                    unset($this->sids[$token]);
+                    $sid = $this->loginToken($token);
+                    $response = $this->http()->get($this->url, [
+                        'svc'   => $svc,
+                        'sid'   => $sid,
+                        'params'=> json_encode($params),
+                    ]);
+                    $json = $response->json();
+                }
+
+                return $json;
+            } catch (ConnectionException $e) {
+                if ($attempt >= $this->maxRetries()) {
+                    throw $e;
+                }
+                $attempt++;
+                usleep(500_000);
+            }
         }
-
-        return $json;
     }
 
     /**
      * Wrapper that executes the service call across ALL tokens
-     * and merges 'items' results into a single collection.
+     * and merges 'items' results into a single collection. A failing fleet
+     * is skipped (and logged) so one unreachable account cannot abort sync.
      */
     public function call(string $svc, array $params = []): Collection
     {
         $allResults = collect();
 
-        foreach ($this->tokens as $token) {
-            $result = $this->callApi($svc, $params, $token);
+        foreach ($this->tokens as $key => $token) {
+            try {
+                $result = $this->callApi($svc, $params, $token);
 
-            if (isset($result['items']) && is_array($result['items'])) {
-                $allResults = $allResults->concat($result['items']);
+                if (isset($result['items']) && is_array($result['items'])) {
+                    $allResults = $allResults->concat($result['items']);
+                }
+            } catch (\Exception $e) {
+                Log::warning("Wialon call [{$svc}] failed for fleet [{$key}]: " . $e->getMessage());
             }
         }
 
@@ -213,18 +252,30 @@ class WialonService
                 'token_truncated' => '...' . substr($token, -5)
             ]);
 
-            $result = $this->callApi('core/search_items', [
-                'spec' => [
-                    'itemsType' => 'avl_unit',
-                    'propName' => 'sys_name',
-                    'propValueMask' => '*',
-                    'sortType' => 'sys_name',
-                ],
-                'force' => 1,
-                'flags' => 5121,
-                'from' => 0,
-                'to' => 0,
-            ], $token);
+            try {
+                $result = $this->callApi('core/search_items', [
+                    'spec' => [
+                        'itemsType' => 'avl_unit',
+                        'propName' => 'sys_name',
+                        'propValueMask' => '*',
+                        'sortType' => 'sys_name',
+                    ],
+                    'force' => 1,
+                    'flags' => 5121,
+                    'from' => 0,
+                    'to' => 0,
+                ], $token);
+            } catch (ConnectionException $e) {
+                Log::warning("Wialon Sync: Fleet [{$fleetKey}] unreachable ({$e->getMessage()}). Skipping this pass.", [
+                    'token_truncated' => '...' . substr($token, -5)
+                ]);
+                continue;
+            } catch (\Exception $e) {
+                Log::warning("Wialon Sync: Fleet [{$fleetKey}] failed ({$e->getMessage()}). Skipping this pass.", [
+                    'token_truncated' => '...' . substr($token, -5)
+                ]);
+                continue;
+            }
 
             // 3. Check if the API response is completely missing or malformed
             if (!isset($result['items'])) {
