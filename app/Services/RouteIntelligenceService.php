@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\RouteDeviationLog;
-use App\Models\SupportCategory;
 use App\Models\SupportTicket;
 use App\Models\Trip;
 use App\Models\TripFuelAnalysis;
@@ -11,6 +10,8 @@ use App\Models\User;
 
 class RouteIntelligenceService
 {
+    public function __construct(protected SupportAutoTicketService $autoTicket) {}
+
     public function checkDeviation(Trip $trip): ?RouteDeviationLog
     {
         $snapshot = $trip->vehicle?->snapshot;
@@ -74,14 +75,6 @@ class RouteIntelligenceService
 
     public function createExcessiveFuelTicket(TripFuelAnalysis $analysis): SupportTicket
     {
-        $category = SupportCategory::firstOrCreate(
-            ['name' => 'Fuel Abuse'],
-            [
-                'description' => 'Auto-created tickets for excessive fuel consumption (>15% variance)',
-                'is_active' => true,
-            ]
-        );
-
         $priority = match (true) {
             ($analysis->variance_percent ?? 0) > 30 => 'urgent',
             ($analysis->variance_percent ?? 0) > 20 => 'high',
@@ -89,22 +82,23 @@ class RouteIntelligenceService
         };
 
         $plateNumber = $analysis->vehicle?->plate_number ?? 'N/A';
-        $dispatcherId = $analysis->trip?->dispatcher_id;
+        $trip = $analysis->trip;
 
-        $ticket = SupportTicket::create([
-            'user_id' => $analysis->trip?->created_by ?? 1,
-            'support_category_id' => $category->id,
-            'assigned_to' => $dispatcherId,
-            'subject_type' => get_class($analysis),
-            'subject_id' => $analysis->id,
-            'title' => "Excessive Fuel — Trip #{$analysis->trip_id}",
-            'description' => "Trip #{$analysis->trip_id} used {$analysis->fuel_used}L vs expected {$analysis->expected_consumption}L ({$analysis->variance_percent}% variance). Vehicle: {$plateNumber}.",
-            'priority' => $priority,
-            'source' => 'auto_fuel_flag',
-        ]);
+        $ticket = $this->autoTicket->open(
+            [
+                'title' => "Excessive Fuel — Trip #{$analysis->trip_id}",
+                'description' => "Trip #{$analysis->trip_id} used {$analysis->fuel_used}L vs expected {$analysis->expected_consumption}L ({$analysis->variance_percent}% variance). Vehicle: {$plateNumber}.",
+                'priority' => $priority,
+                'source' => 'auto_fuel_flag',
+            ],
+            $analysis,
+            'Fuel Abuse',
+            $trip?->dispatcher_id,
+            $trip?->created_by ?? 1,
+        );
 
-        if ($analysis->trip) {
-            $analysis->trip->updateQuietly(['auto_ticket_id' => $ticket->id]);
+        if ($trip) {
+            $trip->updateQuietly(['auto_ticket_id' => $ticket->id]);
         }
 
         return $ticket;
@@ -124,14 +118,6 @@ class RouteIntelligenceService
             }
         }
 
-        $category = SupportCategory::firstOrCreate(
-            ['name' => 'Route Deviation'],
-            [
-                'description' => 'Auto-created tickets for route deviations detected by the intelligence engine',
-                'is_active' => true,
-            ]
-        );
-
         $plateNumber = $trip->vehicle?->plate_number ?? 'N/A';
         $driverName = $trip->driver?->user?->name ?? 'N/A';
         $distanceMeters = $log->distance_from_route_meters ?? 0;
@@ -143,27 +129,20 @@ class RouteIntelligenceService
             default           => 'normal',
         };
 
-        $dispatcherId = $trip->dispatcher_id;
-
-        $ticket = SupportTicket::create([
-            'user_id' => $trip->created_by ?? 1,
-            'support_category_id' => $category->id,
-            'assigned_to' => $dispatcherId,
-            'subject_type' => get_class($log),
-            'subject_id' => $log->id,
-            'title' => "Route Deviation — Trip #{$trip->id}",
-            'description' => "Trip #{$trip->id} ({$plateNumber}, driver: {$driverName}) deviated {$distanceKm}km from the planned route at {$log->detected_at?->format('Y-m-d H:i')}.",
-            'priority' => $priority,
-            'source' => 'auto_route_deviation',
-        ]);
+        $ticket = $this->autoTicket->open(
+            [
+                'title' => "Route Deviation — Trip #{$trip->id}",
+                'description' => "Trip #{$trip->id} ({$plateNumber}, driver: {$driverName}) deviated {$distanceKm}km from the planned route at {$log->detected_at?->format('Y-m-d H:i')}.",
+                'priority' => $priority,
+                'source' => 'auto_route_deviation',
+            ],
+            $log,
+            'Route Deviation',
+            $trip->dispatcher_id,
+            $trip->created_by ?? 1,
+        );
 
         $trip->updateQuietly(['auto_ticket_id' => $ticket->id]);
-
-        $this->logTicketEvent($ticket, 'created', [
-            'source' => 'auto_route_deviation',
-            'deviation_log_id' => $log->id,
-            'distance_meters' => $distanceMeters,
-        ]);
 
         return $ticket;
     }
@@ -253,15 +232,6 @@ class RouteIntelligenceService
             'recent_deviations' => $recentDeviations,
             'recent_auto_tickets' => $recentTickets,
         ];
-    }
-
-    private function logTicketEvent(SupportTicket $ticket, string $type, array $payload = []): void
-    {
-        $ticket->events()->create([
-            'user_id' => auth()->id() ?? $ticket->user_id,
-            'type' => $type,
-            'payload' => $payload,
-        ]);
     }
 
     private function distanceToPath(float $lat, float $lng, array $path): float
