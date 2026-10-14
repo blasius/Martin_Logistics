@@ -72,11 +72,25 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <h2 class="font-black text-slate-800 mb-4 text-sm uppercase tracking-widest flex items-center gap-2">
-                    <i class="lucide lucide-trending-up w-4 h-4 text-indigo-500"></i>
-                    Issuance History
-                </h2>
+                <div class="flex items-start justify-between gap-4 mb-4">
+                    <div>
+                        <h2 class="font-black text-slate-800 text-sm uppercase tracking-widest flex items-center gap-2">
+                            <i class="lucide lucide-trending-up w-4 h-4 text-indigo-500"></i>
+                            Issuance History
+                        </h2>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">
+                            Tickets by the date the offence occurred, as reported by police
+                        </p>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-2xl font-black text-slate-900 leading-none">{{ issuedInRange }}</div>
+                        <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Issued in range</div>
+                    </div>
+                </div>
                 <canvas ref="timeseriesCanvas" style="max-height: 320px;"></canvas>
+                <p v-if="undatedCount" class="text-[10px] font-bold text-amber-600 uppercase tracking-wider mt-3">
+                    {{ undatedCount }} ticket(s) have no police issue date and are excluded from this chart
+                </p>
             </div>
 
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
@@ -169,9 +183,12 @@ const range = ref('30');
 const summary = ref({});
 const timeseries = ref([]);
 const topViolations = ref([]);
+const undatedCount = ref(0);
 const timeseriesCanvas = ref(null);
 const loading = ref(false);
 let chartInstance = null;
+
+const issuedInRange = computed(() => timeseries.value.reduce((sum, d) => sum + (d.count || 0), 0));
 
 const showModal = ref(false);
 const modalType = ref('');
@@ -193,6 +210,7 @@ async function fetchData() {
         summary.value = data.summary;
         timeseries.value = data.timeseries;
         topViolations.value = data.top_violations;
+        undatedCount.value = data.undated_count || 0;
         renderChart();
     } catch (e) { console.error(e); }
     finally { loading.value = false; }

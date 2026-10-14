@@ -31,8 +31,9 @@ class FinesAnalyticsController extends Controller
             return $this->exportCsvRange($from_date, $to_date);
         }
 
-        // Base Query for the selected period
-        $baseQuery = TrafficFine::whereBetween('created_at', [$from_date, $to_date]);
+        // Base Query for the selected period. Bounded by the police issue date,
+        // not by when we imported the ticket — see TrafficFine::ISSUED_DATE_COLUMN.
+        $baseQuery = TrafficFine::issuedBetween($from_date, $to_date);
 
         $summary = [
             // Outstanding debt, principal and penalty kept separate so the
@@ -68,22 +69,22 @@ class FinesAnalyticsController extends Controller
             'to' => $to_date->toDateString(),
         ];
 
-        // Timeseries
-        $timeseriesRaw = TrafficFine::select(DB::raw('DATE(created_at) as date'), DB::raw('COUNT(*) as count'))
-            ->whereBetween('created_at', [$from_date, $to_date])
+        // Issuance history: tickets bucketed by the date the offence happened.
+        $timeseriesRaw = TrafficFine::selectRaw('DATE(issued_at) as date, COUNT(*) as count')
+            ->issuedBetween($from_date, $to_date)
             ->groupBy('date')->orderBy('date')->get()->keyBy('date');
 
         $dates = [];
         for ($d = $from->copy(); $d->lte($to); $d->addDay()) {
             $key = $d->toDateString();
-            $dates[] = ['date' => $key, 'count' => $timeseriesRaw->has($key) ? (int)$timeseriesRaw->get($key)->count : 0];
+            $dates[] = ['date' => $key, 'count' => (int) ($timeseriesRaw->get($key)->count ?? 0)];
         }
 
-// 4. Top Violations (ONLY OUTSTANDING)
+        // 4. Top Violations (ONLY OUTSTANDING)
         $topViolations = DB::table('traffic_fine_violations')
             ->join('traffic_fines', 'traffic_fine_violations.traffic_fine_id', '=', 'traffic_fines.id')
             ->select('traffic_fine_violations.violation_name', DB::raw('COUNT(*) as occurrences'))
-            ->whereBetween('traffic_fines.created_at', [$from_date, $to_date])
+            ->whereBetween('traffic_fines.issued_at', [$from_date, $to_date])
             ->where(fn($q) => $q->whereNull('traffic_fines.status')
                 ->orWhereNotIn('traffic_fines.status', TrafficFine::SETTLED_STATUSES))
             ->groupBy('traffic_fine_violations.violation_name')
@@ -94,12 +95,15 @@ class FinesAnalyticsController extends Controller
         return response()->json([
             'summary' => $summary,
             'timeseries' => $dates,
-            'top_violations' => $topViolations
+            'top_violations' => $topViolations,
+            // Fines with no issue date from the portal cannot be placed on the
+            // timeline, so surface the gap rather than silently dropping them.
+            'undated_count' => TrafficFine::whereNull('issued_at')->count(),
         ]);
     }
 
     public function byDay(Request $request) {
-        $query = TrafficFine::whereDate('created_at', Carbon::parse($request->get('date'))->toDateString());
+        $query = TrafficFine::issuedOn($request->get('date'));
         return $this->handleDrillDown($query, $request);
     }
 
@@ -107,7 +111,7 @@ class FinesAnalyticsController extends Controller
         $from = Carbon::parse($request->get('from'))->startOfDay();
         $to = Carbon::parse($request->get('to'))->endOfDay();
         $query = TrafficFine::whereHas('violations', fn($q) => $q->where('violation_name', $request->get('violation_name')))
-            ->whereBetween('created_at', [$from, $to]);
+            ->issuedBetween($from, $to);
         return $this->handleDrillDown($query, $request);
     }
 
@@ -123,10 +127,8 @@ class FinesAnalyticsController extends Controller
             'search' => 'nullable|string',
         ]);
 
-        $query = TrafficFine::whereDate('created_at', Carbon::parse($validated['date'])->toDateString());
-
         return $this->streamCsv(
-            $query,
+            TrafficFine::issuedOn($validated['date']),
             'fines_drilldown_' . Carbon::parse($validated['date'])->toDateString() . '.csv'
         );
     }
@@ -183,7 +185,7 @@ class FinesAnalyticsController extends Controller
     private function exportCsvRange($from, $to)
     {
         return $this->streamCsv(
-            TrafficFine::whereBetween('created_at', [$from, $to]),
+            TrafficFine::issuedBetween($from, $to),
             'fines_debt_report_' . now()->format('Y-m-d') . '.csv'
         );
     }

@@ -16,7 +16,11 @@ class FinesController extends Controller
 {
     public function index(Request $request)
     {
-        $query = TrafficFine::with(['violations', 'fineable'])->orderByDesc('created_at');
+        // Ordered by police issue date: a ticket imported today can have been
+        // issued months ago, so created_at would shuffle the list by sync run.
+        $query = TrafficFine::with(['violations', 'fineable'])
+            ->orderByDesc('issued_at')
+            ->orderByDesc('id');
 
         // 1. Filter by Type
         if ($request->filled('type')) {
@@ -125,7 +129,8 @@ class FinesController extends Controller
     {
         $fines = TrafficFine::with('violations')
             ->where('plate_number', $plate)
-            ->orderByDesc('created_at')
+            ->orderByDesc('issued_at')
+            ->orderByDesc('id')
             ->paginate(15);
 
         return response()->json($fines);

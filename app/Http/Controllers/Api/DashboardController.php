@@ -116,7 +116,8 @@ class DashboardController extends Controller
                 ->orderBy('created_at', 'desc')
                 ->take(5)
                 ->get(['id', 'order_id', 'status', 'vehicle_plate_snapshot', 'driver_name_snapshot', 'created_at']),
-            'recent_fines' => TrafficFine::orderBy('created_at', 'desc')
+            'recent_fines' => TrafficFine::orderByDesc('issued_at')
+                ->orderByDesc('id')
                 ->take(5)
                 ->get(['id', 'ticket_number', 'plate_number', 'ticket_amount', 'late_fee', 'status', 'issued_at', 'pay_by']),
         ];

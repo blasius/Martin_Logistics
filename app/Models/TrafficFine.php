@@ -39,6 +39,17 @@ class TrafficFine extends Model
      */
     public const DUE_SOON_DAYS = 3;
 
+    /**
+     * Column holding the date the offence actually happened.
+     *
+     * This must never be substituted with `created_at`. created_at records
+     * when *we* imported the ticket from the police portal, which routinely
+     * lags the offence by weeks or months (observed up to 750 days), and it
+     * collapses into a handful of sync-batch days. Anything measuring "how
+     * often are we getting fined" has to use issued_at.
+     */
+    public const ISSUED_DATE_COLUMN = 'issued_at';
+
     protected $auditExcluded = ['raw'];
     protected $fillable = [
         'ticket_number','ticket_amount','late_fee','paid_amount','issued_at','pay_by',
@@ -117,6 +128,29 @@ class TrafficFine extends Model
     public function scopePenalized(Builder $query): Builder
     {
         return $query->outstanding()->where('late_fee', '>', 0);
+    }
+
+    /* ---------------------------------------------------------------------
+     | Issuance date (offence date, not import date)
+     |--------------------------------------------------------------------*/
+
+    /**
+     * Fines issued by the police portal within a date range. This is the
+     * correct basis for any frequency question such as "how often do we get
+     * fined" — grouping by created_at reports our sync schedule, not our
+     * offending rate.
+     */
+    public function scopeIssuedBetween(Builder $query, $from, $to): Builder
+    {
+        return $query->whereBetween(self::ISSUED_DATE_COLUMN, [$from, $to]);
+    }
+
+    /**
+     * Fines issued by the police portal on a single calendar day.
+     */
+    public function scopeIssuedOn(Builder $query, $date): Builder
+    {
+        return $query->whereDate(self::ISSUED_DATE_COLUMN, Carbon::parse($date)->toDateString());
     }
 
     /* ---------------------------------------------------------------------
