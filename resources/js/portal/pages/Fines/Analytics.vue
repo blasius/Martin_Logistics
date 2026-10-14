@@ -1,6 +1,6 @@
 <template>
     <div class="p-6 space-y-6 bg-slate-50 min-h-screen font-sans">
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
             <div>
                 <h1 class="text-2xl font-black text-slate-800 flex items-center gap-2 uppercase tracking-tight">
                     <i class="lucide lucide-alert-octagon text-red-600"></i>
@@ -9,12 +9,34 @@
                 <p class="text-sm text-slate-500 font-medium italic"></p>
             </div>
 
-            <div class="flex items-center gap-2">
-                <select v-model="range" @change="fetchData" class="border-slate-200 px-3 py-2 rounded-lg bg-white shadow-sm text-sm font-bold text-slate-700 outline-none border focus:ring-2 ring-indigo-500">
+            <div class="flex flex-wrap items-center gap-2">
+                <select v-model="range" @change="onRangeChange" class="border-slate-200 px-3 py-2 rounded-lg bg-white shadow-sm text-sm font-bold text-slate-700 outline-none border focus:ring-2 ring-indigo-500">
                     <option value="7">Last 7 days</option>
                     <option value="30">Last 30 days</option>
                     <option value="90">Last 90 days</option>
+                    <option value="12m">Last 12 months</option>
+                    <option value="custom">Custom range</option>
                 </select>
+
+                <template v-if="range === 'custom'">
+                    <div class="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1 shadow-sm">
+                        <label class="text-[9px] font-black uppercase text-slate-400">From</label>
+                        <input v-model="customFrom" type="date" :max="customTo || today"
+                               @change="onCustomChange"
+                               class="px-1 py-1 bg-transparent text-xs font-bold text-slate-700 outline-none" />
+                    </div>
+                    <div class="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1 shadow-sm">
+                        <label class="text-[9px] font-black uppercase text-slate-400">To</label>
+                        <input v-model="customTo" type="date" :min="customFrom || undefined" :max="today"
+                               @change="onCustomChange"
+                               class="px-1 py-1 bg-transparent text-xs font-bold text-slate-700 outline-none" />
+                    </div>
+                    <button v-if="customFrom && customTo" @click="fetchData"
+                            class="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-bold text-xs shadow-sm">
+                        Apply
+                    </button>
+                </template>
+
                 <button @click="downloadExport" class="p-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition shadow-sm" title="Export CSV">
                     <i class="lucide lucide-download w-5 h-5"></i>
                 </button>
@@ -22,6 +44,10 @@
                     <i class="lucide lucide-refresh-cw w-4 h-4" :class="{'animate-spin': loading}"></i> Refresh
                 </button>
             </div>
+        </div>
+
+        <div v-if="rangeError" class="bg-red-50 border border-red-200 text-red-700 text-xs font-bold px-4 py-3 rounded-xl">
+            {{ rangeError }}
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -180,6 +206,9 @@ import { api } from "../../../plugins/axios";
 import Chart from 'chart.js/auto';
 
 const range = ref('30');
+const customFrom = ref('');
+const customTo = ref('');
+const rangeError = ref('');
 const summary = ref({});
 const timeseries = ref([]);
 const topViolations = ref([]);
@@ -188,7 +217,34 @@ const timeseriesCanvas = ref(null);
 const loading = ref(false);
 let chartInstance = null;
 
+const today = new Date().toISOString().slice(0, 10);
+const bucket = computed(() => summary.value.bucket || 'day');
+
 const issuedInRange = computed(() => timeseries.value.reduce((sum, d) => sum + (d.count || 0), 0));
+
+// Params sent to the analytics endpoint, including the custom window when set.
+function rangeParams() {
+    const params = { range: range.value };
+    if (range.value === 'custom') {
+        if (customFrom.value) params.from = customFrom.value;
+        if (customTo.value) params.to = customTo.value;
+    }
+    return params;
+}
+
+function onRangeChange() {
+    rangeError.value = '';
+    fetchData();
+}
+
+function onCustomChange() {
+    rangeError.value = '';
+    if (customFrom.value && customTo.value && customFrom.value > customTo.value) {
+        rangeError.value = 'The start date must be on or before the end date.';
+        return;
+    }
+    if (customFrom.value || customTo.value) fetchData();
+}
 
 const showModal = ref(false);
 const modalType = ref('');
@@ -199,37 +255,68 @@ const modalStatus = ref('at_risk');
 const modalCounts = ref({});
 let searchDebounce = null;
 
-const modalTitle = computed(() => modalType.value === 'date' ? `Dated: ${modalValue.value}` : `Type: ${modalValue.value}`);
+const modalTitle = computed(() => {
+    if (modalType.value === 'date') return `Issued: ${modalValue.value}`;
+    if (modalType.value === 'month') return `Issued: ${modalValue.value}`;
+    return `Type: ${modalValue.value}`;
+});
 
 onMounted(() => fetchData());
 
 async function fetchData() {
     loading.value = true;
+    rangeError.value = '';
     try {
-        const { data } = await api.get('/portal/fines/analytics', { params: { range: range.value } });
+        const { data } = await api.get('/portal/fines/analytics', { params: rangeParams() });
         summary.value = data.summary;
         timeseries.value = data.timeseries;
         topViolations.value = data.top_violations;
         undatedCount.value = data.undated_count || 0;
         renderChart();
-    } catch (e) { console.error(e); }
+    } catch (e) {
+        console.error(e);
+        rangeError.value = e?.response?.data?.message || 'Could not load fines analytics for that range.';
+    }
     finally { loading.value = false; }
 }
 
 function renderChart() {
     if (chartInstance) chartInstance.destroy();
+
+    const isMonthly = bucket.value === 'month';
+
     chartInstance = new Chart(timeseriesCanvas.value, {
         type: 'line',
         data: {
-            labels: timeseries.value.map(d => d.date),
-            datasets: [{ label: 'Tickets', data: timeseries.value.map(d => d.count), borderColor: '#4f46e5', borderWidth: 3, tension: 0.4, fill: true, backgroundColor: 'rgba(79, 70, 229, 0.05)', pointRadius: 0, pointHoverRadius: 6 }]
+            labels: timeseries.value.map(d => d.label || d.date),
+            datasets: [{
+                label: 'Tickets',
+                data: timeseries.value.map(d => d.count),
+                borderColor: '#4f46e5',
+                borderWidth: 3,
+                tension: 0.4,
+                fill: true,
+                backgroundColor: 'rgba(79, 70, 229, 0.05)',
+                pointRadius: 0,
+                pointHoverRadius: 6
+            }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            onClick: (e, el) => { if(el.length) openDrillDown('date', chartInstance.data.labels[el[0].index]); },
+            onClick: (e, el) => {
+                if (!el.length) return;
+                // Drill down on the raw bucket key, not the display label —
+                // month labels are formatted for the axis and are not a date.
+                const point = timeseries.value[el[0].index];
+                if (!point) return;
+                openDrillDown(isMonthly ? 'month' : 'date', point.date);
+            },
             plugins: { legend: { display: false } },
-            scales: { y: { grid: { color: '#f1f5f9' }, border: { display: false } }, x: { grid: { display: false } } }
+            scales: {
+                y: { grid: { color: '#f1f5f9' }, border: { display: false }, beginAtZero: true },
+                x: { grid: { display: false }, ticks: { maxTicksLimit: 12, autoSkip: true, maxRotation: 0 } }
+            }
         }
     });
 }
@@ -243,9 +330,12 @@ function openDrillDown(type, value) {
 }
 
 async function fetchModalPage(page) {
-    const endpoint = modalType.value === 'date' ? '/portal/fines/by-day' : '/portal/fines/by-violation';
+    const isBucket = modalType.value === 'date' || modalType.value === 'month';
+    const endpoint = isBucket ? '/portal/fines/by-day' : '/portal/fines/by-violation';
     const params = { page, from: summary.value.from, to: summary.value.to, search: modalSearch.value, status: modalStatus.value };
-    if (modalType.value === 'date') params.date = modalValue.value;
+
+    if (modalType.value === 'month') params.month = modalValue.value;
+    else if (modalType.value === 'date') params.date = modalValue.value;
     else params.violation_name = modalValue.value;
 
     try {
@@ -259,7 +349,10 @@ const formatCurrency = (n) => Number(n || 0).toLocaleString('en-US', { maximumFr
 const calculateRatio = () => summary.value.total_count ? Math.round((summary.value.total_settled / summary.value.total_count) * 100) : 0;
 const closeModal = () => showModal.value = false;
 const handleModalSearch = () => { clearTimeout(searchDebounce); searchDebounce = setTimeout(() => fetchModalPage(1), 400); };
-const downloadExport = () => window.open(`/api/portal/fines/analytics?export=csv&range=${range.value}`, '_blank');
+const downloadExport = () => {
+    const params = new URLSearchParams(rangeParams()).toString();
+    window.open(`/api/portal/fines/analytics?${params}&export=csv`, '_blank');
+};
 
 const outstandingTotal = computed(() =>
     Number(summary.value.total_principal || 0) + Number(summary.value.total_late_fees || 0)
