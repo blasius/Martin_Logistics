@@ -150,18 +150,27 @@ class ClearanceService
 
     private function checkTrafficFines(Vehicle $vehicle): array
     {
-        $hasUnpaid = $vehicle->trafficFines()
-            ->where('status', 'PENDING')
-            ->exists();
+        $outstanding = $vehicle->trafficFines()->outstanding();
+
+        $hasUnpaid = (clone $outstanding)->exists();
+        $overdue = (clone $outstanding)->overdue()->count();
+
+        $message = match (true) {
+            !$hasUnpaid => 'No unpaid fines',
+            $overdue > 0 => "Vehicle has {$overdue} overdue traffic fine(s) past the police Pay By date",
+            default => 'Vehicle has unpaid traffic fines',
+        };
+
         return [
             'check' => 'traffic_fines',
             'label' => 'Traffic Fines',
             'passed' => !$hasUnpaid,
             'severity' => 'blocking',
-            'message' => $hasUnpaid
-                ? 'Vehicle has unpaid traffic fines'
-                : 'No unpaid fines',
-            'metadata' => [],
+            'message' => $message,
+            'metadata' => [
+                'outstanding_count' => (clone $outstanding)->count(),
+                'overdue_count' => $overdue,
+            ],
         ];
     }
 

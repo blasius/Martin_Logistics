@@ -26,32 +26,36 @@
 
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div class="bg-white p-5 rounded-2xl shadow-sm border-t-4 border-t-red-600">
-                <div class="text-[10px] font-black uppercase text-red-600 tracking-widest">Penalized Fines</div>
+                <div class="text-[10px] font-black uppercase text-red-600 tracking-widest">Overdue</div>
                 <div class="mt-1 flex items-baseline gap-2">
-                    <span class="text-3xl font-black text-slate-900">{{ summary.penalized_count || 0 }}</span>
+                    <span class="text-3xl font-black text-slate-900">{{ summary.overdue_count || 0 }}</span>
                     <span class="text-[10px] font-bold text-slate-400">Cases</span>
                 </div>
-                <div class="text-[10px] text-slate-400 mt-2 font-bold uppercase italic">Already carrying late fees</div>
+                <div class="text-[10px] text-slate-400 mt-2 font-bold uppercase italic">Past the police Pay By date</div>
             </div>
 
             <div class="bg-white p-5 rounded-2xl shadow-sm border-t-4 border-t-orange-500">
-                <div class="text-[10px] font-black uppercase text-orange-500 tracking-widest">Expiring Soon</div>
+                <div class="text-[10px] font-black uppercase text-orange-500 tracking-widest">Due Soon</div>
                 <div class="mt-1 flex items-baseline gap-2">
-                    <span class="text-3xl font-black text-slate-900">{{ summary.expiring_soon_count || 0 }}</span>
+                    <span class="text-3xl font-black text-slate-900">{{ summary.due_soon_count || 0 }}</span>
                     <span class="text-[10px] font-bold text-slate-400">Cases</span>
                 </div>
-                <div class="text-[10px] text-slate-400 mt-2 font-bold uppercase italic">Due within 72 hours</div>
+                <div class="text-[10px] text-slate-400 mt-2 font-bold uppercase italic">Not yet late, no penalty applied</div>
             </div>
 
             <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between">
                 <div class="space-y-3">
                     <div class="flex justify-between items-center">
-                        <span class="text-[9px] font-black uppercase text-red-500">Total Penalties</span>
-                        <span class="text-sm font-black text-red-600">{{ formatCurrency(summary.total_penalties_amount) }}</span>
+                        <span class="text-[9px] font-black uppercase text-slate-500">Outstanding Principal</span>
+                        <span class="text-sm font-black text-slate-800">{{ formatCurrency(summary.total_principal) }}</span>
                     </div>
                     <div class="flex justify-between items-center">
-                        <span class="text-[9px] font-black uppercase text-orange-500">Expiring Principal</span>
-                        <span class="text-sm font-black text-orange-600">{{ formatCurrency(summary.total_expiring_tickets_amount) }}</span>
+                        <span class="text-[9px] font-black uppercase text-red-500">Accrued Late Fees</span>
+                        <span class="text-sm font-black text-red-600">{{ formatCurrency(summary.total_late_fees) }}</span>
+                    </div>
+                    <div class="flex justify-between items-center pt-2 border-t border-slate-100">
+                        <span class="text-[9px] font-black uppercase text-slate-800">Total Owed</span>
+                        <span class="text-sm font-black text-slate-900">{{ formatCurrency(outstandingTotal) }}</span>
                     </div>
                 </div>
                 <div class="mt-2 pt-2 border-t border-slate-50 text-[9px] font-bold text-slate-400 uppercase text-center">Current Collection Risk</div>
@@ -101,9 +105,11 @@
 
                     <div class="flex flex-1 gap-2 max-w-xl">
                         <select v-model="modalStatus" @change="fetchModalPage(1)" class="border px-3 py-2 rounded-xl text-xs font-black bg-white shadow-sm ring-2 ring-red-50 outline-none">
-                            <option value="at_risk">⚠️ Priority Risk ({{ modalCounts.at_risk }})</option>
-                            <option value="paid">Settled Records ({{ modalCounts.paid }})</option>
-                            <option value="">Show All Fines ({{ modalCounts.all }})</option>
+                            <option value="at_risk">⚠️ Priority Risk ({{ modalCounts.at_risk || 0 }})</option>
+                            <option value="overdue">Past Pay By ({{ modalCounts.overdue || 0 }})</option>
+                            <option value="outstanding">Outstanding ({{ modalCounts.outstanding || 0 }})</option>
+                            <option value="paid">Settled Records ({{ modalCounts.paid || 0 }})</option>
+                            <option value="">Show All Fines ({{ modalCounts.all || 0 }})</option>
                         </select>
                         <input v-model="modalSearch" @input="handleModalSearch" type="text" placeholder="Search plate..." class="flex-1 px-4 py-2 border rounded-xl text-sm outline-none focus:ring-2 ring-indigo-500" />
                     </div>
@@ -113,7 +119,7 @@
                 <div class="flex-1 overflow-auto p-6">
                     <table class="w-full text-left">
                         <thead class="text-[10px] font-black text-slate-400 uppercase border-b">
-                        <tr><th class="pb-4">Plate / Ticket</th><th class="pb-4">Financial Status</th><th class="pb-4 text-right">Total Owed</th><th class="pb-4 text-center">Action</th></tr>
+                        <tr><th class="pb-4">Plate / Ticket</th><th class="pb-4">Pay By</th><th class="pb-4">Financial Status</th><th class="pb-4 text-right">Total Owed</th></tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                         <tr v-for="f in modalFines.data" :key="f.id" class="hover:bg-slate-50/80 transition group">
@@ -122,16 +128,20 @@
                                 <div class="text-[10px] text-slate-400 font-bold">{{ f.ticket_number }}</div>
                             </td>
                             <td class="py-4">
+                                <div class="text-xs font-bold text-slate-600">{{ formatDate(f.pay_by) }}</div>
+                                <div class="text-[9px] font-bold" :class="f.due_state === 'overdue' ? 'text-red-500' : 'text-slate-400'">
+                                    {{ payByLabel(f) }}
+                                </div>
+                            </td>
+                            <td class="py-4">
                                     <span :class="getBadgeClass(f)" class="px-2 py-1 rounded-lg text-[9px] font-black uppercase">
                                         {{ getStatusLabel(f) }}
                                     </span>
                             </td>
                             <td class="py-4 text-right">
-                                <div class="font-black text-slate-900">{{ formatCurrency(Number(f.ticket_amount) + Number(f.late_fee)) }}</div>
-                                <div v-if="f.late_fee > 0" class="text-[9px] text-red-500 font-bold">+{{ formatCurrency(f.late_fee) }} penalty</div>
-                            </td>
-                            <td class="py-4 text-center">
-                                <button class="bg-slate-100 text-[10px] font-black text-slate-600 px-4 py-2 rounded-xl hover:bg-indigo-600 hover:text-white transition uppercase tracking-tighter">Details</button>
+                                <div class="font-black text-slate-900">{{ formatCurrency(f.total_due) }}</div>
+                                <div class="text-[9px] text-slate-400 font-bold">{{ formatCurrency(f.ticket_amount) }} principal</div>
+                                <div v-if="Number(f.late_fee) > 0" class="text-[9px] text-red-500 font-bold">+{{ formatCurrency(f.late_fee) }} penalty</div>
                             </td>
                         </tr>
                         </tbody>
@@ -228,20 +238,48 @@ async function fetchModalPage(page) {
 }
 
 const formatCurrency = (n) => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' RWF';
-const calculateRatio = () => summary.value.total_count ? Math.round((summary.value.total_paid / summary.value.total_count) * 100) : 0;
+const calculateRatio = () => summary.value.total_count ? Math.round((summary.value.total_settled / summary.value.total_count) * 100) : 0;
 const closeModal = () => showModal.value = false;
 const handleModalSearch = () => { clearTimeout(searchDebounce); searchDebounce = setTimeout(() => fetchModalPage(1), 400); };
-const downloadExport = () => window.open(`/portal/fines/analytics?export=csv&range=${range.value}`, '_blank');
+const downloadExport = () => window.open(`/api/portal/fines/analytics?export=csv&range=${range.value}`, '_blank');
 
+const outstandingTotal = computed(() =>
+    Number(summary.value.total_principal || 0) + Number(summary.value.total_late_fees || 0)
+);
+
+const formatDate = (value) => {
+    if (!value) return '—';
+    return new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+// Countdown text driven entirely by the portal's Pay By date.
+const payByLabel = (f) => {
+    if (!f.pay_by) return 'No pay-by date';
+    if (f.due_state === 'settled') return 'Settled';
+
+    const days = f.days_until_pay_by;
+    if (days === null || days === undefined) return 'Due soon';
+    if (days < 0) return `${Math.abs(days)}d overdue`;
+    if (days === 0) return 'Due today';
+    return `Due in ${days}d`;
+};
+
+// Badges follow the server-computed due state, which is derived from pay_by.
 const getStatusLabel = (f) => {
-    if (f.status === 'PAID') return 'Settled';
-    if (f.late_fee > 0) return 'Overdue';
-    return 'Expiring Soon';
+    return {
+        settled: 'Settled',
+        overdue: 'Overdue',
+        due_soon: 'Due Soon',
+        due: 'Outstanding',
+        unknown: 'No Pay By Date',
+    }[f.due_state] || 'Outstanding';
 };
 
 const getBadgeClass = (f) => {
-    if (f.status === 'PAID') return 'bg-emerald-50 text-emerald-600';
-    if (f.late_fee > 0) return 'bg-red-600 text-white';
-    return 'bg-orange-500 text-white';
+    return {
+        settled: 'bg-emerald-50 text-emerald-600',
+        overdue: 'bg-red-600 text-white',
+        due_soon: 'bg-orange-500 text-white',
+    }[f.due_state] || 'bg-slate-100 text-slate-600';
 };
 </script>

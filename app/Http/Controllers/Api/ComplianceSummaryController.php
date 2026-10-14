@@ -42,9 +42,8 @@ class ComplianceSummaryController extends Controller
     {
         $hasExpiredIns = $unit->insurances->where('expiry_date', '<', $today->toDateString())->isNotEmpty();
         $hasExpiredInsp = $unit->inspections->where('completed_date', '<', $today->toDateString())->isNotEmpty();
-        $hasOverdueFine = $unit->trafficFines->where('status', 'PENDING')
-            ->where('pay_by', '<', $today->toDateString())
-            ->isNotEmpty();
+        // Overdue is defined on the model, driven by the portal Pay By date.
+        $hasOverdueFine = $unit->trafficFines->contains(fn ($fine) => $fine->isOverdue());
 
         return [
             'plate' => $unit->plate_number,

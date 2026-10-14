@@ -167,14 +167,19 @@ class FleetReportController extends Controller
             'grounded' => $groundedCount,
             'insurance_expiring_30d' => $insuranceExpiring30d,
             'inspections_overdue' => $inspectionsOverdue,
-            'fines_pending' => TrafficFine::where('status', 'PENDING')->count(),
+            'fines_pending' => TrafficFine::outstanding()->count(),
+            'fines_overdue' => TrafficFine::overdue()->count(),
             'licences_expiring_30d' => $licencesExpiring30d,
             'grounded_list' => $fullFleet->where('is_grounded', true)->take(5)->values(),
         ];
 
         // ── Financial: Cost vs Revenue ──
         $totalExpenses = (float) Requisition::whereIn('status', ['paid', 'approved'])->sum('amount');
-        $totalFineCost = (float) TrafficFine::sum('ticket_amount');
+        // Cost of fines raised across the fleet, penalties included.
+        $totalFineCost = round(
+            (float) TrafficFine::sum('ticket_amount') + (float) TrafficFine::sum('late_fee'),
+            2
+        );
         $convertedRevenue = $currencyService->convert($totalRevenue, $usd, $selectedCurrency);
         $convertedExpenses = $currencyService->convert($totalExpenses, $usd, $selectedCurrency);
         $convertedFineCost = $currencyService->convert($totalFineCost, $rwf, $selectedCurrency);
@@ -566,9 +571,8 @@ class FleetReportController extends Controller
     {
         $hasExpiredIns = $unit->insurances->where('expiry_date', '<', $today->toDateString())->isNotEmpty();
         $hasExpiredInsp = $unit->inspections->where('completed_date', '<', $today->toDateString())->isNotEmpty();
-        $hasOverdueFine = $unit->trafficFines->where('status', 'PENDING')
-            ->where('pay_by', '<', $today->toDateString())
-            ->isNotEmpty();
+        // Overdue is defined on the model, driven by the portal Pay By date.
+        $hasOverdueFine = $unit->trafficFines->contains(fn ($fine) => $fine->isOverdue());
 
         return [
             'plate' => $unit->plate_number,

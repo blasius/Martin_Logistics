@@ -17,12 +17,19 @@
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                    <p class="text-[10px] font-black text-slate-400 uppercase">Total Debt</p>
+                    <p class="text-[10px] font-black text-slate-400 uppercase">Total Outstanding</p>
                     <p class="text-2xl font-black text-rose-600">{{ formatAmount(stats.total_unpaid) }} FRW</p>
+                    <p class="text-[10px] font-bold text-slate-400 mt-1">
+                        {{ formatAmount(stats.total_principal) }} principal
+                        <span v-if="stats.total_late_fees > 0" class="text-rose-500">+ {{ formatAmount(stats.total_late_fees) }} late fees</span>
+                    </p>
                 </div>
                 <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                    <p class="text-[10px] font-black text-slate-400 uppercase">Overdue Tickets</p>
+                    <p class="text-[10px] font-black text-slate-400 uppercase">Overdue (Past Pay By)</p>
                     <p class="text-2xl font-black text-slate-800">{{ stats.overdue_count }}</p>
+                    <p class="text-[10px] font-bold text-slate-400 mt-1">
+                        {{ stats.due_soon_count || 0 }} due soon &middot; {{ stats.penalized_count || 0 }} with late fee
+                    </p>
                 </div>
                 <div v-if="stats.top_violation" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
                     <p class="text-[10px] font-black text-slate-400 uppercase">Most Frequent Offense</p>
@@ -44,7 +51,8 @@
                 <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Status</label>
                 <select v-model="filters.status" @change="fetch" class="border-slate-200 px-3 py-2 rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50">
                     <option value="">Any Status</option>
-                    <option value="PENDING">Pending</option>
+                    <option value="outstanding">Outstanding</option>
+                    <option value="overdue">Overdue</option>
                     <option value="PAID">Paid</option>
                 </select>
             </div>
@@ -67,12 +75,15 @@
 
             <div v-for="fine in items" :key="fine.id"
                  class="bg-white p-6 rounded-2xl shadow-sm border-l-8 transition-all hover:shadow-md"
-                 :class="fine.show_penalty_warning ? 'border-rose-500' : 'border-slate-200'">
+                 :class="dueBorderClass(fine)">
 
                 <div class="flex justify-between items-start">
                     <div>
                         <div class="flex items-center gap-3">
                             <h2 class="font-black text-2xl text-slate-900 tracking-tighter uppercase">{{ fine.plate_number }}</h2>
+                            <span class="bg-slate-100 text-slate-500 text-[10px] font-black px-2 py-1 rounded font-mono tracking-wider">
+                                {{ fine.ticket_number }}
+                            </span>
                             <span v-if="fine.assigned_driver_name" class="bg-blue-100 text-blue-700 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">
                                 {{ fine.assigned_driver_name }}
                             </span>
@@ -81,27 +92,62 @@
                             </span>
                         </div>
 
-                        <div class="flex items-center gap-2 mt-1">
-                            <span class="text-xs font-bold" :class="fine.is_overdue && fine.status === 'PENDING' ? 'text-rose-600' : 'text-slate-500'">
-                                {{ fine.issued_at_human }}
+                        <div class="flex items-center gap-2 mt-1.5">
+                            <span class="text-xs font-bold text-slate-500">Issued {{ fine.issued_at_human }}</span>
+                            <span class="text-slate-300">&middot;</span>
+                            <span class="text-xs font-bold" :class="dueTextClass(fine)">
+                                {{ payByLabel(fine) }}
                             </span>
-                            <span v-if="fine.is_overdue && fine.status === 'PENDING'" class="text-[10px] bg-rose-600 text-white px-1.5 py-0.5 rounded font-black">OVERDUE</span>
+                            <span v-if="fine.due_state !== 'settled'"
+                                  class="text-[10px] px-1.5 py-0.5 rounded font-black uppercase"
+                                  :class="dueBadgeClass(fine)">
+                                {{ fine.due_state_label }}
+                            </span>
+                            <span v-else class="text-[10px] px-1.5 py-0.5 rounded font-black uppercase bg-emerald-100 text-emerald-700">
+                                SETTLED
+                            </span>
                         </div>
                     </div>
 
                     <div class="text-right">
-                        <div class="text-2xl font-black text-slate-900">{{ formatAmount(fine.ticket_amount) }} <span class="text-xs text-slate-400 font-bold">FRW</span></div>
-                        <span class="text-[10px] font-black px-2.5 py-1 rounded-md uppercase tracking-wider" :class="statusClass(fine.status)">
+                        <div class="text-2xl font-black text-slate-900">{{ formatAmount(fine.total_due) }} <span class="text-xs text-slate-400 font-bold">FRW</span></div>
+                        <div class="text-[10px] font-bold text-slate-400 mt-0.5">
+                            {{ formatAmount(fine.ticket_amount) }} principal
+                            <span v-if="Number(fine.late_fee) > 0" class="text-rose-500 font-black">+ {{ formatAmount(fine.late_fee) }} late fee</span>
+                        </div>
+                        <span class="text-[10px] font-black px-2.5 py-1 rounded-md uppercase tracking-wider mt-1 inline-block" :class="statusClass(fine.status)">
                             {{ fine.status }}
                         </span>
                     </div>
                 </div>
 
-                <div v-if="fine.show_penalty_warning" class="mt-4 bg-rose-50 border border-rose-100 p-3 rounded-xl flex items-center gap-3">
+                <div v-if="fine.due_state === 'overdue'" class="mt-4 bg-rose-50 border border-rose-100 p-3 rounded-xl flex items-center gap-3">
                     <div class="w-8 h-8 bg-rose-500 text-white rounded-full flex items-center justify-center font-bold italic">!</div>
                     <div>
-                        <p class="text-xs font-black text-rose-700 uppercase">Penalty Alert</p>
-                        <p class="text-[10px] text-rose-600 font-medium">This ticket is more than 14 days old and remains unpaid.</p>
+                        <p class="text-xs font-black text-rose-700 uppercase">Past Pay By Date</p>
+                        <p class="text-[10px] text-rose-600 font-medium">
+                            This ticket was due on {{ fine.pay_by }} — {{ fine.days_overdue }} day{{ fine.days_overdue === 1 ? '' : 's' }} overdue and unpaid.
+                        </p>
+                    </div>
+                </div>
+
+                <div v-else-if="fine.due_state === 'due_soon'" class="mt-4 bg-amber-50 border border-amber-100 p-3 rounded-xl flex items-center gap-3">
+                    <div class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold">!</div>
+                    <div>
+                        <p class="text-xs font-black text-amber-700 uppercase">Due Soon</p>
+                        <p class="text-[10px] text-amber-600 font-medium">
+                            Payment due on {{ fine.pay_by }}. A late fee applies after this date.
+                        </p>
+                    </div>
+                </div>
+
+                <div v-else-if="fine.is_settled && fine.paid_at" class="mt-4 bg-emerald-50 border border-emerald-100 p-3 rounded-xl flex items-center gap-3">
+                    <div class="w-8 h-8 bg-emerald-500 text-white rounded-full flex items-center justify-center font-bold">&check;</div>
+                    <div>
+                        <p class="text-xs font-black text-emerald-700 uppercase">Paid</p>
+                        <p class="text-[10px] text-emerald-600 font-medium">
+                            Settled on {{ formatDate(fine.paid_at) }} — {{ formatAmount(fine.paid_amount) }} FRW paid.
+                        </p>
                     </div>
                 </div>
 
@@ -167,13 +213,58 @@ const manualCheck = async () => {
 
 const formatAmount = (num) => num ? Number(num).toLocaleString('en-US', { maximumFractionDigits: 2 }) : '0';
 
+const formatDate = (value) => {
+    if (!value) return '—';
+    return new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+// Countdown text driven entirely by the portal's Pay By date.
+const payByLabel = (fine) => {
+    if (!fine.pay_by) return 'No pay-by date supplied';
+    if (fine.due_state === 'settled') return `Was due ${formatDate(fine.pay_by)}`;
+
+    const days = fine.days_until_pay_by;
+    if (days === null || days === undefined) return `Due ${formatDate(fine.pay_by)}`;
+    if (days < 0) return `Was due ${formatDate(fine.pay_by)} (${Math.abs(days)}d ago)`;
+    if (days === 0) return `Due today (${formatDate(fine.pay_by)})`;
+    return `Due in ${days} day${days === 1 ? '' : 's'} — ${formatDate(fine.pay_by)}`;
+};
+
+const dueBorderClass = (fine) => ({
+    overdue: 'border-rose-500',
+    due_soon: 'border-amber-400',
+    settled: 'border-emerald-300',
+}[fine.due_state] || 'border-slate-200');
+
+const dueBadgeClass = (fine) => ({
+    overdue: 'bg-rose-600 text-white',
+    due_soon: 'bg-amber-500 text-white',
+}[fine.due_state] || 'bg-slate-100 text-slate-500');
+
+const dueTextClass = (fine) => ({
+    overdue: 'text-rose-600',
+    due_soon: 'text-amber-600',
+    settled: 'text-slate-400',
+}[fine.due_state] || 'text-slate-500');
+
 const statusClass = (s) => {
     if (s === 'PAID') return 'bg-emerald-100 text-emerald-700';
+    if (s === 'CANCELLED') return 'bg-slate-100 text-slate-500';
+    if (s === 'DISPUTED') return 'bg-purple-100 text-purple-700';
     if (s === 'PENDING') return 'bg-amber-100 text-amber-700';
     return 'bg-slate-100 text-slate-500';
 };
 
-const stats = ref({ total_unpaid: 0, overdue_count: 0, top_violation: null });
+const stats = ref({
+    total_principal: 0,
+    total_late_fees: 0,
+    total_unpaid: 0,
+    outstanding_count: 0,
+    overdue_count: 0,
+    due_soon_count: 0,
+    penalized_count: 0,
+    top_violation: null,
+});
 
 const fetchStats = async () => {
     const res = await api.get('/portal/fines/stats');

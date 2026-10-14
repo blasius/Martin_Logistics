@@ -38,8 +38,10 @@ class ActiveDebtSheet implements FromCollection, WithHeadings, WithMapping, With
     public function collection() {
         // Instead of fetching ALL vehicles, we base it on the filtered TrafficFines query.
         // We get the unique IDs of Vehicles and Trailers from the filtered fines.
+        // The status filter itself is owned by the controller, so this sheet
+        // honours whatever population the caller asked for.
 
-        $filteredFines = $this->query->where('status', 'PENDING')->get();
+        $filteredFines = $this->query->get();
 
         $vehicleIds = $filteredFines->where('fineable_type', Vehicle::class)->pluck('fineable_id')->unique();
         $trailerIds = $filteredFines->where('fineable_type', Trailer::class)->pluck('fineable_id')->unique();
@@ -108,7 +110,7 @@ class ActiveDebtSheet implements FromCollection, WithHeadings, WithMapping, With
             // Fines
             // Base queries off the ORIGINAL filtered query to respect user filters (like plate search)
             $vehicleFinesQuery = clone $this->query;
-            $vehicleFines = $vehicleFinesQuery->where('status', 'PENDING')
+            $vehicleFines = $vehicleFinesQuery
                 ->where('fineable_type', Vehicle::class)
                 ->where('fineable_id', $vehicle->id)
                 ->with('violations')
@@ -117,7 +119,7 @@ class ActiveDebtSheet implements FromCollection, WithHeadings, WithMapping, With
             $trailerFines = collect();
             if ($linkedTrailer && $isActiveTrailer) {
                  $trailerFinesQuery = clone $this->query;
-                 $trailerFines = $trailerFinesQuery->where('status', 'PENDING')
+                 $trailerFines = $trailerFinesQuery
                     ->where('fineable_type', Trailer::class)
                     ->where('fineable_id', $linkedTrailer->trailer_id)
                     ->with('violations')
@@ -127,62 +129,74 @@ class ActiveDebtSheet implements FromCollection, WithHeadings, WithMapping, With
             $allFines = $vehicleFines->merge($trailerFines);
 
             if ($allFines->isNotEmpty()) {
-                $totalAmount = $allFines->sum('ticket_amount');
-                $oldestFineDate = $allFines->min('issued_at');
-                $days = $oldestFineDate ? \Carbon\Carbon::parse($oldestFineDate)->diffInDays(now()) : 0;
-
-                $descriptions = $allFines->flatMap(function ($fine) {
-                    $prefix = $fine->fineable_type === Vehicle::class ? '[Vehicle] ' : '[Trailer] ';
-                    return $fine->violations->map(function ($violation) use ($prefix) {
-                        return $prefix . $violation->violation_name;
-                    });
-                })->implode(' | ');
-
-                $exportData->push([
-                    'urgency' => $days > 14 ? 'CRITICAL' : 'PENDING',
-                    'plateDisplay' => $plateDisplay,
-                    'status' => strtoupper($vehicle->status),
-                    'driverName' => $driverName,
-                    'totalAmount' => $totalAmount,
-                    'days' => $days,
-                    'descriptions' => $descriptions
-                ]);
+                $exportData->push($this->buildRow($allFines, $plateDisplay, strtoupper($vehicle->status), $driverName));
             }
         }
 
-        // 2. Process Standalone Trailers (trailers with fines, active/maintenance, but not attached)
+// 2. Process Standalone Trailers (trailers with fines, active/maintenance, but not attached)
         foreach ($standaloneTrailers as $trailer) {
              $trailerFinesQuery = clone $this->query;
-             $trailerFines = $trailerFinesQuery->where('status', 'PENDING')
+             $trailerFines = $trailerFinesQuery
                 ->where('fineable_type', Trailer::class)
                 ->where('fineable_id', $trailer->id)
                 ->with('violations')
                 ->get();
 
             if ($trailerFines->isNotEmpty()) {
-                 $totalAmount = $trailerFines->sum('ticket_amount');
-                 $oldestFineDate = $trailerFines->min('issued_at');
-                 $days = $oldestFineDate ? \Carbon\Carbon::parse($oldestFineDate)->diffInDays(now()) : 0;
-
-                 $descriptions = $trailerFines->flatMap(function ($fine) {
-                    return $fine->violations->map(function ($violation) {
-                        return '[Trailer] ' . $violation->violation_name;
-                    });
-                })->implode(' | ');
-
-                $exportData->push([
-                    'urgency' => $days > 14 ? 'CRITICAL' : 'PENDING',
-                    'plateDisplay' => "None / {$trailer->plate_number}",
-                    'status' => strtoupper($trailer->status),
-                    'driverName' => 'No Driver (Unattached)',
-                    'totalAmount' => $totalAmount,
-                    'days' => $days,
-                    'descriptions' => $descriptions
-                ]);
+                $exportData->push($this->buildRow(
+                    $trailerFines,
+                    "None / {$trailer->plate_number}",
+                    strtoupper($trailer->status),
+                    'No Driver (Unattached)'
+                ));
             }
         }
 
         return $exportData;
+    }
+
+    /**
+     * Build one aggregated row for a unit.
+     *
+     * Urgency comes from the portal's Pay By date rather than any assumed
+     * payment window: a unit is OVERDUE once any of its fines is past its
+     * Pay By date, DUE SOON when the nearest one falls due inside the warning
+     * window, and DUE otherwise. Amounts report principal and late fee
+     * separately, with the total owed being the sum of the two.
+     */
+    protected function buildRow($fines, string $plateDisplay, string $unitStatus, string $driverName): array
+    {
+        $principal = round((float) $fines->sum('ticket_amount'), 2);
+        $lateFees = round((float) $fines->sum('late_fee'), 2);
+
+        $worst = $fines
+            ->filter(fn ($f) => $f->pay_by !== null)
+            ->sortBy(fn ($f) => $f->pay_by->getTimestamp())
+            ->first();
+
+        $urgency = $worst ? $worst->dueStateLabel() : TrafficFine::DUE_STATE_UNKNOWN;
+        $nextPayBy = $worst?->pay_by?->toDateString();
+        $daysUntilPayBy = $worst?->daysUntilPayBy();
+
+        $descriptions = $fines->flatMap(function ($fine) {
+            $prefix = $fine->fineable_type === Vehicle::class ? '[Vehicle] ' : '[Trailer] ';
+            return $fine->violations->map(function ($violation) use ($prefix) {
+                return $prefix . $violation->violation_name;
+            });
+        })->implode(' | ');
+
+        return [
+            'urgency' => $urgency,
+            'plateDisplay' => $plateDisplay,
+            'status' => $unitStatus,
+            'driverName' => $driverName,
+            'principal' => $principal,
+            'lateFee' => $lateFees,
+            'totalOwed' => round($principal + $lateFees, 2),
+            'nextPayBy' => $nextPayBy,
+            'daysUntilPayBy' => $daysUntilPayBy,
+            'descriptions' => $descriptions,
+        ];
     }
 
     public function headings(): array {
@@ -191,8 +205,11 @@ class ActiveDebtSheet implements FromCollection, WithHeadings, WithMapping, With
             'Plate (Vehicle/Trailer)',
             'Unit Status',
             'Current Driver(s)',
-            'Total Amount (FRW)',
-            'Oldest Fine Days',
+            'Principal (FRW)',
+            'Late Fees (FRW)',
+            'Total Owed (FRW)',
+            'Next Pay By',
+            'Days Until Pay By',
             'Offense Details'
         ];
     }
@@ -203,25 +220,35 @@ class ActiveDebtSheet implements FromCollection, WithHeadings, WithMapping, With
             $row['plateDisplay'],
             $row['status'],
             $row['driverName'],
-            $row['totalAmount'],
-            $row['days'],
+            $row['principal'],
+            $row['lateFee'],
+            $row['totalOwed'],
+            $row['nextPayBy'],
+            $row['daysUntilPayBy'],
             $row['descriptions']
         ];
     }
 
     public function styles(Worksheet $sheet) {
-        $sheet->setAutoFilter('A1:G1');
-        $sheet->getStyle('A1:G1')->getFont()->setBold(true);
+        $sheet->setAutoFilter('A1:J1');
+        $sheet->getStyle('A1:J1')->getFont()->setBold(true);
+
+        $overdue = TrafficFine::DUE_STATE_OVERDUE;
+        $dueSoon = TrafficFine::DUE_STATE_DUE_SOON;
 
         foreach ($sheet->getRowIterator(2) as $row) {
             $rowIndex = $row->getRowIndex();
-            $urgency = $sheet->getCell('A' . $rowIndex)->getValue();
+            $urgency = (string) $sheet->getCell('A' . $rowIndex)->getValue();
 
-            // Highlight critical debt
-            if ($urgency === 'CRITICAL') {
-                $sheet->getStyle("A{$rowIndex}:G{$rowIndex}")->applyFromArray([
+            if ($urgency === strtoupper($overdue)) {
+                $sheet->getStyle("A{$rowIndex}:J{$rowIndex}")->applyFromArray([
                     'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => 'FFC7CE']],
                     'font' => ['color' => ['rgb' => '9C0006']]
+                ]);
+            } elseif ($urgency === strtoupper($dueSoon)) {
+                $sheet->getStyle("A{$rowIndex}:J{$rowIndex}")->applyFromArray([
+                    'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => 'FFEB9C']],
+                    'font' => ['color' => ['rgb' => '9C6500']]
                 ]);
             }
         }
@@ -236,8 +263,9 @@ class AnalyticsSheet implements WithTitle, WithStyles {
     public function title(): string { return 'Management Charts'; }
 
     public function styles(Worksheet $sheet) {
-        // Need to apply the same active/maintenance logic to analytics to keep numbers consistent
-        $filteredFines = $this->query->where('status', 'PENDING')->get();
+        // Apply the same active/maintenance filter as the debt sheet so the
+        // two sheets always agree on the population being reported.
+        $filteredFines = $this->query->get();
 
         $vehicleIds = $filteredFines->where('fineable_type', Vehicle::class)->pluck('fineable_id');
         $trailerIds = $filteredFines->where('fineable_type', Trailer::class)->pluck('fineable_id');
@@ -255,6 +283,9 @@ class AnalyticsSheet implements WithTitle, WithStyles {
             return false;
         });
 
+        $principal = round((float) $validFines->sum('ticket_amount'), 2);
+        $lateFees = round((float) $validFines->sum('late_fee'), 2);
+
         // Header
         $sheet->setCellValue('A1', 'DEBT INSIGHTS');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16);
@@ -264,13 +295,27 @@ class AnalyticsSheet implements WithTitle, WithStyles {
         $sheet->setCellValue('B3', 'Value');
         $sheet->getStyle('A3:B3')->getFont()->setBold(true);
 
-        $sheet->setCellValue('A4', 'Total Unpaid Amount');
-        $sheet->setCellValue('B4', $validFines->sum('ticket_amount') . ' FRW');
+        // Overdue is counted straight off the portal Pay By date.
+        $overdueCount = $validFines->filter(fn ($f) => $f->isOverdue())->count();
+        $dueSoonCount = $validFines->filter(fn ($f) => $f->dueState() === TrafficFine::DUE_STATE_DUE_SOON)->count();
+        $penalizedCount = $validFines->filter(fn ($f) => (float) $f->late_fee > 0)->count();
 
-        $sheet->setCellValue('A5', 'Critical Overdue (>14 Days)');
-        $sheet->setCellValue('B5', $validFines->filter(fn($f) => \Carbon\Carbon::parse($f->issued_at)->diffInDays(now()) > 14)->count());
+        $rows = [
+            ['Outstanding Principal', $principal . ' FRW'],
+            ['Accrued Late Fees', $lateFees . ' FRW'],
+            ['Total Outstanding Debt', ($principal + $lateFees) . ' FRW'],
+            ['Overdue (past Pay By date)', $overdueCount],
+            ['Due Soon (within ' . TrafficFine::DUE_SOON_DAYS . ' days of Pay By)', $dueSoonCount],
+            ['Carrying a Late Fee', $penalizedCount],
+            ['Outstanding Tickets', $validFines->count()],
+        ];
 
-        // This allows the manager to select A3:B5 and click "Insert Chart" in Excel
-        $sheet->getColumnDimension('A')->setWidth(30);
+        foreach ($rows as $i => [$label, $value]) {
+            $sheet->setCellValue('A' . (4 + $i), $label);
+            $sheet->setCellValue('B' . (4 + $i), $value);
+        }
+
+        // This allows the manager to select A3:B10 and click "Insert Chart" in Excel
+        $sheet->getColumnDimension('A')->setWidth(38);
     }
 }

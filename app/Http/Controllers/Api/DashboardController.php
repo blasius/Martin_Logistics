@@ -86,15 +86,24 @@ class DashboardController extends Controller
         ];
 
         // Fine Management
+        $outstandingFines = TrafficFine::outstanding();
+        $settledFines = TrafficFine::settled();
+
         $fineStats = [
             'total_fines' => TrafficFine::count(),
-            'pending_fines' => TrafficFine::where('status', 'PENDING')->count(),
-            'paid_fines' => TrafficFine::where('status', 'PAID')->count(),
-            'total_amount_due' => TrafficFine::where('status', 'PENDING')->sum('ticket_amount'),
-            'total_paid' => TrafficFine::where('status', 'PAID')->sum('paid_amount'),
-            'overdue_fines' => TrafficFine::where('status', 'PENDING')
-                ->where('pay_by', '<', $today)
-                ->count(),
+            'pending_fines' => (clone $outstandingFines)->count(),
+            'paid_fines' => (clone $settledFines)->count(),
+            'total_principal_due' => (float) (clone $outstandingFines)->sum('ticket_amount'),
+            'total_late_fees' => (float) (clone $outstandingFines)->sum('late_fee'),
+            // Amount owed = principal + accrued late fees.
+            'total_amount_due' => round(
+                (float) (clone $outstandingFines)->sum('ticket_amount')
+                + (float) (clone $outstandingFines)->sum('late_fee'),
+                2
+            ),
+            'total_paid' => (float) (clone $settledFines)->sum('paid_amount'),
+            // Overdue is defined by the portal Pay By date, same as everywhere else.
+            'overdue_fines' => TrafficFine::overdue()->count(),
         ];
 
         // Recent Activity
@@ -109,7 +118,7 @@ class DashboardController extends Controller
                 ->get(['id', 'order_id', 'status', 'vehicle_plate_snapshot', 'driver_name_snapshot', 'created_at']),
             'recent_fines' => TrafficFine::orderBy('created_at', 'desc')
                 ->take(5)
-                ->get(['id', 'ticket_number', 'plate_number', 'ticket_amount', 'status', 'issued_at']),
+                ->get(['id', 'ticket_number', 'plate_number', 'ticket_amount', 'late_fee', 'status', 'issued_at', 'pay_by']),
         ];
 
         // Performance Metrics (Weekly)

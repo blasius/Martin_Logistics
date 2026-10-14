@@ -9,7 +9,6 @@ use App\Models\Vehicle;
 use App\Models\TrafficFine;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
 use App\Exports\FinesExport;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -64,9 +63,18 @@ class FinesController extends Controller
             });
         }
 
-        // 3. Filter by Status
-        if ($request->filled('status')) {
-            $query->where('status', strtoupper($request->status));
+        // 3. Filter by Status. "outstanding" and "overdue" are derived
+        //    states resolved by the model rather than raw status values.
+        $status = $request->get('status');
+
+        if ($status === 'outstanding') {
+            $query->outstanding();
+        } elseif ($status === 'overdue') {
+            $query->overdue();
+        } elseif ($status === 'due_soon') {
+            $query->dueWithin();
+        } elseif ($request->filled('status')) {
+            $query->where('status', strtoupper($status));
         }
 
         $perPage = intval($request->get('per_page', 15));
@@ -94,11 +102,18 @@ class FinesController extends Controller
 
             $fine->assigned_driver_name = $driverName;
 
-            // Date logic
-            $issuedAt = $fine->issued_at ? Carbon::parse($fine->issued_at) : null;
+            // Date logic — every flag derives from the portal's Pay By date.
+            // The app never assumes a payment window length.
+            $issuedAt = $fine->issued_at;
             $fine->issued_at_human = $issuedAt ? $issuedAt->diffForHumans() : 'Unknown';
-            $fine->is_overdue = $issuedAt ? $issuedAt->diffInDays(now()) > 14 : false;
-            $fine->show_penalty_warning = ($fine->is_overdue && $fine->status === 'PENDING');
+
+            $fine->due_state = $fine->dueState();
+            $fine->due_state_label = $fine->dueStateLabel();
+            $fine->days_until_pay_by = $fine->daysUntilPayBy();
+            $fine->days_overdue = $fine->daysOverdue();
+            $fine->is_overdue = $fine->isOverdue();
+            $fine->is_settled = $fine->isSettled();
+            $fine->total_due = $fine->total_due;
 
             return $fine;
         });
@@ -140,19 +155,53 @@ class FinesController extends Controller
             $query->where('plate_number', 'like', "%{$request->plate}%");
         }
 
+        // Honour the status filter so the spreadsheet matches what the user is
+        // looking at. "outstanding" is the default because the export is a
+        // debt report, and its totals only make sense for unpaid tickets.
+        $status = $request->get('status');
+
+        if ($status === 'outstanding') {
+            $query->outstanding();
+        } elseif ($request->filled('status')) {
+            $query->where('status', strtoupper($status));
+        } else {
+            $query->outstanding();
+        }
+
         return Excel::download(new FinesExport($query), 'fleet_debt_report_' . now()->format('Y-m-d_H-i-s_u') . '.xlsx');
     }
 
     public function stats()
     {
+        $outstanding = TrafficFine::outstanding();
+
         return response()->json([
-            'total_unpaid' => TrafficFine::where('status', 'PENDING')->sum('ticket_amount'),
-            'overdue_count' => TrafficFine::where('status', 'PENDING')
-                ->where('issued_at', '<', now()->subDays(14))
-                ->count(),
-            'top_violation' => DB::table('traffic_fine_violations') // Adjust table name accordingly
-            ->select('violation_name', DB::raw('count(*) as count'))
-                ->groupBy('violation_name')
+            // Principal and penalty reported separately so it is clear how much
+            // of the debt is late fee; total_due is the sum of the two.
+            'total_principal' => (float) (clone $outstanding)->sum('ticket_amount'),
+            'total_late_fees' => (float) (clone $outstanding)->sum('late_fee'),
+            'total_unpaid' => round(
+                (float) (clone $outstanding)->sum('ticket_amount')
+                + (float) (clone $outstanding)->sum('late_fee'),
+                2
+            ),
+            'outstanding_count' => (clone $outstanding)->count(),
+
+            // Overdue is driven entirely by the portal Pay By date.
+            'overdue_count' => TrafficFine::overdue()->count(),
+            'overdue_amount' => round(
+                (float) TrafficFine::overdue()->sum('ticket_amount')
+                + (float) TrafficFine::overdue()->sum('late_fee'),
+                2
+            ),
+            'due_soon_count' => TrafficFine::dueWithin()->count(),
+            'penalized_count' => TrafficFine::penalized()->count(),
+
+            'top_violation' => DB::table('traffic_fine_violations')
+                ->join('traffic_fines', 'traffic_fine_violations.traffic_fine_id', '=', 'traffic_fines.id')
+                ->whereNotIn('traffic_fines.status', TrafficFine::SETTLED_STATUSES)
+                ->select('traffic_fine_violations.violation_name', DB::raw('count(*) as count'))
+                ->groupBy('traffic_fine_violations.violation_name')
                 ->orderByDesc('count')
                 ->first(),
         ]);
